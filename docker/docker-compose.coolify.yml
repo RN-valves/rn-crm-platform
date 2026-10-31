@@ -1,0 +1,210 @@
+version: "3.8"
+
+networks:
+  rn-crm-network:
+    name: rn-crm-network
+    driver: bridge
+
+volumes:
+  chatwoot-postgres-data:
+    name: chatwoot-postgres-data
+  chatwoot-redis-data:
+    name: chatwoot-redis-data
+  chatwoot-storage:
+    name: chatwoot-storage
+  rn-crm-redis-data:
+    name: rn-crm-redis-data
+
+services:
+  # ============================================================================
+  # 1. CHATWOOT COMMUNITY EDITION (SHARED WHATSAPP INBOX & AGENT SYSTEM)
+  # ============================================================================
+  chatwoot-postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chatwoot_production
+      POSTGRES_USER: chatwoot
+      POSTGRES_PASSWORD: ${CHATWOOT_POSTGRES_PASSWORD:-cw_secure_pg_pass_rn}
+    volumes:
+      - chatwoot-postgres-data:/var/lib/postgresql/data
+    networks:
+      - rn-crm-network
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatwoot -d chatwoot_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chatwoot-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${CHATWOOT_REDIS_PASSWORD:-cw_secure_redis_pass_rn}"]
+    volumes:
+      - chatwoot-redis-data:/data
+    networks:
+      - rn-crm-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${CHATWOOT_REDIS_PASSWORD:-cw_secure_redis_pass_rn}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  chatwoot-web:
+    image: chatwoot/chatwoot:v3.13.0
+    restart: unless-stopped
+    depends_on:
+      chatwoot-postgres:
+        condition: service_healthy
+      chatwoot-redis:
+        condition: service_healthy
+    environment:
+      FRONTEND_URL: ${CHATWOOT_FRONTEND_URL:-https://inbox.rnvalves.com}
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE:-replace_with_64_char_secret_base}
+      REDIS_URL: redis://:${CHATWOOT_REDIS_PASSWORD:-cw_secure_redis_pass_rn}@chatwoot-redis:6379/0
+      POSTGRES_HOST: chatwoot-postgres
+      POSTGRES_USERNAME: chatwoot
+      POSTGRES_PASSWORD: ${CHATWOOT_POSTGRES_PASSWORD:-cw_secure_pg_pass_rn}
+      POSTGRES_DATABASE: chatwoot_production
+      RAILS_ENV: production
+      NODE_ENV: production
+      ACTIVE_STORAGE_SERVICE: local
+    volumes:
+      - chatwoot-storage:/app/storage
+    networks:
+      - rn-crm-network
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  chatwoot-worker:
+    image: chatwoot/chatwoot:v3.13.0
+    restart: unless-stopped
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    depends_on:
+      - chatwoot-web
+    environment:
+      FRONTEND_URL: ${CHATWOOT_FRONTEND_URL:-https://inbox.rnvalves.com}
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY_BASE:-replace_with_64_char_secret_base}
+      REDIS_URL: redis://:${CHATWOOT_REDIS_PASSWORD:-cw_secure_redis_pass_rn}@chatwoot-redis:6379/0
+      POSTGRES_HOST: chatwoot-postgres
+      POSTGRES_USERNAME: chatwoot
+      POSTGRES_PASSWORD: ${CHATWOOT_POSTGRES_PASSWORD:-cw_secure_pg_pass_rn}
+      POSTGRES_DATABASE: chatwoot_production
+      RAILS_ENV: production
+    volumes:
+      - chatwoot-storage:/app/storage
+    networks:
+      - rn-crm-network
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  # ============================================================================
+  # 2. RN CRM PLATFORM (REDIS, BACKEND GATEWAY, BULLMQ WORKERS, FRONTEND)
+  # ============================================================================
+  rn-crm-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${RN_REDIS_PASSWORD:-rn_bullmq_redis_pass_123}"]
+    volumes:
+      - rn-crm-redis-data:/data
+    networks:
+      - rn-crm-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${RN_REDIS_PASSWORD:-rn_bullmq_redis_pass_123}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  rn-crm-backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      rn-crm-redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      FRONTEND_URL: ${CRM_FRONTEND_URL:-https://crm.rnvalves.com}
+      BACKEND_URL: ${CRM_BACKEND_URL:-https://crm-api.rnvalves.com}
+      CRM_MONGODB_URI: ${CRM_MONGODB_URI}
+      ECOMM_MONGODB_URI: ${ECOMM_MONGODB_URI}
+      REDIS_HOST: rn-crm-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${RN_REDIS_PASSWORD:-rn_bullmq_redis_pass_123}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-https://wa-api.rnvalves.com}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_INSTANCE_NAME: RNchat
+      EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET}
+      MAKE_WEBHOOK_URL: ${MAKE_WEBHOOK_URL}
+      CHATWOOT_BASE_URL: http://chatwoot-web:3000
+      CHATWOOT_API_ACCESS_TOKEN: ${CHATWOOT_API_ACCESS_TOKEN}
+      CHATWOOT_INBOX_ID: ${CHATWOOT_INBOX_ID:-1}
+      CHATWOOT_WEBHOOK_SECRET: ${CHATWOOT_WEBHOOK_SECRET}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    networks:
+      - rn-crm-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    expose:
+      - "5000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  rn-crm-frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/frontend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      rn-crm-backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${CRM_BACKEND_URL:-https://crm-api.rnvalves.com/api}
+    networks:
+      - rn-crm-network
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

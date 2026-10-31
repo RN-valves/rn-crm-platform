@@ -1,0 +1,65 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+export async function apiRequest(endpoint, options = {}) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("rn_crm_token") : null;
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || `HTTP ${response.status}`);
+  }
+
+  return data;
+}
+
+export const crmApi = {
+  // Auth
+  login: (credentials) => apiRequest("/auth/login", { method: "POST", body: JSON.stringify(credentials) }),
+  getMe: () => apiRequest("/auth/me"),
+
+  // Dashboard
+  getDashboardStats: () => apiRequest("/dashboard/stats"),
+
+  // Contacts
+  getContacts: (params = "") => apiRequest(`/contacts${params}`),
+  getContactById: (id) => apiRequest(`/contacts/${id}`),
+  updateContact: (id, data) => apiRequest(`/contacts/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  // Leads
+  getLeads: (params = "") => apiRequest(`/leads${params}`),
+  updateLeadStage: (id, status, comment) =>
+    apiRequest(`/leads/${id}/stage`, { method: "PATCH", body: JSON.stringify({ status, comment }) }),
+  createLead: (data) => apiRequest("/leads", { method: "POST", body: JSON.stringify(data) }),
+
+  // Conversations
+  getConversations: (params = "") => apiRequest(`/conversations${params}`),
+  getMessages: (id) => apiRequest(`/conversations/${id}/messages`),
+  sendReply: (data) => apiRequest("/conversations/reply", { method: "POST", body: JSON.stringify(data) }),
+  toggleMode: (data) => apiRequest("/conversations/mode", { method: "PATCH", body: JSON.stringify(data) }),
+
+  // AI & Knowledge Base
+  getAiSettings: () => apiRequest("/ai/settings"),
+  updateAiSettings: (data) => apiRequest("/ai/settings", { method: "PUT", body: JSON.stringify(data) }),
+  getKnowledgeBase: () => apiRequest("/ai/knowledge-base"),
+  createKnowledgeBaseItem: (data) => apiRequest("/ai/knowledge-base", { method: "POST", body: JSON.stringify(data) }),
+
+  // Follow-ups
+  getFollowups: (params = "") => apiRequest(`/followups${params}`),
+  updateFollowupStatus: (id, status) =>
+    apiRequest(`/followups/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+
+  // System
+  getSystemHealth: () => apiRequest("/system/health"),
+  getAuditLogs: () => apiRequest("/system/audit-logs"),
+};
