@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { getRedisClient } from "../queues/redisConnection.js";
 import { incomingMessagesQueue } from "../queues/queueManager.js";
+import { getConversationControlModel } from "../models/ConversationControl.js";
 import { config } from "../config/env.js";
 
 /**
@@ -53,15 +54,44 @@ export async function handleEvolutionWebhook(req: Request, res: Response): Promi
 
     const messageId = key.id;
     const remoteJid = key.remoteJid; // e.g., "919876543210@s.whatsapp.net"
-    const fromMe = key.fromMe; // true if sent by our own bot or agent
+    const fromMe = key.fromMe; // true if sent by our own bot or phone user
 
-    // Skip status broadcasts, groups, or self-sent messages
-    if (fromMe || remoteJid.includes("@g.us") || remoteJid.includes("status@broadcast")) {
+    // Skip status broadcasts and group messages
+    if (remoteJid.includes("@g.us") || remoteJid.includes("status@broadcast")) {
+      return;
+    }
+
+    const redis = getRedisClient();
+
+    // If sent from our WhatsApp phone:
+    if (fromMe) {
+      // Check if it was sent by our automated Bot
+      const isBotMsg = await redis.get(`bot:sent:${messageId}`);
+      if (!isBotMsg) {
+        // A real human on the mobile phone or WhatsApp Web sent this message!
+        // Automatically put this chat into HUMAN MODE so the bot NEVER replies to this colleague / staff / contact!
+        const rawNumber = remoteJid.split("@")[0].replace(/\D/g, "");
+        const normalizedPhone = rawNumber.startsWith("91") ? `+${rawNumber}` : `+91${rawNumber}`;
+        console.log(`👤 [Webhook] Staff/Owner manually messaged ${normalizedPhone} from phone. Switching chat to HUMAN MODE (Bot muted).`);
+        try {
+          const ConversationControl = getConversationControlModel();
+          await ConversationControl.findOneAndUpdate(
+            { phone: normalizedPhone },
+            {
+              mode: "human",
+              pauseReason: "Manual message sent by staff/owner from mobile device",
+              lastCustomerMessageAt: new Date(),
+            },
+            { upsert: true }
+          );
+        } catch (e: any) {
+          console.warn(`[Webhook] Human mode update skipped: ${e.message}`);
+        }
+      }
       return;
     }
 
     // 4. Deduplication check via Redis atomic lock (24h TTL)
-    const redis = getRedisClient();
     const dedupKey = `msg:dedup:${messageId}`;
     const isNew = await redis.set(dedupKey, "1", "EX", 86400, "NX");
 

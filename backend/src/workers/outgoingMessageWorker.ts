@@ -1,5 +1,5 @@
 import { Worker, Job } from "bullmq";
-import { getRedisOptions } from "../queues/redisConnection.js";
+import { getRedisOptions, getRedisClient } from "../queues/redisConnection.js";
 import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { chatwootClient } from "../services/chatwoot/chatwootClient.js";
 
@@ -57,6 +57,16 @@ export function setupOutgoingMessageWorker(): Worker {
 
       if (!sendResult.success) {
         throw new Error(`Failed to deliver message via Evolution API: ${sendResult.error}`);
+      }
+
+      // Mark message in Redis so webhook knows this was sent by the Bot (not a human typing on the phone)
+      if (sendResult.messageId) {
+        try {
+          const redis = getRedisClient();
+          await redis.set(`bot:sent:${sendResult.messageId}`, "1", "EX", 86400);
+        } catch (e: any) {
+          // ignore
+        }
       }
 
       // 2. If it is an AI reply and Chatwoot conversation exists, sync message into Chatwoot

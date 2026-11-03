@@ -88,8 +88,19 @@ export function setupIncomingMessageWorker(): Worker {
         console.warn(`[Incoming Worker] Chatwoot sync skipped/offline: ${err.message}`);
       }
 
-      // 3. Check Conversation Mode (AI Mode vs Human Mode)
-      let mode: "ai" | "human" = "ai";
+      // 3. Check Conversation Mode (AI Mode vs Human Mode) & Staff Exclusions
+      const staffPhonePatterns = [
+        "9315160881", "9315160882", "9315160883", "9315160884", "9315160885", "9315160886",
+      ];
+      const isInternalStaff = staffPhonePatterns.some(num => normalizedPhone.includes(num)) ||
+        (contact && (contact.tags?.includes("Staff") || contact.tags?.includes("Colleague") || contact.tags?.includes("DoNotReply") || contact.businessType === "Staff"));
+
+      // Check on-the-fly Mute Commands (#mute / #stop / #ai off)
+      const cleanLower = textContent.trim().toLowerCase();
+      const isMuteCommand = ["#mute", "#stop", "#aioff", "#ai off", "#staff"].includes(cleanLower);
+      const isUnmuteCommand = ["#unmute", "#aion", "#ai on"].includes(cleanLower);
+
+      let mode: "ai" | "human" = isInternalStaff ? "human" : "ai";
       try {
         const ConversationControl = getConversationControlModel();
         let control = await ConversationControl.findOne({ phone: normalizedPhone });
@@ -97,13 +108,24 @@ export function setupIncomingMessageWorker(): Worker {
           control = await ConversationControl.create({
             phone: normalizedPhone,
             chatwootConversationId: chatwootConvId ? String(chatwootConvId) : "",
-            mode: "ai",
+            mode: isInternalStaff ? "human" : "ai",
+            pauseReason: isInternalStaff ? "Internal Staff / Colleague exclusion" : "",
             lastCustomerMessageAt: new Date(),
           });
         } else {
           control.lastCustomerMessageAt = new Date();
           if (chatwootConvId && !control.chatwootConversationId) {
             control.chatwootConversationId = String(chatwootConvId);
+          }
+          if (isMuteCommand) {
+            control.mode = "human";
+            control.pauseReason = "Manually muted via #mute command";
+          } else if (isUnmuteCommand) {
+            control.mode = "ai";
+            control.pauseReason = "";
+          } else if (isInternalStaff && control.mode !== "human") {
+            control.mode = "human";
+            control.pauseReason = "Internal Staff / Colleague exclusion";
           }
           await control.save();
           mode = control.mode;
@@ -113,9 +135,9 @@ export function setupIncomingMessageWorker(): Worker {
       }
 
       // 4. Mode Enforcement:
-      // If Human Mode, STOP HERE! Do not route to AI.
-      if (mode === "human") {
-        console.log(`🛑 [Incoming Worker] Conversation for ${normalizedPhone} is in HUMAN MODE. AI reply paused.`);
+      // If Human Mode or Internal Staff, STOP HERE! Do not route to AI.
+      if (mode === "human" || isInternalStaff) {
+        console.log(`🛑 [Incoming Worker] Conversation for ${normalizedPhone} is in HUMAN MODE or STAFF. Bot will NOT reply.`);
         return { status: "human_mode_active", phone: normalizedPhone };
       }
 
