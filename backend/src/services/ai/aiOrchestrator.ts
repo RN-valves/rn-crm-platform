@@ -262,7 +262,7 @@ ${context ? `\nVerified Product / Catalog Context:\n${context}` : ""}`;
         replyText: reply,
         mediaUrl: top.image ? (top.image.startsWith("http") ? top.image : `${config.MEDIA_CDN_URL}/${top.image.replace(/^\//, "")}`) : undefined,
         mediaType: top.image ? "image" : undefined,
-        mediaCaption: `${top.name} - ₹${price}`,
+        mediaCaption: reply,
         requiresHumanHandover: false,
         leadData: {
           productInterest: [top.code],

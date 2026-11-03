@@ -149,16 +149,11 @@ export class EvolutionClient {
     const url = `${this.baseUrl}/message/sendMedia/${this.instanceName}`;
     const payload = {
       number: targetNumber,
-      mediaMessage: {
-        mediatype: params.mediaType,
-        media: params.mediaUrl,
-        caption: params.caption || "",
-        fileName: params.fileName || (params.mediaType === "document" ? "RN_Document.pdf" : "image.jpg"),
-      },
-      options: {
-        delay: params.delayMs || 1500,
-        presence: "composing",
-      },
+      mediatype: params.mediaType,
+      media: params.mediaUrl,
+      caption: params.caption || "",
+      fileName: params.fileName || (params.mediaType === "document" ? "RN_Document.pdf" : "image.jpg"),
+      delay: params.delayMs || 1200,
     };
 
     try {

@@ -31,6 +31,17 @@ export function setupOutgoingMessageWorker(): Worker {
           caption: mediaCaption || replyText,
           fileName: mediaFileName,
         });
+
+        // Fallback to text message if media sending encounters an issue
+        if (!sendResult.success) {
+          console.warn(
+            `⚠️ [Outgoing Worker] Media delivery failed (${sendResult.error}), falling back to text delivery.`
+          );
+          sendResult = await evolutionClient.sendTextMessage({
+            number: phone,
+            text: replyText,
+          });
+        }
       } else {
         sendResult = await evolutionClient.sendTextMessage({
           number: phone,
