@@ -14,8 +14,16 @@ export function setupAiProcessingWorker(): Worker {
       try {
         const ConversationControl = getConversationControlModel();
         const control = await ConversationControl.findOne({ phone });
-        if (control && control.mode === "human") {
-          console.log(`🛑 [AI Worker] Human agent took over ${phone}. Aborting AI generation.`);
+        // Only abort if a real human agent manually took over in Chatwoot (not AI auto-pause)
+        if (
+          control &&
+          control.mode === "human" &&
+          control.pauseReason &&
+          !control.pauseReason.startsWith("AI Handover")
+        ) {
+          console.log(
+            `🛑 [AI Worker] Real human agent actively took over ${phone} (${control.pauseReason}). Aborting AI generation.`
+          );
           return { status: "aborted_human_takeover" };
         }
       } catch (err: any) {
@@ -33,8 +41,8 @@ export function setupAiProcessingWorker(): Worker {
 
       console.log(`💡 [AI Worker] Decision for ${phone}: intent=${decision.intent}, lang=${decision.language}`);
 
-      // 3. If handover required (e.g. dealer inquiry or explicit request), switch mode to 'human'
-      if (decision.requiresHumanHandover) {
+      // 3. If explicit human handover requested by customer, assign to human team
+      if (decision.requiresHumanHandover && decision.intent === "human_handover") {
         try {
           const ConversationControl = getConversationControlModel();
           await ConversationControl.findOneAndUpdate(
@@ -42,21 +50,23 @@ export function setupAiProcessingWorker(): Worker {
             {
               mode: "human",
               assignedTeam: "Sales",
-              pauseReason: `AI Handover: ${decision.intent}`,
+              pauseReason: `Customer requested human representative`,
             },
             { upsert: true }
           );
         } catch (err: any) {
           console.warn(`[AI Worker] Mode update skipped: ${err.message}`);
         }
+      }
 
-        // Trigger lead processing queue
+      // 4. If lead data captured (e.g. dealer inquiry with shop/pincode), trigger lead processing queue
+      if (decision.leadData) {
         await leadProcessingQueue.add("process-qualified-lead", {
           phone,
-          customerName,
-          businessType: decision.leadData?.businessType || "Dealer",
-          city: decision.leadData?.city,
-          productInterest: decision.leadData?.productInterest || [],
+          customerName: decision.leadData.customerName || customerName,
+          businessType: decision.leadData.businessType || "Dealer",
+          city: decision.leadData.city,
+          productInterest: decision.leadData.productInterest || [],
           requirement: messageText,
           source: "WhatsApp_Inbound",
         });

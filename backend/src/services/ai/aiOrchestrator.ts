@@ -91,6 +91,17 @@ ${context ? `\nVerified Product / Catalog Context:\n${context}` : ""}`;
   static detectLanguage(text: string): "hi" | "en" | "mr" | "bn" | "hinglish" {
     const t = text.toLowerCase();
 
+    // Explicit Hindi requests
+    if (/\b(hindi|shuddh hindi)\b/i.test(t)) {
+      return "hi";
+    }
+    if (/\b(hinglish|roman hindi)\b/i.test(t)) {
+      return "hinglish";
+    }
+    if (/\b(english|eng)\b/i.test(t)) {
+      return "en";
+    }
+
     // Bengali detection
     if (/[\u0980-\u09FF]/.test(text) || /\b(ami|tumi|apni|kothay|dorkar|koto|dam)\b/i.test(t)) {
       return "bn";
@@ -108,7 +119,9 @@ ${context ? `\nVerified Product / Catalog Context:\n${context}` : ""}`;
 
     // Hinglish detection
     if (
-      /\b(chahiye|kya|hai|kitna|bhai|mujhe|price|rate|kaha|kaise|milega|bhejo|dekhna)\b/i.test(t)
+      /\b(chahiye|kya|hai|h|kitna|bhai|mujhe|price|rate|kaha|kaise|milega|bhejo|dekhna|batao|bataiye|aap|hum|koi|naam|dukan|namaste|ha|haan)\b/i.test(
+        t
+      )
     ) {
       return "hinglish";
     }
@@ -186,6 +199,71 @@ ${context ? `\nVerified Product / Catalog Context:\n${context}` : ""}`;
       };
     }
 
+    // 3. Explicit Language Switch Request (e.g. "talk in hindi", "hindi me bolo", "hindi please")
+    if (/^(talk in hindi|hindi me|hindi please|hindi|hindi me bolo|hindi me baat karo|hindi bol)$/i.test(cleanWords)) {
+      return {
+        intent: "general_faq",
+        language: "hi",
+        replyText: "नमस्ते! बिल्कुल, अब हम हिंदी में बात करेंगे। 🙏✨\n\nबताइए, RN Valves & Faucets के कौन से प्रोडक्ट (Taps, Brass Ball Valves, Showers, या PTMT) के बारे में जानकारी या रेट चाहिए?",
+        requiresHumanHandover: false,
+      };
+    }
+
+    // 4. Presence / Alive Inquiry (e.g. "koi h ?", "hello ??", "anyone there?")
+    if (/\b(koi h|koi hai|anyone there|hello\s*\?+|koi h\s*\?+)\b/i.test(lower)) {
+      let presenceReply = "";
+      if (lang === "hi" || lang === "hinglish") {
+        presenceReply = "हाँ जी, नमस्कार! मैं *RN Sahayak* यहीं हूँ। 🙏\n\nकृपया बताइए, मैं आपकी किस प्रकार सहायता कर सकता हूँ? आप किसी प्रोडक्ट का रेट, कैटलॉग या डीलरशिप की जानकारी ले सकते हैं।";
+      } else {
+        presenceReply = "Hello! Yes, I am here to assist you! 🙏\n\nHow can I help you today? Please feel free to ask about product pricing, catalogue, or dealership inquiries.";
+      }
+      return {
+        intent: "general_faq",
+        language: lang,
+        replyText: presenceReply,
+        requiresHumanHandover: false,
+      };
+    }
+
+    // 5. Dealer Details Submission (e.g. "Shop Name- aditya, Pincode 274301, Contact Person Name- sumit")
+    if (
+      lower.includes("shop name") ||
+      lower.includes("pincode") ||
+      lower.includes("contact person") ||
+      lower.includes("calling number") ||
+      (lower.includes("dukan") && lower.includes("name"))
+    ) {
+      const shopMatch = text.match(/(?:shop\s*name|firm\s*name|dukan)[\s\-:]+([^\n,]+)/i);
+      const pinMatch = text.match(/(?:pincode|pin\s*code|pin)[\s\-:*]+([0-9]{6})/i);
+      const nameMatch = text.match(/(?:contact\s*person\s*name|contact\s*person|name)[\s\-:]+([^\n,]+)/i);
+      const phoneMatch = text.match(/(?:calling\s*number|phone|mobile|whatsapp)[\s\-:]+([0-9]{10,12})/i);
+
+      const shopName = shopMatch ? shopMatch[1].trim() : "Shop";
+      const pincode = pinMatch ? pinMatch[1].trim() : "";
+      const contactPerson = nameMatch ? nameMatch[1].trim() : params.customerName || "ji";
+      const contactPhone = phoneMatch ? phoneMatch[1].trim() : params.phone;
+
+      let confReply = "";
+      if (lang === "hi" || lang === "hinglish") {
+        confReply = `धन्यवाद ${contactPerson} जी! 🙏✨\n\nहमने आपकी डीलरशिप इंक्वायरी और फर्म की डिटेल्स नोट कर ली हैं:\n🏢 *फर्म का नाम:* ${shopName}\n📍 *पिनकोड:* ${pincode || "Noted"}\n👤 *संपर्क व्यक्ति:* ${contactPerson}\n📱 *फोन नंबर:* ${contactPhone}\n\nहमारे *Regional Sales Manager* आपसे जल्द ही सीधे कॉल/व्हाट्सएप पर संपर्क करेंगे और कम्पलीट होलसेल डीलर प्राइस लिस्ट और कैटलॉग शेयर करेंगे! 📦🤝\n\nतब तक क्या आपको किसी खास प्रोडक्ट (Taps, Brass Ball Valves, या PTMT) के बारे में कोई सवाल पूछना है?`;
+      } else {
+        confReply = `Thank you ${contactPerson}! 🙏✨\n\nWe have recorded your dealership details:\n🏢 *Firm Name:* ${shopName}\n📍 *Pincode:* ${pincode || "Noted"}\n👤 *Contact Person:* ${contactPerson}\n📱 *Contact Number:* ${contactPhone}\n\nOur *Regional Sales Manager* will connect with you shortly with our exclusive wholesale dealer price list and catalogue! 📦🤝\n\nIn the meantime, which product category would you like to explore?`;
+      }
+
+      return {
+        intent: "dealer_inquiry",
+        language: lang,
+        replyText: confReply,
+        requiresHumanHandover: false, // Keep AI active!
+        leadData: {
+          customerName: contactPerson,
+          businessName: shopName,
+          businessType: "Dealer",
+          city: pincode,
+        },
+      };
+    }
+
     // 2. Catalogue PDF Request
     if (lower.includes("catalogue") || lower.includes("catalog") || lower.includes("pdf") || lower.includes("brochure")) {
       const catalogues = await ProductRepository.getCatalogue();
@@ -236,7 +314,7 @@ ${context ? `\nVerified Product / Catalog Context:\n${context}` : ""}`;
         intent: "dealer_inquiry",
         language: lang,
         replyText: reply,
-        requiresHumanHandover: true,
+        requiresHumanHandover: false,
         leadData: {
           customerName: params.customerName,
           businessType: lower.includes("distributor") ? "Distributor" : "Dealer",
