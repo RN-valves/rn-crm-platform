@@ -3,6 +3,7 @@ import { SalesRepDirectory, SalesRep } from "./salesRepDirectory.js";
 import { CatalogueDirectory, CatalogueCategory } from "./catalogueDirectory.js";
 import { getLeadModel } from "../../models/Lead.js";
 import { ProductRepository } from "../../repositories/ProductRepository.js";
+import { outgoingMessagesQueue } from "../../queues/queueManager.js";
 import { chatwootClient } from "../chatwoot/chatwootClient.js";
 
 export interface FlowResponse {
@@ -188,6 +189,38 @@ export class FlowEngine {
         console.log(`✅ [FlowEngine] Extracted & Created Lead ${leadNumber} for ${finalName} -> Assigned to ${rep.name}`);
       } catch (err: any) {
         console.error(`❌ [FlowEngine] Failed to save lead: ${err.message}`);
+      }
+
+      // Send instant WhatsApp alert directly to the Regional Sales Rep
+      try {
+        const cleanRepPhone = rep.mobile.replace(/\D/g, "");
+        if (cleanRepPhone && cleanRepPhone !== mob) {
+          const alertToRep = `🚨 *नई डीलर लीड अलर्ट! (New WhatsApp Lead)*\n\n` +
+            `नमस्ते *${rep.name} ji*,\n` +
+            `आपके क्षेत्र (*${rep.area}*) से एक नई लीड आई है:\n\n` +
+            `👤 *ग्राहक/दुकान:* ${finalName}\n` +
+            `📞 *मोबाइल:* ${mob}\n` +
+            `📍 *पिन कोड:* ${pin} (${rep.state})\n` +
+            `🏷️ *प्रकार:* ${stateDoc.customerType || "Dealer"}\n` +
+            `📦 *उत्पाद रुचि:* All Categories\n` +
+            `🆔 *लीड आईडी:* ${leadNumber}\n\n` +
+            `⚡ कृपया तुरंत ग्राहक से संपर्क करके डीलर रेट और कैटलॉग शेयर करें!`;
+
+          await outgoingMessagesQueue.add(
+            "send-whatsapp-message",
+            {
+              phone: cleanRepPhone,
+              replyText: alertToRep,
+              isAiReply: false,
+            },
+            {
+              jobId: `rep_alert_${leadNumber}_${Date.now()}`,
+            }
+          );
+          console.log(`📲 [FlowEngine] Sent WhatsApp lead notification to Rep ${rep.name} (${cleanRepPhone})`);
+        }
+      } catch (alertErr: any) {
+        console.warn(`[FlowEngine] Rep notification skipped: ${alertErr.message}`);
       }
 
       stateDoc.state = "COMPLETED";
@@ -606,6 +639,39 @@ export class FlowEngine {
           console.log(`✅ [FlowEngine] Created Lead ${leadNumber} for ${session.formData.name} -> Assigned to ${rep.name}`);
         } catch (leadErr: any) {
           console.error(`❌ [FlowEngine] Failed to save lead: ${leadErr.message}`);
+        }
+
+        // 2. Dispatch instant WhatsApp notification directly to Regional Sales Rep
+        try {
+          const cleanRepPhone = rep.mobile.replace(/\D/g, "");
+          const customerPhone = session.formData.mobile || session.phone;
+          if (cleanRepPhone && cleanRepPhone !== customerPhone) {
+            const alertToRep = `🚨 *नई डीलर लीड अलर्ट! (New WhatsApp Lead)*\n\n` +
+              `नमस्ते *${rep.name} ji*,\n` +
+              `आपके क्षेत्र (*${rep.area}*) से एक नई लीड दर्ज हुई है:\n\n` +
+              `👤 *ग्राहक नाम:* ${session.formData.name}\n` +
+              `📞 *मोबाइल:* ${customerPhone}\n` +
+              `📍 *पिन कोड:* ${session.formData.pincode} (${rep.state})\n` +
+              `🏷️ *प्रकार:* ${session.customerType || "Dealer"}\n` +
+              `📦 *उत्पाद श्रेणी:* ${interestName}\n` +
+              `🆔 *लीड आईडी:* ${leadNumber}\n\n` +
+              `⚡ कृपया तुरंत ग्राहक से संपर्क करके आवश्यक डील क्लोज करें!`;
+
+            await outgoingMessagesQueue.add(
+              "send-whatsapp-message",
+              {
+                phone: cleanRepPhone,
+                replyText: alertToRep,
+                isAiReply: false,
+              },
+              {
+                jobId: `rep_alert_${leadNumber}_${Date.now()}`,
+              }
+            );
+            console.log(`📲 [FlowEngine] Sent WhatsApp lead notification to Rep ${rep.name} (${cleanRepPhone})`);
+          }
+        } catch (alertErr: any) {
+          console.warn(`[FlowEngine] Rep notification warning: ${alertErr.message}`);
         }
 
         session.state = "COMPLETED";
