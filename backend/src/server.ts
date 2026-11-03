@@ -23,7 +23,7 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: [config.FRONTEND_URL, "http://localhost:3000", "http://localhost:3001"],
+    origin: [config.FRONTEND_URL, "https://crm.rnvalves.com", "http://localhost:3000", "http://localhost:3001"],
     credentials: true,
   })
 );
@@ -50,20 +50,31 @@ const authLimiter = rateLimit({
   message: { error: "Too many login attempts, please try again after 15 minutes." },
 });
 app.use("/api/auth/login", authLimiter);
+app.use("/auth/login", authLimiter);
 
 // Base Health & Webhook Routes
 app.use("/api", healthRoutes);
+app.use("/", healthRoutes);
 app.use("/api/webhooks", webhookRoutes);
+app.use("/webhooks", webhookRoutes);
 
-// CRM REST API Modules
+// CRM REST API Modules (Supported with and without /api prefix)
 app.use("/api/auth", authRoutes);
+app.use("/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/dashboard", dashboardRoutes);
 app.use("/api/contacts", contactRoutes);
+app.use("/contacts", contactRoutes);
 app.use("/api/leads", leadRoutes);
+app.use("/leads", leadRoutes);
 app.use("/api/conversations", conversationRoutes);
+app.use("/conversations", conversationRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/ai", aiRoutes);
 app.use("/api/followups", followupRoutes);
+app.use("/followups", followupRoutes);
 app.use("/api/system", systemRoutes);
+app.use("/system", systemRoutes);
 
 // Global Error Handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
