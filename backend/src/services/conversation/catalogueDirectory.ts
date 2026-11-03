@@ -6,41 +6,43 @@ export interface CatalogueCategory {
 }
 
 export class CatalogueDirectory {
+  private static masterPdfUrl = "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf";
+
   private static categories: Record<string, CatalogueCategory> = {
     "1": {
       id: "cp_faucets",
       name: "CP Faucets",
-      pdfUrl: "https://rnvalves.com/catalogues/RN_Valves_CP_Faucets.pdf",
+      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
     },
     "2": {
       id: "ptmt_faucets",
       name: "PTMT Faucets",
-      pdfUrl: "https://rnvalves.com/catalogues/RN_Valves_PTMT_Faucets.pdf",
+      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
     },
     "3": {
       id: "accessories",
       name: "Accessories",
-      pdfUrl: "https://rnvalves.com/catalogues/RN_Valves_Accessories.pdf",
+      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
     },
     "4": {
       id: "health_faucets",
       name: "Health Faucets",
-      pdfUrl: "https://rnvalves.com/catalogues/RN_Valves_Health_Faucets.pdf",
+      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
     },
     "5": {
       id: "showers",
       name: "Showers",
-      pdfUrl: "https://rnvalves.com/catalogues/RN_Valves_Showers.pdf",
+      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
     },
     "6": {
       id: "ball_valves",
       name: "Ball Valves",
-      pdfUrl: "https://rnvalves.com/catalogues/RN_Valves_Ball_Valves.pdf",
+      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
     },
     "7": {
       id: "all_categories",
       name: "All Categories",
-      pdfUrl: "https://rnvalves.com/catalogues/RN_Valves_Complete_Catalogue.pdf",
+      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
     },
   };
 

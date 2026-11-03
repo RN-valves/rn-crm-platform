@@ -247,10 +247,10 @@ export class FlowEngine {
 
       return {
         replyText: msg,
-        mediaUrl: "https://rnvalves.com/catalogues/RN_Valves_Complete_Catalogue.pdf",
+        mediaUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
         mediaType: "document",
-        mediaFileName: "RN_Valves_Complete_Catalogue.pdf",
-        mediaCaption: "RN Valves & Faucets - Complete Product Catalogue",
+        mediaFileName: "RN_Valves_Complete_Catalogue_PriceList.pdf",
+        mediaCaption: "RN Valves & Faucets - Complete Product Catalogue & Price List",
       };
     }
 
@@ -706,9 +706,9 @@ export class FlowEngine {
 
         return {
           replyText: finalMsg,
-          mediaUrl: cat ? cat.pdfUrl : "https://rnvalves.com/catalogues/RN_Valves_Complete_Catalogue.pdf",
+          mediaUrl: cat ? cat.pdfUrl : "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
           mediaType: "document",
-          mediaFileName: cat ? `RN_Valves_${cat.id}.pdf` : "RN_Valves_Complete_Catalogue.pdf",
+          mediaFileName: cat ? `RN_Valves_${cat.id}.pdf` : "RN_Valves_Complete_Catalogue_PriceList.pdf",
           mediaCaption: `RN Valves & Faucets - ${interestName} Catalogue`,
         };
       }
