@@ -1,4 +1,8 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined" && window.location.hostname.includes("rnvalves.com")
+    ? "https://crm-api.rnvalves.com/api"
+    : "http://localhost:5000/api");
 
 export async function apiRequest(endpoint, options = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("rn_crm_token") : null;
