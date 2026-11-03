@@ -22,6 +22,9 @@ import { setupOutgoingMessageWorker } from "./workers/outgoingMessageWorker.js";
 
 const app = express();
 
+// Trust reverse proxy (Traefik / Coolify / Cloudflare)
+app.set("trust proxy", 1);
+
 // Security and utility middleware
 app.use(helmet());
 app.use(
@@ -40,6 +43,7 @@ const globalLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: { error: "Too many requests from this IP, please try again later." },
 });
 app.use("/api/", globalLimiter);
@@ -50,6 +54,7 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: { error: "Too many login attempts, please try again after 15 minutes." },
 });
 app.use("/api/auth/login", authLimiter);
