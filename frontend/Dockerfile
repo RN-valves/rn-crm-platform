@@ -27,7 +27,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./next.config.js 2>/dev/null || true
+COPY --from=builder /app/next.config.js ./next.config.js
 
 EXPOSE 3000
 
