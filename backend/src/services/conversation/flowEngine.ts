@@ -831,9 +831,17 @@ export class FlowEngine {
   }
 
   private static renderRequirementType(lang: string): FlowResponse {
-    const isHi = lang === "hi";
     let msg = "";
-    if (isHi) {
+    if (lang === "pa") {
+      msg += `*RN Valves & Faucets* ਵਿੱਚ ਤੁਹਾਡਾ ਸੁਆਗਤ ਹੈ! 🙏\n\n`;
+      msg += `ਸਭ ਤੋਂ ਪਹਿਲਾਂ ਦੱਸੋ, ਤੁਹਾਡੀ ਲੋੜ ਕਿਸ ਲਈ ਹੈ?\n`;
+      msg += `1. 🏢 Distributor (ਡਿਸਟ੍ਰੀਬਿਊਟਰ)\n`;
+      msg += `2. 🏪 Dealer (ਡੀਲਰ)\n`;
+      msg += `3. 🛍️ Retailer (ਰਿਟੇਲਰ)\n`;
+      msg += `4. 🏠 Personal Use (ਘਰ ਲਈ)\n`;
+      msg += `5. 🌐 ਭਾਸ਼ਾ ਬਦਲੋ (Change Language)\n\n`;
+      msg += `(ਕਿਰਪਾ ਕਰਕੇ 1 ਤੋਂ 5 ਵਿੱਚੋਂ ਇੱਕ ਚੁਣੋ)`;
+    } else if (lang === "hi") {
       msg += `*RN Valves & Faucets* में आपका स्वागत है! 🙏\n\n`;
       msg += `सबसे पहले बताइए, आपकी आवश्यकता किसके लिए है?\n`;
       msg += `1. 🏢 Distributor\n`;
@@ -842,6 +850,33 @@ export class FlowEngine {
       msg += `4. 🏠 Personal Use (घर के लिए)\n`;
       msg += `5. 🌐 भाषा बदलें (Change Language)\n\n`;
       msg += `(कृपया 1 से 5 में से एक विकल्प चुनें)`;
+    } else if (lang === "te") {
+      msg += `*RN Valves & Faucets* కు స్వాగతం! 🙏\n\n`;
+      msg += `మీకు దేని కోసం సహాయం కావాలి?\n`;
+      msg += `1. 🏢 Distributor\n`;
+      msg += `2. 🏪 Dealer\n`;
+      msg += `3. 🛍️ Retailer\n`;
+      msg += `4. 🏠 Personal Use (వ్యక్తిగత ఉపయోగం)\n`;
+      msg += `5. 🌐 భాష మార్చండి (Change Language)\n\n`;
+      msg += `(దయచేసి 1 నుండి 5 వరకు ఎంచుకోండి)`;
+    } else if (lang === "ta") {
+      msg += `*RN Valves & Faucets* உங்களை வரவேற்கிறது! 🙏\n\n`;
+      msg += `உங்கள் தேவை என்னவென்று குறிப்பிடவும்:\n`;
+      msg += `1. 🏢 Distributor\n`;
+      msg += `2. 🏪 Dealer\n`;
+      msg += `3. 🛍️ Retailer\n`;
+      msg += `4. 🏠 Personal Use (சொந்த பயன்பாடு)\n`;
+      msg += `5. 🌐 மொழியை மாற்றவும் (Change Language)\n\n`;
+      msg += `(1 முதல் 5 வரை தேர்வு செய்யவும்)`;
+    } else if (lang === "ur") {
+      msg += `*RN Valves & Faucets* میں خوش آمدید! 🙏\n\n`;
+      msg += `سب سے پہلے بتائیں آپ کی ضرورت کس کے لیے ہے؟\n`;
+      msg += `1. 🏢 Distributor\n`;
+      msg += `2. 🏪 Dealer\n`;
+      msg += `3. 🛍️ Retailer\n`;
+      msg += `4. 🏠 Personal Use (ذاتی استعمال)\n`;
+      msg += `5. 🌐 زبان تبدیل کریں (Change Language)\n\n`;
+      msg += `(براہ کرم 1 سے 5 میں سے انتخاب کریں)`;
     } else {
       msg += `Welcome to *RN Valves & Faucets*! 🙏\n\n`;
       msg += `First, please tell us what you are looking for:\n`;
@@ -857,9 +892,17 @@ export class FlowEngine {
   }
 
   private static renderBusinessMenu(lang: string, customerType: string): FlowResponse {
-    const isHi = lang === "hi";
     let msg = "";
-    if (isHi) {
+    if (lang === "pa") {
+      msg += `*${customerType} Business Menu*\n`;
+      msg += `ਕਿਰਪਾ ਕਰਕੇ ਚੁਣੋ ਕਿ ਤੁਹਾਨੂੰ ਕਿਸ ਸੰਬੰਧ ਵਿੱਚ ਸਹਾਇਤਾ ਚਾਹੀਦੀ ਹੈ:\n\n`;
+      msg += `1. 📄 Product Catalogues (ਉਤਪਾਦ ਕੈਟਾਲਾਗ)\n`;
+      msg += `2. 💰 Pricing / Enquiry (ਕੀਮਤ / ਪੁੱਛਗਿੱਛ)\n`;
+      msg += `3. 👤 Talk to Sales Team (ਸੇਲਜ਼ ਟੀਮ ਨਾਲ ਗੱਲ ਕਰੋ)\n`;
+      msg += `4. 📝 Submit Requirement (ਲੋੜ ਦਰਜ ਕਰੋ)\n`;
+      msg += `5. 🏠 Main Menu (ਮੁੱਖ ਮੀਨੂ)\n\n`;
+      msg += `(ਕਿਰਪਾ ਕਰਕੇ 1 ਤੋਂ 5 ਵਿੱਚੋਂ ਚੁਣੋ)`;
+    } else if (lang === "hi") {
       msg += `*${customerType} Business Menu*\n`;
       msg += `कृपया चुनें कि आपको किस संबंध में सहायता चाहिए:\n\n`;
       msg += `1. 📄 Product Catalogues (उत्पाद कैटलॉग)\n`;
@@ -868,6 +911,33 @@ export class FlowEngine {
       msg += `4. 📝 Submit Requirement (आवश्यकता दर्ज करें)\n`;
       msg += `5. 🏠 Main Menu\n\n`;
       msg += `(कृपया 1 से 5 में से चुनें)`;
+    } else if (lang === "te") {
+      msg += `*${customerType} Business Menu*\n`;
+      msg += `మీకు ఎలా సహాయం చేయగలమో ఎంచుకోండి:\n\n`;
+      msg += `1. 📄 Product Catalogues (ఉత్పత్తి కేటలాగ్‌లు)\n`;
+      msg += `2. 💰 Pricing / Enquiry (ధరలు / విచారణ)\n`;
+      msg += `3. 👤 Talk to Sales Team (సేల్స్ టీమ్‌తో మాట్లాడండి)\n`;
+      msg += `4. 📝 Submit Requirement (మీ అవసరాన్ని సమర్పించండి)\n`;
+      msg += `5. 🏠 Main Menu\n\n`;
+      msg += `(1 నుండి 5 వరకు ఎంచుకోండి)`;
+    } else if (lang === "ta") {
+      msg += `*${customerType} Business Menu*\n`;
+      msg += `உங்களுக்கு தேவையான சேவையை தேர்ந்தெடுக்கவும்:\n\n`;
+      msg += `1. 📄 Product Catalogues (தயாரிப்பு அட்டவணை)\n`;
+      msg += `2. 💰 Pricing / Enquiry (விலை விவரங்கள்)\n`;
+      msg += `3. 👤 Talk to Sales Team (விற்பனை குழுவுடன் பேச)\n`;
+      msg += `4. 📝 Submit Requirement (உங்கள் தேவையை சமர்ப்பிக்க)\n`;
+      msg += `5. 🏠 Main Menu\n\n`;
+      msg += `(1 முதல் 5 வரை தேர்வு செய்யவும்)`;
+    } else if (lang === "ur") {
+      msg += `*${customerType} Business Menu*\n`;
+      msg += `برائے مہربانی منتخب کریں کہ آپ کو کس بارے میں مدد چاہیے:\n\n`;
+      msg += `1. 📄 Product Catalogues (پروڈکٹ کیٹلاگ)\n`;
+      msg += `2. 💰 Pricing / Enquiry (قیمت / معلومات)\n`;
+      msg += `3. 👤 Talk to Sales Team (سیلز ٹیم سے بات کریں)\n`;
+      msg += `4. 📝 Submit Requirement (اپنی ضرورت درج کریں)\n`;
+      msg += `5. 🏠 Main Menu\n\n`;
+      msg += `(براہ کرم 1 سے 5 میں سے انتخاب کریں)`;
     } else {
       msg += `*${customerType} Business Menu*\n`;
       msg += `Please select how we can assist you:\n\n`;
@@ -883,9 +953,19 @@ export class FlowEngine {
   }
 
   private static renderCategorySelection(lang: string): FlowResponse {
-    const isHi = lang === "hi";
     let msg = "";
-    if (isHi) {
+    if (lang === "pa") {
+      msg += `ਕਿਰਪਾ ਕਰਕੇ ਉਤਪਾਦ ਸ਼੍ਰੇਣੀ (Product Category) ਦੀ ਚੋਣ ਕਰੋ:\n\n`;
+      msg += `1. CP Faucets (ਬ੍ਰਾਸ ਨਲ)\n`;
+      msg += `2. PTMT Faucets (ਪੀਟੀਐਮਟੀ ਨਲ)\n`;
+      msg += `3. Accessories (ਬਾਥਰੂਮ ਐਕਸੈਸਰੀਜ਼)\n`;
+      msg += `4. Health Faucets (ਹੈਲਥ ਫ਼ੌਸੇਟ)\n`;
+      msg += `5. Showers (ਸ਼ਾਵਰ)\n`;
+      msg += `6. Ball Valves (ਬਾਲ ਵਾਲਵ)\n`;
+      msg += `7. All Categories (ਸੰਪੂਰਨ ਮਾਸਟਰ ਕੈਟਾਲਾਗ)\n`;
+      msg += `8. 🏠 Main Menu\n\n`;
+      msg += `(1 ਤੋਂ 8 ਵਿੱਚੋਂ ਇੱਕ ਨੰਬਰ ਭੇਜੋ)`;
+    } else if (lang === "hi") {
       msg += `कृपया उस उत्पाद श्रेणी (Product Category) का चयन करें:\n\n`;
       msg += `1. CP Faucets\n`;
       msg += `2. PTMT Faucets\n`;
@@ -913,9 +993,17 @@ export class FlowEngine {
   }
 
   private static renderSalesRepCard(lang: string, rep: SalesRep, pinCode: string): FlowResponse {
-    const isHi = lang === "hi";
     let msg = "";
-    if (isHi) {
+    if (lang === "pa") {
+      msg += `📍 *ਖੇਤਰ ਲੱਭਿਆ:* ਪਿਨ ਕੋਡ ${pinCode} (${rep.state})\n\n`;
+      msg += `ਤੁਹਾਡੇ ਖੇਤਰੀ ਸੇਲਜ਼ ਮੈਨੇਜਰ ਦੇ ਸੰਪਰਕ ਵੇਰਵੇ:\n\n`;
+      msg += `👤 *ਨਾਮ:* ${rep.name}\n`;
+      msg += `📱 *ਮੋਬਾਈਲ:* ${rep.mobile}\n`;
+      msg += `📍 *ਖੇਤਰ:* ${rep.area} (${rep.state})\n\n`;
+      msg += `ਤੁਸੀਂ ਅੱਗੇ ਕੀ ਕਰਨਾ ਚਾਹੁੰਦੇ ਹੋ?\n`;
+      msg += `1. 🏠 Main Menu\n`;
+      msg += `2. 📝 Submit Requirement`;
+    } else if (lang === "hi") {
       msg += `📍 *क्षेत्र खोज:* पिन कोड ${pinCode} (${rep.state})\n\n`;
       msg += `यहाँ आपके क्षेत्रीय बिक्री प्रतिनिधि (Regional Sales Manager) के संपर्क विवरण हैं:\n\n`;
       msg += `👤 *नाम:* ${rep.name}\n`;
