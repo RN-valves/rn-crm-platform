@@ -21,6 +21,69 @@ export interface AiDecision {
 
 export class AiOrchestrator {
   /**
+   * Call Google Gemini API (gemini-3.8-flash)
+   */
+  static async callGemini(userMessage: string, context: string = ""): Promise<string | null> {
+    if (!config.GEMINI_API_KEY) {
+      console.warn("⚠️ [AiOrchestrator] GEMINI_API_KEY is not configured.");
+      return null;
+    }
+
+    // Force gemini-3.8-flash (replaces deprecated gemini-1.5-flash)
+    const model =
+      !config.GEMINI_MODEL || config.GEMINI_MODEL.includes("1.5")
+        ? "gemini-3.8-flash"
+        : config.GEMINI_MODEL;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.GEMINI_API_KEY}`;
+
+    const systemPrompt = `You are the polite, knowledgeable WhatsApp sales assistant for "RN Valves & Faucets Private Limited" - a premier Indian manufacturer of bathroom fittings, faucets, brass valves, PTMT taps, and sanitaryware.
+Guidance:
+1. Reply in the exact same language and tone as the customer (Hindi, Hinglish, Marathi, or English).
+2. Keep answers short, crisp, and friendly (max 2-3 short sentences, ideal for WhatsApp reading).
+3. Mention that for official catalogue and bulk dealer quotes, our team is always ready to assist.
+4. For dealer inquiries, politely ask for their shop/firm name and city so the sales team can provide wholesale rates.
+${context ? `\nVerified Product Catalog Context:\n${context}` : ""}`;
+
+    try {
+      console.log(`🤖 [AiOrchestrator] Calling Gemini API (${model})...`);
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: `${systemPrompt}\n\nCustomer Message: "${userMessage}"` }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 300,
+          },
+        }),
+      });
+
+      const data: any = await response.json();
+
+      if (!response.ok) {
+        console.error("❌ [AiOrchestrator] Gemini API returned error:", data?.error?.message || response.status);
+        return null;
+      }
+
+      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (reply) {
+        console.log(`✅ [AiOrchestrator] Gemini generated response (${reply.length} chars).`);
+        return reply.trim();
+      }
+      return null;
+    } catch (err: any) {
+      console.error("❌ [AiOrchestrator] Gemini fetch error:", err.message);
+      return null;
+    }
+  }
+
+  /**
    * Fast multilingual language detection
    */
   static detectLanguage(text: string): "hi" | "en" | "mr" | "bn" | "hinglish" {
@@ -52,7 +115,7 @@ export class AiOrchestrator {
   }
 
   /**
-   * Process customer message with verified catalog tools
+   * Process customer message with verified catalog tools + Gemini AI
    */
   static async processMessage(params: {
     messageText: string;
@@ -78,6 +141,7 @@ export class AiOrchestrator {
     ];
 
     const wantsHandover = handoverKeywords.some((kw) => lower.includes(kw));
+
     if (wantsHandover) {
       let reply = "I am connecting you with our senior representative right away. Please hold on.";
       if (lang === "hi" || lang === "hinglish") {
@@ -128,22 +192,24 @@ export class AiOrchestrator {
       lower.includes("wholesale") ||
       lower.includes("bulk")
     ) {
-      // Extract city if present
       const cityMatches = text.match(/(?:from|se|in|at)\s+([A-Za-z]+)/i);
       const extractedCity = cityMatches ? cityMatches[1] : undefined;
 
+      // Ask Gemini for a warm dealer response
+      const geminiDealerReply = await this.callGemini(
+        text,
+        "Customer is interested in dealership or wholesale bulk purchase. Acknowledge enthusiastically and ask for shop/firm name and city."
+      );
+
       let reply =
-        "Thank you for your interest in RN Valves Dealership! Our sales manager will contact you for wholesale & dealer pricing. May I confirm your business name?";
-      if (lang === "hi" || lang === "hinglish") {
-        reply =
-          "RN Valves dealership mein ruchi dikhane ke liye dhanyawad! Humari sales team aapse bulk pricing ke liye jald sampark karegi. Kripya apni firm/dukaan ka naam batayein?";
-      }
+        geminiDealerReply ||
+        "Thank you for your interest in RN Valves Dealership! Our sales manager will contact you for wholesale & dealer pricing. May I confirm your business name and city?";
 
       return {
         intent: "dealer_inquiry",
         language: lang,
         replyText: reply,
-        requiresHumanHandover: true, // Dealer leads are prioritized for human sales follow-up
+        requiresHumanHandover: true,
         leadData: {
           customerName: params.customerName,
           businessType: lower.includes("distributor") ? "Distributor" : "Dealer",
@@ -153,36 +219,27 @@ export class AiOrchestrator {
     }
 
     // 4. Product Search & Price Inquiry
-    // Extract potential product search terms (e.g. "PTMT pillar cock", "bib cock", "angle valve", "RN-102")
     const searchResults = await ProductRepository.searchProducts(text, 3);
 
     if (searchResults && searchResults.length > 0) {
       const top = searchResults[0];
       const price = top.inSelling || top.inMrp || top.price;
 
+      // Provide verified product context to Gemini
+      const catalogContext = `Product: ${top.name}\nCode: ${top.code}\nApproved Price: Rs ${price}\nStock: ${top.stockStatus}\nWarranty: ${top.residentialWarranty || 5} Years`;
+
+      const geminiReply = await this.callGemini(text, catalogContext);
+
       let reply = "";
-      if (lang === "hi" || lang === "hinglish") {
+      if (geminiReply) {
+        reply = geminiReply;
+      } else {
+        // Fallback structured template
         reply = `*${top.name}* (Code: ${top.code})\n\n`;
         reply += `💰 Approved Price: ₹${price}\n`;
         reply += `📦 Stock Status: ${top.stockStatus}\n`;
         if (top.residentialWarranty) reply += `🛡️ Warranty: ${top.residentialWarranty} Years\n`;
         reply += `\nKya aapko single piece chahiye ya bulk/dealership quantity?`;
-      } else if (lang === "mr") {
-        reply = `*${top.name}* (Code: ${top.code})\n\n`;
-        reply += `💰 Kimat: ₹${price}\n`;
-        reply += `📦 Stock: ${top.stockStatus}\n`;
-        reply += `\nTumhala single piece hawa ahe ki bulk order sathi?`;
-      } else if (lang === "bn") {
-        reply = `*${top.name}* (Code: ${top.code})\n\n`;
-        reply += `💰 Dam: ₹${price}\n`;
-        reply += `📦 Stock: ${top.stockStatus}\n`;
-        reply += `\nApni ki single piece chaichhen naki bulk quantity?`;
-      } else {
-        reply = `*${top.name}* (Code: ${top.code})\n\n`;
-        reply += `💰 Approved Price: ₹${price}\n`;
-        reply += `📦 Stock Status: ${top.stockStatus}\n`;
-        if (top.residentialWarranty) reply += `🛡️ Warranty: ${top.residentialWarranty} Years\n`;
-        reply += `\nAre you looking for a single piece or bulk dealer quantity?`;
       }
 
       return {
@@ -199,13 +256,12 @@ export class AiOrchestrator {
       };
     }
 
-    // 5. Default Polite Multilingual Welcome
+    // 5. General AI Inquiry (Powered by Gemini)
+    const geminiGeneralReply = await this.callGemini(text);
+
     let defaultReply =
+      geminiGeneralReply ||
       "Welcome to RN Valves & Faucets! How can I assist you today? You can ask about our taps, showers, PTMT products, or request our catalogue.";
-    if (lang === "hi" || lang === "hinglish") {
-      defaultReply =
-        "RN Valves & Faucets mein aapka swagat hai! Hum aapki kya sahayata kar sakte hain? Aap taps, showers, PTMT products ya product catalogue ke baare mein pooch sakte hain.";
-    }
 
     return {
       intent: "general_faq",

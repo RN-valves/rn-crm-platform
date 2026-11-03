@@ -37,10 +37,10 @@ const envSchema = z.object({
   CHATWOOT_INBOX_ID: z.string().default("1"),
   CHATWOOT_WEBHOOK_SECRET: z.string().default(""),
 
-  // AI Settings
+  // AI Settings (Using latest Gemini 3.8 Flash)
   AI_PROVIDER: z.enum(["gemini", "openai"]).default("gemini"),
   GEMINI_API_KEY: z.string().default(""),
-  GEMINI_MODEL: z.string().default("gemini-1.5-flash"),
+  GEMINI_MODEL: z.string().default("gemini-3.8-flash"),
 
   // Media
   MEDIA_CDN_URL: z.string().default("https://rnvalves.media"),
