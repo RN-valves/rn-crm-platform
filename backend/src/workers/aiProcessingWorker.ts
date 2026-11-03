@@ -1,8 +1,8 @@
 import { Worker, Job } from "bullmq";
 import { getRedisOptions } from "../queues/redisConnection.js";
-import { outgoingMessagesQueue, leadProcessingQueue } from "../queues/queueManager.js";
+import { outgoingMessagesQueue } from "../queues/queueManager.js";
 import { getConversationControlModel } from "../models/ConversationControl.js";
-import { AiOrchestrator } from "../services/ai/aiOrchestrator.js";
+import { FlowEngine } from "../services/conversation/flowEngine.js";
 
 export function setupAiProcessingWorker(): Worker {
   const worker = new Worker(
@@ -10,7 +10,7 @@ export function setupAiProcessingWorker(): Worker {
     async (job: Job) => {
       const { messageId, phone, customerName, messageText, chatwootConversationId } = job.data;
 
-      // 1. Double check conversation control mode before executing AI
+      // 1. Double check conversation control mode before executing
       try {
         const ConversationControl = getConversationControlModel();
         const control = await ConversationControl.findOne({ phone });
@@ -22,7 +22,7 @@ export function setupAiProcessingWorker(): Worker {
           !control.pauseReason.startsWith("AI Handover")
         ) {
           console.log(
-            `🛑 [AI Worker] Real human agent actively took over ${phone} (${control.pauseReason}). Aborting AI generation.`
+            `🛑 [AI Worker] Real human agent actively took over ${phone} (${control.pauseReason}). Aborting flow generation.`
           );
           return { status: "aborted_human_takeover" };
         }
@@ -30,67 +30,35 @@ export function setupAiProcessingWorker(): Worker {
         // Continue if DB is offline in test
       }
 
-      console.log(`🤖 [AI Worker] Analyzing message from ${phone}: "${messageText}"`);
+      console.log(`🤖 [AI Worker] Processing flow message from ${phone}: "${messageText}"`);
 
-      // 2. Run AI Orchestrator with verified catalog tools
-      const decision = await AiOrchestrator.processMessage({
-        messageText,
-        phone,
-        customerName,
-      });
+      // 2. Execute Deterministic Conversational Flow Engine
+      const flowResponse = await FlowEngine.processMessage(phone, messageText, customerName);
 
-      console.log(`💡 [AI Worker] Decision for ${phone}: intent=${decision.intent}, lang=${decision.language}`);
-
-      // 3. If explicit human handover requested by customer, assign to human team
-      if (decision.requiresHumanHandover && decision.intent === "human_handover") {
-        try {
-          const ConversationControl = getConversationControlModel();
-          await ConversationControl.findOneAndUpdate(
-            { phone },
-            {
-              mode: "human",
-              assignedTeam: "Sales",
-              pauseReason: `Customer requested human representative`,
-            },
-            { upsert: true }
-          );
-        } catch (err: any) {
-          console.warn(`[AI Worker] Mode update skipped: ${err.message}`);
-        }
+      if (flowResponse.ignoreMessage || (!flowResponse.replyText && !flowResponse.mediaUrl)) {
+        console.log(`🔇 [AI Worker] Message from ${phone} ignored/filtered.`);
+        return { status: "ignored" };
       }
 
-      // 4. If lead data captured (e.g. dealer inquiry with shop/pincode), trigger lead processing queue
-      if (decision.leadData) {
-        await leadProcessingQueue.add("process-qualified-lead", {
-          phone,
-          customerName: decision.leadData.customerName || customerName,
-          businessType: decision.leadData.businessType || "Dealer",
-          city: decision.leadData.city,
-          productInterest: decision.leadData.productInterest || [],
-          requirement: messageText,
-          source: "WhatsApp_Inbound",
-        });
-      }
-
-      // 4. Enqueue Outgoing Message to WhatsApp
+      // 3. Enqueue Outgoing Message to WhatsApp
       await outgoingMessagesQueue.add(
         "send-whatsapp-message",
         {
           phone,
-          replyText: decision.replyText,
-          mediaUrl: decision.mediaUrl,
-          mediaType: decision.mediaType,
-          mediaCaption: decision.mediaCaption,
-          mediaFileName: decision.mediaFileName,
+          replyText: flowResponse.replyText,
+          mediaUrl: flowResponse.mediaUrl,
+          mediaType: flowResponse.mediaType,
+          mediaCaption: flowResponse.mediaCaption,
+          mediaFileName: flowResponse.mediaFileName,
           chatwootConversationId,
           isAiReply: true,
         },
         {
-          jobId: `out_ai_${messageId}_${Date.now()}`,
+          jobId: `out_flow_${messageId}_${Date.now()}`,
         }
       );
 
-      return { status: "ai_reply_queued", intent: decision.intent };
+      return { status: "flow_reply_queued" };
     },
     {
       connection: getRedisOptions(),
