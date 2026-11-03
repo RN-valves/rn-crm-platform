@@ -2,11 +2,17 @@
 FROM node:22-alpine AS builder
 
 WORKDIR /app
+ENV NODE_ENV=development
 
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 COPY . .
+
+# Environment variable for Next.js build
+ARG NEXT_PUBLIC_API_URL=https://crm-api.rnvalves.com
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN npm run build
 
 # Runner stage
