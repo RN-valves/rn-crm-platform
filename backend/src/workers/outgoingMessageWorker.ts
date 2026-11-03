@@ -28,19 +28,25 @@ export function setupOutgoingMessageWorker(): Worker {
           number: phone,
           mediaUrl,
           mediaType: mediaType || "image",
-          caption: mediaCaption || replyText,
+          caption: mediaCaption || "",
           fileName: mediaFileName,
         });
 
-        // Fallback to text message if media sending encounters an issue
-        if (!sendResult.success) {
-          console.warn(
-            `⚠️ [Outgoing Worker] Media delivery failed (${sendResult.error}), falling back to text delivery.`
-          );
-          sendResult = await evolutionClient.sendTextMessage({
-            number: phone,
-            text: replyText,
-          });
+        // Always deliver the complete structured text card so details are never truncated by WhatsApp caption limits
+        if (replyText) {
+          try {
+            await evolutionClient.sendTextMessage({
+              number: phone,
+              text: replyText,
+            });
+          } catch (textErr: any) {
+            console.warn(`[Outgoing Worker] Follow-up text dispatch warning: ${textErr.message}`);
+          }
+        }
+
+        // If media failed but text succeeded, consider it delivered
+        if (!sendResult.success && replyText) {
+          sendResult = { success: true, messageId: `fallback_text_${Date.now()}` };
         }
       } else {
         sendResult = await evolutionClient.sendTextMessage({

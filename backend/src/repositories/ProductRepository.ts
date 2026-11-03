@@ -112,6 +112,14 @@ export interface ProductSearchResult {
   residentialWarranty?: number;
 }
 
+// Stop words to remove from search query
+const STOP_WORDS = new Set([
+  "can", "you", "please", "pleaser", "provide", "me", "rate", "price", "of", "this", "article",
+  "what", "is", "the", "for", "and", "ka", "ki", "ke", "kya", "bhai", "bhejo", "chahiye", "sir",
+  "namaste", "hello", "hi", "batao", "bataiye", "kitne", "hai", "h", "item", "product", "details",
+  "cost", "rates"
+]);
+
 /**
  * Strict Read-Only Catalog Repository
  * Provides controlled tools for AI & CRM modules without raw database queries.
@@ -124,14 +132,6 @@ export class ProductRepository {
     const clean = query.trim();
     const words = clean.split(/\s+/);
     let skuCode: string | undefined;
-
-    // Stop words to remove from search query
-    const stopWords = new Set([
-      "can", "you", "please", "pleaser", "provide", "me", "rate", "price", "of", "this", "article",
-      "what", "is", "the", "for", "and", "ka", "ki", "ke", "kya", "bhai", "bhejo", "chahiye", "sir",
-      "namaste", "hello", "hi", "batao", "bataiye", "kitne", "hai", "h", "item", "product", "details",
-      "cost", "rates"
-    ]);
 
     for (const word of words) {
       const sanitized = word.replace(/[^a-zA-Z0-9_-]/g, "");
@@ -146,7 +146,7 @@ export class ProductRepository {
 
     const keywords = words
       .map((w) => w.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())
-      .filter((w) => w.length >= 3 && !stopWords.has(w));
+      .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
 
     return { skuCode, keywords };
   }
@@ -243,27 +243,31 @@ export class ProductRepository {
       }
     }
 
-    // 3. Fallback whole query regex
-    const regex = new RegExp(cleanQuery, "i");
-    const docs = await Product.find({
-      isVisibleWebsite: true,
-      $or: [
-        { code: regex },
-        { skuCode: regex },
-        { article: regex },
-        { name: regex },
-        { category: regex },
-        { subcategoryName: regex },
-        { material: regex },
-      ],
-    })
-      .select(
-        "code name category subcategoryName price inMrp inSelling status image material colorName moq residentialWarranty"
-      )
-      .limit(limit)
-      .lean();
+    // 3. Fallback whole query regex (only if at least 3 characters and not a stop word)
+    if (keywords.length === 0 && !skuCode && cleanQuery.length >= 3 && !STOP_WORDS.has(cleanQuery.toLowerCase())) {
+      const regex = new RegExp(cleanQuery, "i");
+      const docs = await Product.find({
+        isVisibleWebsite: true,
+        $or: [
+          { code: regex },
+          { skuCode: regex },
+          { article: regex },
+          { name: regex },
+          { category: regex },
+          { subcategoryName: regex },
+          { material: regex },
+        ],
+      })
+        .select(
+          "code name category subcategoryName price inMrp inSelling status image material colorName moq residentialWarranty"
+        )
+        .limit(limit)
+        .lean();
 
-    return docs.map(mapDoc);
+      return docs.map(mapDoc);
+    }
+
+    return [];
   }
 
   /**

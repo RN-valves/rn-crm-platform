@@ -162,6 +162,30 @@ ${context ? `\nVerified Product / Catalog Context:\n${context}` : ""}`;
       };
     }
 
+    // 2. Pure Greeting Detection (e.g. "hi", "hello", "namaste", "hey")
+    const greetings = [
+      "hi", "hello", "hey", "namaste", "pranam", "good morning",
+      "good evening", "good afternoon", "hlo", "hii", "hi sir", "hello sir"
+    ];
+    const cleanWords = lower.replace(/[^a-zA-Z]/g, " ").trim();
+    const isPureGreeting = greetings.includes(cleanWords) || (text.length <= 10 && greetings.some((g) => lower.startsWith(g)));
+
+    if (isPureGreeting) {
+      let welcomeMsg = "";
+      if (lang === "hi" || lang === "hinglish") {
+        welcomeMsg = `Namaste! *RN Valves & Faucets* mein aapka swagat hai! 🙏✨\n\nMain hoon *RN Sahayak*, aapka digital sales assistant. Hum high-quality taps, brass ball valves, luxury faucets, showers aur PTMT bathroom fittings ke manufacturer hain.\n\nHum aapki kya madad kar sakte hain?\n• 📦 *Product Inquiry & Rates* (Article code ya product ka naam bhejiye)\n• 📄 *Catalogue / Brochure*\n• 🤝 *Dealership & Wholesale Inquiries*\n• 🛡️ *Warranty & Support*`;
+      } else {
+        welcomeMsg = `Hello! Welcome to *RN Valves & Faucets*! 🙏✨\n\nI am *RN Sahayak*, your personal assistant. We are India's premier manufacturer of high-quality brass taps, luxury faucets, ball valves, showers, and PTMT bathroom fittings.\n\nHow can I assist you today?\n• 📦 *Product Inquiry & Prices* (Share article code or product name)\n• 📄 *Product Catalog / Brochure*\n• 🤝 *Dealership & Wholesale Inquiries*\n• 🛡️ *Warranty Support*`;
+      }
+
+      return {
+        intent: "general_faq",
+        language: lang,
+        replyText: welcomeMsg,
+        requiresHumanHandover: false,
+      };
+    }
+
     // 2. Catalogue PDF Request
     if (lower.includes("catalogue") || lower.includes("catalog") || lower.includes("pdf") || lower.includes("brochure")) {
       const catalogues = await ProductRepository.getCatalogue();
@@ -226,43 +250,52 @@ ${context ? `\nVerified Product / Catalog Context:\n${context}` : ""}`;
 
     if (searchResults && searchResults.length > 0) {
       const top = searchResults[0];
-      const price = top.inSelling || top.inMrp || top.price;
-      const mrp = top.inMrp || top.price;
+      const price = top.inSelling || top.inMrp || top.price || 0;
+      const mrp = top.inMrp || top.price || 0;
 
-      // Provide verified product context to Gemini
-      const catalogContext = `Product Name: ${top.name}\nArticle/Item Code: ${top.code}\nApproved Selling Price: Rs ${price}\nMRP: Rs ${mrp}\nStock Status: ${top.stockStatus}\nWarranty: ${top.residentialWarranty || 5} Years\nMaterial: ${top.material || "Brass / Chrome"}`;
-
-      const geminiReply = await this.callGemini(text, catalogContext);
-
-      let reply = "";
-      if (geminiReply && geminiReply.length > 30) {
-        reply = geminiReply;
-      } else {
-        // Complete, clear structured WhatsApp message
-        if (lang === "hi" || lang === "hinglish") {
-          reply = `Namaste! Yeh lijiye *${top.name}* ki verified details:\n\n`;
-          reply += `🔖 *Item Code:* ${top.code}\n`;
-          reply += `💰 *Approved Price:* ₹${price}/- (MRP: ₹${mrp})\n`;
-          reply += `📦 *Stock Status:* ${top.stockStatus}\n`;
-          if (top.residentialWarranty) reply += `🛡️ *Warranty:* ${top.residentialWarranty} Saal\n`;
-          reply += `\nKya aapko retail ke liye chahiye ya bulk dealership quantity? Dealership ke liye kripya apni city aur dukan ka naam batayein.`;
+      // Construct verified, accurate pricing card
+      let verifiedCard = "";
+      if (lang === "hi" || lang === "hinglish") {
+        verifiedCard = `Namaste! Yeh lijiye *${top.name}* ki verified details:\n\n`;
+        verifiedCard += `🔖 *Item Code:* ${top.code}\n`;
+        if (price > 0) {
+          verifiedCard += `💰 *Approved Price:* ₹${price}/-`;
+          if (mrp > price) verifiedCard += ` (MRP: ₹${mrp}/-)`;
+          verifiedCard += `\n`;
         } else {
-          reply = `Hello! Here are the verified details for *${top.name}*:\n\n`;
-          reply += `🔖 *Item Code:* ${top.code}\n`;
-          reply += `💰 *Approved Price:* ₹${price}/- (MRP: ₹${mrp})\n`;
-          reply += `📦 *Stock:* ${top.stockStatus}\n`;
-          if (top.residentialWarranty) reply += `🛡️ *Warranty:* ${top.residentialWarranty} Years\n`;
-          reply += `\nAre you looking for retail purchase or bulk dealer pricing? For wholesale rates, please share your shop name and city.`;
+          verifiedCard += `💰 *Pricing:* Wholesale & Dealer Rates available on request\n`;
         }
+        verifiedCard += `📦 *Stock Status:* ${top.stockStatus}\n`;
+        if (top.residentialWarranty) verifiedCard += `🛡️ *Warranty:* ${top.residentialWarranty} Saal\n`;
+        if (top.material) verifiedCard += `🧱 *Material:* ${top.material}\n`;
+        verifiedCard += `\nKya aapko single piece retail chahiye ya wholesale dealer quantity? Dealer rates ke liye kripya apni city aur dukan ka naam batayein.`;
+      } else {
+        verifiedCard = `Hello! Here are the verified details for *${top.name}*:\n\n`;
+        verifiedCard += `🔖 *Item Code:* ${top.code}\n`;
+        if (price > 0) {
+          verifiedCard += `💰 *Approved Price:* ₹${price}/-`;
+          if (mrp > price) verifiedCard += ` (MRP: ₹${mrp}/-)`;
+          verifiedCard += `\n`;
+        } else {
+          verifiedCard += `💰 *Pricing:* Wholesale & Dealer Rates available on request\n`;
+        }
+        verifiedCard += `📦 *Stock Status:* ${top.stockStatus}\n`;
+        if (top.residentialWarranty) verifiedCard += `🛡️ *Warranty:* ${top.residentialWarranty} Years\n`;
+        if (top.material) verifiedCard += `🧱 *Material:* ${top.material}\n`;
+        verifiedCard += `\nAre you looking for retail purchase or bulk dealer pricing? For wholesale rates, please share your shop name and city.`;
       }
 
       return {
         intent: "price_inquiry",
         language: lang,
-        replyText: reply,
-        mediaUrl: top.image ? (top.image.startsWith("http") ? top.image : `${config.MEDIA_CDN_URL}/${top.image.replace(/^\//, "")}`) : undefined,
+        replyText: verifiedCard,
+        mediaUrl: top.image
+          ? top.image.startsWith("http")
+            ? top.image
+            : `${config.MEDIA_CDN_URL}/${top.image.replace(/^\//, "")}`
+          : undefined,
         mediaType: top.image ? "image" : undefined,
-        mediaCaption: reply,
+        mediaCaption: `*${top.name}* (Code: ${top.code})`,
         requiresHumanHandover: false,
         leadData: {
           productInterest: [top.code],
