@@ -3,6 +3,7 @@ import { getRedisOptions } from "../queues/redisConnection.js";
 import { aiProcessingQueue } from "../queues/queueManager.js";
 import { getContactModel } from "../models/Contact.js";
 import { getConversationControlModel } from "../models/ConversationControl.js";
+import { getMessageModel } from "../models/Message.js";
 import { chatwootClient } from "../services/chatwoot/chatwootClient.js";
 
 export function setupIncomingMessageWorker(): Worker {
@@ -65,6 +66,20 @@ export function setupIncomingMessageWorker(): Worker {
         }
       } catch (err: any) {
         console.warn(`[Incoming Worker] CRM Contact DB sync skipped: ${err.message}`);
+      }
+
+      // 1b. Save Incoming Message into MongoDB
+      try {
+        const Message = getMessageModel();
+        await Message.create({
+          phone: normalizedPhone,
+          sender: "customer",
+          content: textContent,
+          mediaType,
+          mediaUrl,
+        });
+      } catch (msgErr: any) {
+        console.warn(`[Incoming Worker] Message DB sync notice: ${msgErr.message}`);
       }
 
       // 2. Sync to Chatwoot (Contact & Conversation)

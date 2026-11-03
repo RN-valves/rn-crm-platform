@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { getConversationControlModel } from "../models/ConversationControl.js";
+import { getMessageModel } from "../models/Message.js";
 import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { chatwootClient } from "../services/chatwoot/chatwootClient.js";
 import { getAuditLogModel } from "../models/AuditLog.js";
@@ -60,34 +61,57 @@ export async function getConversations(req: Request, res: Response): Promise<voi
 
 export async function getConversationMessages(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
-  // id can be phone or conversation ID
   try {
-    // Standard conversation thread
-    res.status(200).json({
-      messages: [
-        {
-          id: "m_1",
-          sender: "customer",
-          content: "Hello, mujhe PTMT pillar cock ka price chahiye.",
-          timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-          type: "text",
-        },
-        {
-          id: "m_2",
-          sender: "bot",
-          content: "*RN PTMT Pillar Cock (White & Chrome)* (Code: RN-102)\n💰 Approved Price: ₹285\n📦 Stock Status: In Stock\n🛡️ Warranty: 3 Years\n\nKya aapko single piece chahiye ya bulk/dealership quantity?",
-          timestamp: new Date(Date.now() - 1000 * 60 * 29).toISOString(),
-          type: "text",
-        },
-        {
-          id: "m_3",
-          sender: "customer",
-          content: "Main Delhi se dealer hoon, 500 piece chahiye.",
-          timestamp: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
-          type: "text",
-        },
-      ],
-    });
+    const rawId = String(id || "");
+    const cleanDigits = rawId.replace(/\D/g, "");
+    const phoneVariants = [
+      rawId,
+      `+${cleanDigits}`,
+      cleanDigits,
+      cleanDigits.startsWith("91") ? `+${cleanDigits}` : `+91${cleanDigits}`,
+      cleanDigits.startsWith("91") ? cleanDigits.slice(2) : cleanDigits,
+    ];
+
+    // 1. Fetch real-time conversation messages from MongoDB Message collection
+    try {
+      const Message = getMessageModel();
+      const messages = await Message.find({ phone: { $in: phoneVariants } })
+        .sort({ createdAt: 1 })
+        .lean();
+
+      if (messages && messages.length > 0) {
+        res.status(200).json({
+          messages: messages.map((m) => ({
+            id: String(m._id),
+            sender: m.sender,
+            content: m.content,
+            mediaUrl: m.mediaUrl,
+            timestamp: m.createdAt,
+            type: m.mediaUrl ? "media" : "text",
+          })),
+        });
+        return;
+      }
+    } catch (dbErr: any) {
+      console.warn(`[getConversationMessages] Message DB query notice: ${dbErr.message}`);
+    }
+
+    // 2. Fetch from Chatwoot if available
+    try {
+      const ConversationControl = getConversationControlModel();
+      const control = await ConversationControl.findOne({ phone: { $in: phoneVariants } });
+      if (control && control.chatwootConversationId) {
+        const cwMessages = await chatwootClient.getConversationMessages(Number(control.chatwootConversationId));
+        if (cwMessages && cwMessages.length > 0) {
+          res.status(200).json({ messages: cwMessages });
+          return;
+        }
+      }
+    } catch (cwErr: any) {
+      console.warn(`[getConversationMessages] Chatwoot query notice: ${cwErr.message}`);
+    }
+
+    res.status(200).json({ messages: [] });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -131,6 +155,18 @@ export async function sendConversationReply(req: Request, res: Response): Promis
         },
         { upsert: true }
       );
+    } catch {}
+
+    // 2b. Save outgoing manual reply to MongoDB Message collection
+    try {
+      const Message = getMessageModel();
+      await Message.create({
+        phone,
+        sender: "agent",
+        content: text || "",
+        mediaUrl,
+        mediaType: mediaType || (mediaUrl ? "document" : "text"),
+      });
     } catch {}
 
     // 3. Log audit event

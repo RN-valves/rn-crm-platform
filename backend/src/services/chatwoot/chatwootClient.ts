@@ -193,6 +193,32 @@ export class ChatwootClient {
   }
 
   /**
+   * Fetch messages of a Chatwoot conversation
+   */
+  async getConversationMessages(conversationId: number): Promise<any[]> {
+    if (!this.apiAccessToken) return [];
+
+    try {
+      const url = `${this.baseUrl}/api/v1/accounts/${this.accountId}/conversations/${conversationId}/messages`;
+      const res = await fetch(url, { headers: this.headers });
+      if (!res.ok) return [];
+
+      const data: any = await res.json();
+      const messages = (data?.payload || []).map((m: any) => ({
+        id: String(m.id),
+        sender: m.message_type === 0 ? "customer" : "bot",
+        content: m.content || "",
+        timestamp: m.created_at ? new Date(m.created_at * 1000).toISOString() : new Date().toISOString(),
+        type: m.attachments && m.attachments.length > 0 ? "media" : "text",
+      }));
+      return messages;
+    } catch (error: any) {
+      console.warn("[ChatwootClient] Failed to fetch conversation messages:", error.message);
+      return [];
+    }
+  }
+
+  /**
    * Assign conversation to a specific human agent in Chatwoot
    */
   async assignAgent(conversationId: number, agentId: number): Promise<void> {

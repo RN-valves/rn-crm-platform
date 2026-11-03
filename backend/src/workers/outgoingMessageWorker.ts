@@ -2,6 +2,7 @@ import { Worker, Job } from "bullmq";
 import { getRedisOptions, getRedisClient } from "../queues/redisConnection.js";
 import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { chatwootClient } from "../services/chatwoot/chatwootClient.js";
+import { getMessageModel } from "../models/Message.js";
 
 export function setupOutgoingMessageWorker(): Worker {
   const worker = new Worker(
@@ -80,6 +81,20 @@ export function setupOutgoingMessageWorker(): Worker {
         } catch (cwErr: any) {
           console.warn(`[Outgoing Worker] Chatwoot message sync warning: ${cwErr.message}`);
         }
+      }
+
+      // 3. Save Outgoing Message into MongoDB
+      try {
+        const Message = getMessageModel();
+        await Message.create({
+          phone,
+          sender: isAiReply ? "bot" : "agent",
+          content: replyText || mediaCaption || (mediaUrl ? "Sent Catalogue PDF" : ""),
+          mediaUrl,
+          mediaType: mediaType || (mediaUrl ? "document" : "text"),
+        });
+      } catch (msgErr: any) {
+        console.warn(`[Outgoing Worker] Message DB sync notice: ${msgErr.message}`);
       }
 
       return {
