@@ -16,6 +16,9 @@ import conversationRoutes from "./routes/conversationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import followupRoutes from "./routes/followupRoutes.js";
 import systemRoutes from "./routes/systemRoutes.js";
+import { setupIncomingMessageWorker } from "./workers/incomingMessageWorker.js";
+import { setupAiProcessingWorker } from "./workers/aiProcessingWorker.js";
+import { setupOutgoingMessageWorker } from "./workers/outgoingMessageWorker.js";
 
 const app = express();
 
@@ -92,6 +95,13 @@ async function bootstrap() {
 
     // Connect to databases
     await initDatabases();
+
+    // Start BullMQ Background Workers
+    console.log("⚙️ Starting BullMQ Workers (Incoming, AI, Outgoing)...");
+    setupIncomingMessageWorker();
+    setupAiProcessingWorker();
+    setupOutgoingMessageWorker();
+    console.log("✅ [Workers] All BullMQ workers listening for WhatsApp messages.");
 
     // Start Express server
     const server = app.listen(config.PORT, () => {
