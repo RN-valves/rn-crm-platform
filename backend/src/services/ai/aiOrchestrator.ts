@@ -37,13 +37,15 @@ export class AiOrchestrator {
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.GEMINI_API_KEY}`;
 
-    const systemPrompt = `You are the polite, knowledgeable WhatsApp sales assistant for "RN Valves & Faucets Private Limited" - a premier Indian manufacturer of bathroom fittings, faucets, brass valves, PTMT taps, and sanitaryware.
-Guidance:
-1. Reply in the exact same language and tone as the customer (Hindi, Hinglish, Marathi, or English).
-2. Keep answers short, crisp, and friendly (max 2-3 short sentences, ideal for WhatsApp reading).
-3. Mention that for official catalogue and bulk dealer quotes, our team is always ready to assist.
-4. For dealer inquiries, politely ask for their shop/firm name and city so the sales team can provide wholesale rates.
-${context ? `\nVerified Product Catalog Context:\n${context}` : ""}`;
+    const systemPrompt = `You are "RN Sahayak", the friendly, knowledgeable WhatsApp sales executive for "RN Valves & Faucets Private Limited" (India's premier manufacturer of high-quality taps, brass ball valves, luxury faucets, showers, and PTMT bathroom fittings).
+
+Response Guidelines:
+1. Always speak warmly and politely in the customer's language (pure Hindi, Hinglish, or English).
+2. Answer their question completely with accurate product details, rates, and catalog links if available in context.
+3. If they inquire about a product or price, clearly state the price (selling/MRP), item code, warranty, and availability.
+4. For dealer, distributor, or bulk wholesale inquiries, warmly welcome them and ask for their firm/shop name and city so the regional sales manager can share wholesale dealer price lists.
+5. Keep formatting clean with emojis (📦, 💰, 🛡️, 📄, 📞) and bullet points. Never cut off your message mid-sentence.
+${context ? `\nVerified Product / Catalog Context:\n${context}` : ""}`;
 
     try {
       console.log(`🤖 [AiOrchestrator] Calling Gemini API (${model})...`);
@@ -59,7 +61,7 @@ ${context ? `\nVerified Product Catalog Context:\n${context}` : ""}`;
           ],
           generationConfig: {
             temperature: 0.3,
-            maxOutputTokens: 300,
+            maxOutputTokens: 500,
           },
         }),
       });
@@ -164,24 +166,25 @@ ${context ? `\nVerified Product Catalog Context:\n${context}` : ""}`;
     if (lower.includes("catalogue") || lower.includes("catalog") || lower.includes("pdf") || lower.includes("brochure")) {
       const catalogues = await ProductRepository.getCatalogue();
       const pdf = catalogues.length > 0 ? catalogues[0] : null;
+      const pdfUrl = pdf?.pdf || "https://rnvalves.com/catalogues/RN_Valves_Complete_Catalogue.pdf";
 
-      let reply = "Here is the official RN Valves & Faucets product catalogue.";
+      let reply = "";
       if (lang === "hi" || lang === "hinglish") {
-        reply = "Yeh lijiye RN Valves & Faucets ka official catalogue PDF.";
+        reply = `Namaste! Yeh lijiye RN Valves & Faucets ka official complete product catalogue:\n\n📄 *Catalogue PDF Link:* ${pdfUrl}\n\nAapko kis category (Taps, Showers, Brass Ball Valves, ya PTMT Fittings) ke baare mein quotation chahiye?`;
+      } else {
+        reply = `Hello! Here is the official RN Valves & Faucets product catalogue:\n\n📄 *Catalogue PDF Link:* ${pdfUrl}\n\nWhich product line (Faucets, Brass Valves, Showers, or PTMT) can we assist you with today?`;
       }
 
-      if (pdf && pdf.pdf) {
-        return {
-          intent: "catalogue_request",
-          language: lang,
-          replyText: reply,
-          mediaUrl: pdf.pdf,
-          mediaType: "document",
-          mediaCaption: "RN Valves & Faucets Product Catalogue",
-          mediaFileName: "RN_Valves_Catalogue.pdf",
-          requiresHumanHandover: false,
-        };
-      }
+      return {
+        intent: "catalogue_request",
+        language: lang,
+        replyText: reply,
+        mediaUrl: pdfUrl,
+        mediaType: "document",
+        mediaCaption: "RN Valves & Faucets Complete Product Catalogue",
+        mediaFileName: "RN_Valves_Catalogue.pdf",
+        requiresHumanHandover: false,
+      };
     }
 
     // 3. Dealer / Distributor Intent
@@ -198,12 +201,12 @@ ${context ? `\nVerified Product Catalog Context:\n${context}` : ""}`;
       // Ask Gemini for a warm dealer response
       const geminiDealerReply = await this.callGemini(
         text,
-        "Customer is interested in dealership or wholesale bulk purchase. Acknowledge enthusiastically and ask for shop/firm name and city."
+        "Customer is interested in dealership or wholesale bulk purchase. Acknowledge enthusiastically, introduce RN Valves as a premier manufacturer, and ask for their shop/firm name and city so the sales team can share wholesale dealer price lists."
       );
 
       let reply =
         geminiDealerReply ||
-        "Thank you for your interest in RN Valves Dealership! Our sales manager will contact you for wholesale & dealer pricing. May I confirm your business name and city?";
+        "Namaste! RN Valves dealership & wholesale mein ruchi dikhane ke liye dhanyawad! Humari sales team aapse bulk pricing ke liye jald sampark karegi. Kripya apni firm/dukaan ka naam aur city batayein?";
 
       return {
         intent: "dealer_inquiry",
@@ -224,29 +227,40 @@ ${context ? `\nVerified Product Catalog Context:\n${context}` : ""}`;
     if (searchResults && searchResults.length > 0) {
       const top = searchResults[0];
       const price = top.inSelling || top.inMrp || top.price;
+      const mrp = top.inMrp || top.price;
 
       // Provide verified product context to Gemini
-      const catalogContext = `Product: ${top.name}\nCode: ${top.code}\nApproved Price: Rs ${price}\nStock: ${top.stockStatus}\nWarranty: ${top.residentialWarranty || 5} Years`;
+      const catalogContext = `Product Name: ${top.name}\nArticle/Item Code: ${top.code}\nApproved Selling Price: Rs ${price}\nMRP: Rs ${mrp}\nStock Status: ${top.stockStatus}\nWarranty: ${top.residentialWarranty || 5} Years\nMaterial: ${top.material || "Brass / Chrome"}`;
 
       const geminiReply = await this.callGemini(text, catalogContext);
 
       let reply = "";
-      if (geminiReply) {
+      if (geminiReply && geminiReply.length > 30) {
         reply = geminiReply;
       } else {
-        // Fallback structured template
-        reply = `*${top.name}* (Code: ${top.code})\n\n`;
-        reply += `💰 Approved Price: ₹${price}\n`;
-        reply += `📦 Stock Status: ${top.stockStatus}\n`;
-        if (top.residentialWarranty) reply += `🛡️ Warranty: ${top.residentialWarranty} Years\n`;
-        reply += `\nKya aapko single piece chahiye ya bulk/dealership quantity?`;
+        // Complete, clear structured WhatsApp message
+        if (lang === "hi" || lang === "hinglish") {
+          reply = `Namaste! Yeh lijiye *${top.name}* ki verified details:\n\n`;
+          reply += `🔖 *Item Code:* ${top.code}\n`;
+          reply += `💰 *Approved Price:* ₹${price}/- (MRP: ₹${mrp})\n`;
+          reply += `📦 *Stock Status:* ${top.stockStatus}\n`;
+          if (top.residentialWarranty) reply += `🛡️ *Warranty:* ${top.residentialWarranty} Saal\n`;
+          reply += `\nKya aapko retail ke liye chahiye ya bulk dealership quantity? Dealership ke liye kripya apni city aur dukan ka naam batayein.`;
+        } else {
+          reply = `Hello! Here are the verified details for *${top.name}*:\n\n`;
+          reply += `🔖 *Item Code:* ${top.code}\n`;
+          reply += `💰 *Approved Price:* ₹${price}/- (MRP: ₹${mrp})\n`;
+          reply += `📦 *Stock:* ${top.stockStatus}\n`;
+          if (top.residentialWarranty) reply += `🛡️ *Warranty:* ${top.residentialWarranty} Years\n`;
+          reply += `\nAre you looking for retail purchase or bulk dealer pricing? For wholesale rates, please share your shop name and city.`;
+        }
       }
 
       return {
         intent: "price_inquiry",
         language: lang,
         replyText: reply,
-        mediaUrl: top.image ? `${config.MEDIA_CDN_URL}/${top.image.replace(/^\//, "")}` : undefined,
+        mediaUrl: top.image ? (top.image.startsWith("http") ? top.image : `${config.MEDIA_CDN_URL}/${top.image.replace(/^\//, "")}`) : undefined,
         mediaType: top.image ? "image" : undefined,
         mediaCaption: `${top.name} - ₹${price}`,
         requiresHumanHandover: false,
@@ -261,7 +275,7 @@ ${context ? `\nVerified Product Catalog Context:\n${context}` : ""}`;
 
     let defaultReply =
       geminiGeneralReply ||
-      "Welcome to RN Valves & Faucets! How can I assist you today? You can ask about our taps, showers, PTMT products, or request our catalogue.";
+      "Namaste! RN Valves & Faucets mein aapka swagat hai. Hum bathroom fittings, brass ball valves, luxury faucets aur PTMT products ke manufacturer hain. Aap kis product ki jankari ya catalogue chahte hain?";
 
     return {
       intent: "general_faq",

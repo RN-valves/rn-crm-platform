@@ -118,12 +118,64 @@ export interface ProductSearchResult {
  */
 export class ProductRepository {
   /**
+   * Helper to extract SKU/article codes and meaningful keywords from natural language query
+   */
+  static extractSearchTerms(query: string): { skuCode?: string; keywords: string[] } {
+    const clean = query.trim();
+    const words = clean.split(/\s+/);
+    let skuCode: string | undefined;
+
+    // Stop words to remove from search query
+    const stopWords = new Set([
+      "can", "you", "please", "pleaser", "provide", "me", "rate", "price", "of", "this", "article",
+      "what", "is", "the", "for", "and", "ka", "ki", "ke", "kya", "bhai", "bhejo", "chahiye", "sir",
+      "namaste", "hello", "hi", "batao", "bataiye", "kitne", "hai", "h", "item", "product", "details",
+      "cost", "rates"
+    ]);
+
+    for (const word of words) {
+      const sanitized = word.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (
+        sanitized.length >= 4 &&
+        (/^rn/i.test(sanitized) || (/[a-zA-Z]/.test(sanitized) && /[0-9]/.test(sanitized)))
+      ) {
+        skuCode = sanitized;
+        break;
+      }
+    }
+
+    const keywords = words
+      .map((w) => w.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())
+      .filter((w) => w.length >= 3 && !stopWords.has(w));
+
+    return { skuCode, keywords };
+  }
+
+  /**
    * Search products by keyword, article code, SKU, or category
    */
   static async searchProducts(query: string, limit: number = 5): Promise<ProductSearchResult[]> {
     const Product = getReadOnlyProductModel();
     const cleanQuery = query.trim();
     if (!cleanQuery) return [];
+
+    const { skuCode, keywords } = this.extractSearchTerms(cleanQuery);
+
+    const mapDoc = (d: any): ProductSearchResult => ({
+      code: d.code,
+      name: d.name,
+      category: d.category,
+      subcategory: d.subcategoryName,
+      price: d.price || d.inSelling || d.inMrp || 0,
+      inMrp: d.inMrp,
+      inSelling: d.inSelling,
+      stockStatus: d.status || "In Stock",
+      image: d.image,
+      material: d.material,
+      color: d.colorName,
+      moq: d.moq || 1,
+      residentialWarranty: d.residentialWarranty,
+    });
 
     if (!Product) {
       // In offline/test mode without live DB connection, provide sample verified RN catalog data
@@ -149,9 +201,51 @@ export class ProductRepository {
       return [];
     }
 
-    const regex = new RegExp(cleanQuery, "i");
+    // 1. Direct SKU / Article code match (e.g. "RNALP28G15" or "RN-102")
+    if (skuCode) {
+      const skuRegex = new RegExp(skuCode, "i");
+      const skuDocs = await Product.find({
+        isVisibleWebsite: true,
+        $or: [{ code: skuRegex }, { skuCode: skuRegex }, { article: skuRegex }, { name: skuRegex }],
+      })
+        .select(
+          "code name category subcategoryName price inMrp inSelling status image material colorName moq residentialWarranty"
+        )
+        .limit(limit)
+        .lean();
 
-    const filter = {
+      if (skuDocs.length > 0) {
+        return skuDocs.map(mapDoc);
+      }
+    }
+
+    // 2. Keyword based matching (e.g. "brass", "ball", "valve")
+    if (keywords.length > 0) {
+      const regexList = keywords.map((kw) => new RegExp(kw, "i"));
+      const kwDocs = await Product.find({
+        isVisibleWebsite: true,
+        $or: regexList.flatMap((r) => [
+          { code: r },
+          { name: r },
+          { category: r },
+          { subcategoryName: r },
+          { material: r },
+        ]),
+      })
+        .select(
+          "code name category subcategoryName price inMrp inSelling status image material colorName moq residentialWarranty"
+        )
+        .limit(limit)
+        .lean();
+
+      if (kwDocs.length > 0) {
+        return kwDocs.map(mapDoc);
+      }
+    }
+
+    // 3. Fallback whole query regex
+    const regex = new RegExp(cleanQuery, "i");
+    const docs = await Product.find({
       isVisibleWebsite: true,
       $or: [
         { code: regex },
@@ -162,30 +256,14 @@ export class ProductRepository {
         { subcategoryName: regex },
         { material: regex },
       ],
-    };
-
-    const docs = await Product.find(filter)
+    })
       .select(
         "code name category subcategoryName price inMrp inSelling status image material colorName moq residentialWarranty"
       )
       .limit(limit)
       .lean();
 
-    return docs.map((d: any) => ({
-      code: d.code,
-      name: d.name,
-      category: d.category,
-      subcategory: d.subcategoryName,
-      price: d.price || d.inSelling || d.inMrp || 0,
-      inMrp: d.inMrp,
-      inSelling: d.inSelling,
-      stockStatus: d.status || "In Stock",
-      image: d.image,
-      material: d.material,
-      color: d.colorName,
-      moq: d.moq || 1,
-      residentialWarranty: d.residentialWarranty,
-    }));
+    return docs.map(mapDoc);
   }
 
   /**
@@ -259,6 +337,14 @@ export class ProductRepository {
     }
 
     const allCatalogues = await Catalogue.find({ status: "Active" }).lean();
+    if (!allCatalogues || allCatalogues.length === 0) {
+      return [
+        {
+          name: "RN Valves & Faucets Complete Product Catalogue",
+          pdf: "https://rnvalves.com/catalogues/RN_Valves_Complete_Catalogue.pdf",
+        },
+      ];
+    }
     return allCatalogues.map((c: any) => ({
       name: c.name,
       pdf: c.pdf,
