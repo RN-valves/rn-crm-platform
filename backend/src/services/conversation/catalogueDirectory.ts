@@ -12,32 +12,32 @@ export class CatalogueDirectory {
     "1": {
       id: "cp_faucets",
       name: "CP Faucets",
-      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
+      pdfUrl: "https://uuhukdqfyvswwzgnkzsa.supabase.co/storage/v1/object/public/catalogues/catalogues/catalogue_cp_faucets_1787822980251.pdf",
     },
     "2": {
       id: "ptmt_faucets",
       name: "PTMT Faucets",
-      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
+      pdfUrl: "https://uuhukdqfyvswwzgnkzsa.supabase.co/storage/v1/object/public/catalogues/catalogues/catalogue_ptmt_faucets_1787823150375.pdf",
     },
     "3": {
       id: "accessories",
       name: "Accessories",
-      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
+      pdfUrl: "https://uuhukdqfyvswwzgnkzsa.supabase.co/storage/v1/object/public/catalogues/catalogues/catalogue_accessories_1787823159985.pdf",
     },
     "4": {
       id: "health_faucets",
       name: "Health Faucets",
-      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
+      pdfUrl: "https://uuhukdqfyvswwzgnkzsa.supabase.co/storage/v1/object/public/catalogues/catalogues/catalogue_accessories_1787823159985.pdf",
     },
     "5": {
       id: "showers",
       name: "Showers",
-      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
+      pdfUrl: "https://uuhukdqfyvswwzgnkzsa.supabase.co/storage/v1/object/public/catalogues/catalogues/catalogue_showers_1787823198506.pdf",
     },
     "6": {
       id: "ball_valves",
       name: "Ball Valves",
-      pdfUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
+      pdfUrl: "https://uuhukdqfyvswwzgnkzsa.supabase.co/storage/v1/object/public/catalogues/catalogues/catalogue_ball_valves_1787823204122.pdf",
     },
     "7": {
       id: "all_categories",
