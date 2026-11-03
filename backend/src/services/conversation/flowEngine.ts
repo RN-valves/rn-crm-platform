@@ -407,7 +407,27 @@ export class FlowEngine {
           return this.renderCategorySelection(session.language);
         }
 
-        if (lower === "2" || lower === "3" || lower.includes("pricing") || lower.includes("sales")) {
+        if (lower === "2" || lower.includes("pricing") || lower.includes("enquiry") || lower.includes("rate")) {
+          const isHi = session.language === "hi";
+          session.state = "SALES_PIN_CODE";
+          return {
+            replyText: isHi
+              ? `🔍 *मूल्य व उत्पाद पूछताछ (Pricing & Product Search)*\n\n` +
+                `1️⃣ *किसी ख़ास उत्पाद का रेट व फोटो देखना हो:*\n` +
+                `👉 सीधे उत्पाद का *Item Code / SKU* (जैसे: *RNALP28G15* या *RN-102*) या नाम (जैसे: *Amara angle cock*) लिखकर भेजें!\n\n` +
+                `2️⃣ *थोक डीलर रेट्स व सेल्स टीम से बात करनी हो:*\n` +
+                `👉 अपने क्षेत्र का *6-अंकीय एरिया पिन कोड* (जैसे: *110001*) भेजें।\n\n` +
+                `(वापस जाने के लिए *Menu* लिखें)`
+              : `🔍 *Pricing & Product Search*\n\n` +
+                `1️⃣ *To view instant price, specs & photo of any product:*\n` +
+                `👉 Simply send the *Item Code / SKU* (e.g. *RNALP28G15* or *RN-102*) or name (e.g. *Amara angle cock*)!\n\n` +
+                `2️⃣ *For wholesale dealer pricing & sales manager connection:*\n` +
+                `👉 Send your *6-digit Area PIN Code* (e.g. *110001*).\n\n` +
+                `(Type *Menu* to go back)`,
+          };
+        }
+
+        if (lower === "3" || lower.includes("sales")) {
           // If PIN code already collected in session, reuse it
           if (session.formData.pincode && session.formData.pincode.length === 6) {
             const rep = SalesRepDirectory.getRepByPin(session.formData.pincode);
