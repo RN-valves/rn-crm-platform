@@ -19,9 +19,32 @@ export async function getConversations(req: Request, res: Response): Promise<voi
 
     try {
       const ConversationControl = getConversationControlModel();
-      const conversations = await ConversationControl.find(query)
+      const rawConversations = await ConversationControl.find(query)
         .sort({ updatedAt: -1 })
         .lean();
+
+      const Message = getMessageModel();
+      const conversations = await Promise.all(
+        rawConversations.map(async (conv) => {
+          const cleanDigits = conv.phone.replace(/\D/g, "");
+          const phoneVariants = [
+            conv.phone,
+            `+${cleanDigits}`,
+            cleanDigits,
+            cleanDigits.startsWith("91") ? `+${cleanDigits}` : `+91${cleanDigits}`,
+          ];
+
+          const lastMsg = await Message.findOne({ phone: { $in: phoneVariants } })
+            .sort({ createdAt: -1 })
+            .lean();
+
+          return {
+            ...conv,
+            lastMessage: lastMsg?.content || (conv.pauseReason ? `Status: ${conv.pauseReason}` : "Active chat"),
+            lastMessageAt: lastMsg?.createdAt || conv.lastCustomerMessageAt || conv.updatedAt,
+          };
+        })
+      );
 
       res.status(200).json({ conversations });
     } catch {

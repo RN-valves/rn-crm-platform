@@ -185,10 +185,17 @@ export default function WhatsAppInbox() {
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-slate-400">12:30 PM</span>
+                      <span className="text-[10px] text-slate-400">
+                        {conv.lastMessageAt || conv.updatedAt || conv.lastCustomerMessageAt
+                          ? new Date(conv.lastMessageAt || conv.updatedAt || conv.lastCustomerMessageAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                      </span>
                     </div>
 
-                    <p className="text-xs text-slate-600 line-clamp-1">{conv.lastMessage || "No messages yet"}</p>
+                    <p className="text-xs text-slate-600 line-clamp-1">{conv.lastMessage || "Active chat"}</p>
 
                     <div className="flex items-center justify-between mt-1 text-[11px]">
                       <span className="text-slate-400 font-mono text-[10px]">{conv.phone}</span>
