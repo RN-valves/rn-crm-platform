@@ -2,9 +2,10 @@
 FROM node:22-alpine AS builder
 
 WORKDIR /app
-ENV NODE_ENV=development
+ENV NODE_ENV=production
 
 COPY package*.json ./
+# Install devDependencies for build (Tailwind, PostCSS)
 RUN npm ci --include=dev
 
 COPY . .
@@ -13,7 +14,7 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL=https://crm-api.rnvalves.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-RUN npm run build
+RUN npx next build
 
 # Runner stage
 FROM node:22-alpine AS runner
