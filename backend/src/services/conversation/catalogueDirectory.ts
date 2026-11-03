@@ -61,14 +61,15 @@ export class CatalogueDirectory {
       }
     }
 
-    // Keyword matching
-    if (clean.includes("cp") || clean.includes("brass faucet")) return this.categories["1"];
-    if (clean.includes("ptmt") || clean.includes("plastic")) return this.categories["2"];
-    if (clean.includes("access")) return this.categories["3"];
-    if (clean.includes("health")) return this.categories["4"];
-    if (clean.includes("shower")) return this.categories["5"];
-    if (clean.includes("valve") || clean.includes("ball")) return this.categories["6"];
-    if (clean.includes("all") || clean.includes("complete")) return this.categories["7"];
+    // Keyword matching with common Indian plumbing synonyms
+    if (clean.includes("cp") || clean.includes("brass") || clean.includes("metal tap") || clean.includes("brass faucet")) return this.categories["1"];
+    if (clean.includes("ptmt") || clean.includes("plastic") || clean.includes("polymer") || clean.includes("pvc")) return this.categories["2"];
+    if (clean.includes("access") || clean.includes("towel") || clean.includes("shelf") || clean.includes("jali") || clean.includes("jaali")) return this.categories["3"];
+    if (clean.includes("health") || clean.includes("jet") || clean.includes("spray") || clean.includes("bidet")) return this.categories["4"];
+    if (clean.includes("shower") || clean.includes("head") || clean.includes("fowara") || clean.includes("rain")) return this.categories["5"];
+    if (clean.includes("valve") || clean.includes("ball") || clean.includes("cock") || clean.includes("valv")) return this.categories["6"];
+    if (clean.includes("all") || clean.includes("complete") || clean.includes("master") || clean.includes("sab") || clean.includes("pura")) return this.categories["7"];
+    if (clean.includes("tap") || clean.includes("nal") || clean.includes("tonti") || clean.includes("faucet")) return this.categories["1"];
 
     return null;
   }

@@ -63,8 +63,16 @@ export class FlowEngine {
       });
     }
 
-    // 3. Loop Guard Rate Limiter (20 msgs in 30s)
+    // 3. Inactivity Auto-Reset (if user returns after 2+ hours, start fresh)
     const now = Date.now();
+    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+    if (stateDoc.lastMessageTimestamp && (now - stateDoc.lastMessageTimestamp > TWO_HOURS_MS) && stateDoc.state !== "LANGUAGE_SELECTION") {
+      console.log(`⏱️ [FlowEngine] Session for ${phone} expired after 2h idle. Resetting to LANGUAGE_SELECTION.`);
+      stateDoc.state = "LANGUAGE_SELECTION";
+      stateDoc.formData = {};
+    }
+
+    // 3b. Loop Guard Rate Limiter (20 msgs in 30s)
     if (now - stateDoc.windowStartTimestamp > 30000) {
       stateDoc.windowStartTimestamp = now;
       stateDoc.messageCountWindow = 1;
@@ -79,9 +87,39 @@ export class FlowEngine {
 
     stateDoc.lastMessageTimestamp = now;
 
-    // 4. Global Shortcuts (Hi / Reset, Main Menu, Change Language)
-    const resetKeywords = ["hi", "hello", "reset", "start", "restart", "hlo", "hii"];
-    const isReset = resetKeywords.includes(lower.replace(/[^a-zA-Z]/g, " ").trim());
+    // 4. Voice Note & Image Handlers (Never leave multimedia unhandled)
+    if (cleanText === "[Voice Note]") {
+      const isHi = stateDoc.language === "hi";
+      return {
+        replyText: isHi
+          ? `🎙️ *नमस्ते!* हमने आपका वॉइस नोट प्राप्त कर लिया है।\n\nहमारी टीम इसे जल्द ही सुनेगी। यदि आपको तत्काल उत्पाद कैटलॉग या एरिया सेल्स मैनेजर से बात करनी है, तो कृपया नीचे दिए गए विकल्पों में से चुनें:\n\n1. 📄 Product Catalogues\n2. 💰 Pricing & Sales Team\n3. 📝 Submit Requirement\n4. 🏠 Main Menu`
+          : `🎙️ *Hello!* We have received your voice note.\n\nOur team will review it shortly. If you need immediate assistance, please choose from the options below:\n\n1. 📄 Product Catalogues\n2. 💰 Pricing & Sales Team\n3. 📝 Submit Requirement\n4. 🏠 Main Menu`,
+      };
+    }
+
+    if (cleanText === "[Image]") {
+      const isHi = stateDoc.language === "hi";
+      return {
+        replyText: isHi
+          ? `📸 *फोटो प्राप्त हुई!* RN Valves को इमेज भेजने के लिए धन्यवाद।\n\nयदि आप इस उत्पाद का कैटलॉग या रेट जानना चाहते हैं, तो कृपया उत्पाद का *आइटम कोड* लिखें या एरिया सेल्स मैनेजर से कनेक्ट होने के लिए अपना *पिन कोड* भेजें।\n\nमेन्यू देखने के लिए *Menu* लिखें।`
+          : `📸 *Photo Received!* Thank you for sharing the image with RN Valves.\n\nTo check prices or availability, please type the *Item Code* or share your *Area PIN Code* to connect with your Regional Sales Manager.\n\nType *Menu* for the main menu.`,
+      };
+    }
+
+    // 4b. Human Support / Call Request Intent
+    const isHumanRequest = /\b(call me|call karo|phone karo|contact number|customer care|helpline|human|agent|executive|insaan se baat|baat karni hai)\b/i.test(cleanText);
+    if (isHumanRequest) {
+      const isHi = stateDoc.language === "hi";
+      return {
+        replyText: isHi
+          ? `👤 *RN Valves सपोर्ट & कस्टमर केयर*\n\nआप सीधे हमारे प्रतिनिधियों से संपर्क कर सकते हैं:\n\n📞 *हेल्पलाइन:* +91 93151 60881\n👤 *सेंट्रल सपोर्ट:* Amit Kumar\n⏰ *समय:* सुबह 10:00 से शाम 7:00 (सोम-शनि)\n\nअपने क्षेत्र के सेल्स मैनेजर से सीधा जुड़ने के लिए अपना *6-अंकीय एरिया पिन कोड* भेजें!\n\nमुख्य मेन्यू के लिए *Menu* लिखें।`
+          : `👤 *RN Valves Support & Customer Care*\n\nYou can connect directly with our representatives:\n\n📞 *Central Helpline:* +91 93151 60881\n👤 *Central Support:* Amit Kumar\n⏰ *Hours:* 10:00 AM - 7:00 PM (Mon-Sat)\n\nTo connect directly with your regional territory manager, please reply with your *6-digit Area PIN Code*.\n\nType *Menu* to return to the main menu.`,
+      };
+    }
+
+    // 4c. Global Shortcuts (Hi / Reset, Main Menu, Change Language, Back)
+    const isReset = /\b(hi|hello|hey|namaste|namaskar|pranam|start|restart|reset|hlo|hii|helo)\b/i.test(cleanText) &&
+      cleanText.split(/\s+/).length <= 4;
 
     if (isReset && stateDoc.state !== "LANGUAGE_SELECTION") {
       stateDoc.state = "LANGUAGE_SELECTION";
@@ -90,7 +128,13 @@ export class FlowEngine {
       return this.renderLanguageSelection();
     }
 
-    if (lower === "main menu" || lower === "menu") {
+    if (lower === "main menu" || lower === "menu" || lower === "home") {
+      stateDoc.state = "BUSINESS_MENU";
+      await stateDoc.save();
+      return this.renderBusinessMenu(stateDoc.language, stateDoc.customerType || "Dealer");
+    }
+
+    if (/^(back|cancel|exit|wapas|peeche)$/i.test(cleanText)) {
       stateDoc.state = "BUSINESS_MENU";
       await stateDoc.save();
       return this.renderBusinessMenu(stateDoc.language, stateDoc.customerType || "Dealer");
@@ -485,13 +529,20 @@ export class FlowEngine {
       // STATE 6: SALES PIN CODE
       // ----------------------------------------------------
       case "SALES_PIN_CODE": {
-        const cleanPin = text.replace(/\D/g, "");
+        if (/^(back|cancel|exit|menu)$/i.test(text.trim())) {
+          session.state = "BUSINESS_MENU";
+          return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
+        }
+
+        const pinMatch = text.match(/\b([1-9][0-9]{5})\b/);
+        const cleanPin = pinMatch ? pinMatch[1] : text.replace(/\D/g, "");
+
         if (cleanPin.length !== 6) {
           const isHi = session.language === "hi";
           return {
             replyText: isHi
-              ? `कृपया 6 अंकों का मान्य पिन कोड दर्ज करें। उदाहरण: 110001`
-              : `Please enter a valid 6-digit PIN Code. Example: 110001`,
+              ? `⚠️ कृपया 6 अंकों का मान्य भारतीय पिन कोड दर्ज करें। उदाहरण: 110001\n(मेन्यू पर वापस जाने के लिए *Menu* लिखें)`
+              : `⚠️ Please enter a valid 6-digit Indian PIN Code. Example: 110001\n(Type *Menu* to return to main menu)`,
           };
         }
 
@@ -517,8 +568,8 @@ export class FlowEngine {
           const isHi = session.language === "hi";
           return {
             replyText: isHi
-              ? `कृपया अपना पूरा नाम दर्ज करें:`
-              : `Please enter your Full Name:`,
+              ? `कृपया अपना पूरा नाम या दुकान/फर्म का नाम दर्ज करें:\n(उदाहरण: Aditya Enterprises या Sumit Kumar)`
+              : `Please enter your Full Name or Firm/Shop Name:\n(Example: Aditya Enterprises or Sumit Kumar)`,
           };
         }
 
@@ -534,14 +585,19 @@ export class FlowEngine {
       // STATE 8: FORM - NAME
       // ----------------------------------------------------
       case "FORM_NAME": {
+        if (/^(back|cancel|exit|menu)$/i.test(text.trim())) {
+          session.state = "BUSINESS_MENU";
+          return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
+        }
+
         const cleanName = text.trim();
-        // Validation: Must not contain digits or special characters, length >= 2
-        if (cleanName.length < 2 || /[0-9@#$%^&*()_+=\[\]{}|\\/<>~`]/g.test(cleanName)) {
+        // Validation: Allow letters, spaces, dots, hyphens, and &, /, ()
+        if (cleanName.length < 2 || /[0-9@$%^*_+=\[\]{}|\\<>~`]/g.test(cleanName)) {
           const isHi = session.language === "hi";
           return {
             replyText: isHi
-              ? `कृपया अपना मान्य नाम लिखें (अंकों या विशेष चिन्हों के बिना)।`
-              : `Please enter a valid name (without numbers or special characters).`,
+              ? `⚠️ कृपया अपना या अपनी दुकान/फर्म का मान्य नाम लिखें।\nउदाहरण: Aditya Enterprises या Sumit Kumar`
+              : `⚠️ Please enter a valid name for yourself or your business.\nExample: Aditya Enterprises or Sumit Kumar`,
           };
         }
 
@@ -550,8 +606,8 @@ export class FlowEngine {
         const isHi = session.language === "hi";
         return {
           replyText: isHi
-            ? `धन्यवाद ${cleanName}! कृपया अपना 10 अंकों का मोबाइल नंबर दर्ज करें:`
-            : `Thank you ${cleanName}! Please enter your 10-digit mobile number:`,
+            ? `धन्यवाद *${cleanName}*! कृपया अपना 10 अंकों का मोबाइल नंबर दर्ज करें:`
+            : `Thank you *${cleanName}*! Please enter your 10-digit mobile number:`,
         };
       }
 
@@ -559,13 +615,24 @@ export class FlowEngine {
       // STATE 9: FORM - MOBILE
       // ----------------------------------------------------
       case "FORM_MOBILE": {
-        const cleanMobile = text.replace(/\D/g, "");
-        if (cleanMobile.length !== 10) {
+        if (/^(back|cancel|exit|menu)$/i.test(text.trim())) {
+          session.state = "BUSINESS_MENU";
+          return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
+        }
+
+        let cleanMobile = text.replace(/\D/g, "");
+        if (cleanMobile.length === 12 && cleanMobile.startsWith("91")) {
+          cleanMobile = cleanMobile.slice(2);
+        } else if (cleanMobile.length === 11 && cleanMobile.startsWith("0")) {
+          cleanMobile = cleanMobile.slice(1);
+        }
+
+        if (cleanMobile.length !== 10 || !/^[6-9]\d{9}$/.test(cleanMobile)) {
           const isHi = session.language === "hi";
           return {
             replyText: isHi
-              ? `कृपया 10 अंकों का मान्य मोबाइल नंबर दर्ज करें। उदाहरण: 9876543210`
-              : `Please share a valid 10-digit mobile number. Example: 9876543210`,
+              ? `⚠️ कृपया 10 अंकों का मान्य भारतीय मोबाइल नंबर दर्ज करें (6, 7, 8 या 9 से शुरू होने वाला)।\nउदाहरण: 9876543210`
+              : `⚠️ Please enter a valid 10-digit Indian mobile number (starting with 6, 7, 8 or 9).\nExample: 9876543210`,
           };
         }
 
@@ -574,7 +641,7 @@ export class FlowEngine {
         const isHi = session.language === "hi";
         return {
           replyText: isHi
-            ? `कृपया अपने एरिया का 6-अंकीय पिन कोड (PIN Code) दर्ज करें:`
+            ? `कृपया अपने क्षेत्र का 6-अंकीय पिन कोड (Area PIN Code) दर्ज करें:`
             : `Please enter your 6-digit Area PIN Code:`,
         };
       }
@@ -583,13 +650,20 @@ export class FlowEngine {
       // STATE 10: FORM - PIN CODE
       // ----------------------------------------------------
       case "FORM_PIN": {
-        const cleanPin = text.replace(/\D/g, "");
+        if (/^(back|cancel|exit|menu)$/i.test(text.trim())) {
+          session.state = "BUSINESS_MENU";
+          return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
+        }
+
+        const pinMatch = text.match(/\b([1-9][0-9]{5})\b/);
+        const cleanPin = pinMatch ? pinMatch[1] : text.replace(/\D/g, "");
+
         if (cleanPin.length !== 6) {
           const isHi = session.language === "hi";
           return {
             replyText: isHi
-              ? `कृपया 6 अंकों का मान्य पिन कोड दर्ज करें। उदाहरण: 110001`
-              : `Please enter a valid 6-digit PIN Code. Example: 110001`,
+              ? `⚠️ कृपया 6 अंकों का मान्य एरिया पिन कोड दर्ज करें। उदाहरण: 110001`
+              : `⚠️ Please enter a valid 6-digit Area PIN Code. Example: 110001`,
           };
         }
 
