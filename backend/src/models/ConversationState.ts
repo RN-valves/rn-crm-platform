@@ -6,6 +6,7 @@ export type BotFlowState =
   | "LANGUAGE_SELECTION"
   | "REQUIREMENT_TYPE"
   | "PERSONAL_USE_END"
+  | "WEBSITE_ORDER_ENQUIRY"
   | "BUSINESS_MENU"
   | "PRODUCT_CATALOGUES"
   | "POST_CATALOGUE"
@@ -21,7 +22,7 @@ export interface IConversationState extends Document {
   phone: string;
   state: BotFlowState;
   language: "en" | "hi" | "te" | "ta" | "pa" | "ur";
-  customerType?: "Distributor" | "Dealer" | "Retailer" | "Personal Use";
+  customerType?: "Distributor" | "Dealer" | "Retailer" | "Personal Use" | "Website Order";
   formData: {
     name?: string;
     mobile?: string;

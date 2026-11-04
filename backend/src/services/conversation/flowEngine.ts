@@ -413,9 +413,22 @@ export class FlowEngine {
       // STATE 2: REQUIREMENT TYPE
       // ----------------------------------------------------
       case "REQUIREMENT_TYPE": {
-        if (lower === "5" || lower.includes("bhasha") || lower.includes("language")) {
+        if (lower === "6" || lower.includes("bhasha") || lower.includes("language")) {
           session.state = "LANGUAGE_SELECTION";
           return this.renderLanguageSelection();
+        }
+
+        if (
+          lower === "5" ||
+          lower.includes("website") ||
+          lower.includes("order") ||
+          lower.includes("online") ||
+          lower.includes("ecommerce") ||
+          lower.includes("e-commerce")
+        ) {
+          session.customerType = "Website Order";
+          session.state = "WEBSITE_ORDER_ENQUIRY";
+          return this.renderWebsiteOrderSupport(session.language);
         }
 
         if (lower === "4" || lower.includes("personal") || lower.includes("ghar")) {
@@ -438,8 +451,8 @@ export class FlowEngine {
           const isHi = session.language === "hi";
           return {
             replyText: isHi
-              ? `कृपया 1 से 5 के बीच सही विकल्प चुनें:\n1. Distributor\n2. Dealer\n3. Retailer\n4. Personal Use\n5. भाषा बदलें`
-              : `Please choose a valid option (1-5):\n1. Distributor\n2. Dealer\n3. Retailer\n4. Personal Use\n5. Change Language`,
+              ? `कृपया 1 से 6 के बीच सही विकल्प चुनें:\n1. 🏢 Distributor\n2. 🏪 Dealer\n3. 🛍️ Retailer\n4. 🏠 Personal Use\n5. 📦 Website Order Enquiries\n6. 🌐 भाषा बदलें`
+              : `Please choose a valid option (1-6):\n1. 🏢 Distributor\n2. 🏪 Dealer\n3. 🛍️ Retailer\n4. 🏠 Personal Use\n5. 📦 Website Order Enquiries\n6. 🌐 Change Language`,
           };
         }
 
@@ -477,6 +490,44 @@ export class FlowEngine {
           return this.renderRequirementType(session.language);
         }
         return { replyText: "", ignoreMessage: true };
+      }
+
+      // ----------------------------------------------------
+      // STATE 2c: WEBSITE ORDER ENQUIRY
+      // ----------------------------------------------------
+      case "WEBSITE_ORDER_ENQUIRY": {
+        if (lower === "1" || lower === "menu" || lower.includes("main menu") || lower === "hi") {
+          session.state = "REQUIREMENT_TYPE";
+          return this.renderRequirementType(session.language);
+        }
+
+        const isHi = session.language === "hi";
+        const cleanCustPhone = (session.formData.mobile || session.phone).replace(/\D/g, "");
+
+        // Dispatch instant alert to E-Commerce Executive (+91 93156 03920)
+        try {
+          const ecommAlert =
+            `📦 *नया वेबसाइट ऑर्डर सहायता अलर्ट! (Website Order Enquiry)*\n\n` +
+            `नमस्ते,\n` +
+            `एक ग्राहक ने rnvalves.com ऑनलाइन ऑर्डर के संबंध में सहायता मांगी है:\n\n` +
+            `📞 *ग्राहक मोबाइल:* +${cleanCustPhone}\n` +
+            `📝 *संदेश / Order ID:* ${text.trim()}\n` +
+            `⏰ *समय:* ${new Date().toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" })}\n\n` +
+            `⚡ कृपया तुरंत ग्राहक से संपर्क करके सहायता प्रदान करें!`;
+
+          evolutionClient.sendTextMessage({
+            number: "919315603920",
+            text: ecommAlert,
+          }).catch((err: any) => console.warn(`[EcommAlert] WhatsApp dispatch notice: ${err.message}`));
+        } catch (e: any) {}
+
+        session.state = "COMPLETED";
+
+        return {
+          replyText: isHi
+            ? `✅ *धन्यवाद!* आपका संदेश हमारे ई-कॉमर्स एग्जीक्यूटिव (*+91 93156 03920*) को भेज दिया गया है।\n\nवे आपके ऑर्डर की स्थिति जाँचकर अतिशीघ्र आपसे संपर्क करेंगे।\n\n🌐 *आधिकारिक स्टोर:* https://rnvalves.com\n\n1. 🏠 Main Menu`
+            : `✅ *Thank you!* Your message has been forwarded directly to our E-Commerce Executive (*+91 93156 03920*).\n\nOur team will review your order status and connect with you shortly.\n\n🌐 *Official Store:* https://rnvalves.com\n\n1. 🏠 Main Menu`,
+        };
       }
 
       // ----------------------------------------------------
@@ -998,8 +1049,9 @@ export class FlowEngine {
       msg += `2. 🏪 Dealer (ਡੀਲਰ)\n`;
       msg += `3. 🛍️ Retailer (ਰਿਟੇਲਰ)\n`;
       msg += `4. 🏠 Personal Use (ਘਰ ਲਈ)\n`;
-      msg += `5. 🌐 ਭਾਸ਼ਾ ਬਦਲੋ (Change Language)\n\n`;
-      msg += `(ਕਿਰਪਾ ਕਰਕੇ 1 ਤੋਂ 5 ਵਿੱਚੋਂ ਇੱਕ ਚੁਣੋ)`;
+      msg += `5. 📦 Website Order Enquiries (ਆਨਲਾਈਨ ਆਰਡਰ)\n`;
+      msg += `6. 🌐 ਭਾਸ਼ਾ ਬਦਲੋ (Change Language)\n\n`;
+      msg += `(ਕਿਰਪਾ ਕਰਕੇ 1 ਤੋਂ 6 ਵਿੱਚੋਂ ਇੱਕ ਚੁਣੋ)`;
     } else if (lang === "hi") {
       msg += `*RN Valves & Faucets* में आपका स्वागत है! 🙏\n\n`;
       msg += `सबसे पहले बताइए, आपकी आवश्यकता किसके लिए है?\n`;
@@ -1007,8 +1059,9 @@ export class FlowEngine {
       msg += `2. 🏪 Dealer\n`;
       msg += `3. 🛍️ Retailer\n`;
       msg += `4. 🏠 Personal Use (घर के लिए)\n`;
-      msg += `5. 🌐 भाषा बदलें (Change Language)\n\n`;
-      msg += `(कृपया 1 से 5 में से एक विकल्प चुनें)`;
+      msg += `5. 📦 Website Order Enquiries (वेबसाइट ऑर्डर पूछताछ)\n`;
+      msg += `6. 🌐 भाषा बदलें (Change Language)\n\n`;
+      msg += `(कृपया 1 से 6 में से एक विकल्प चुनें)`;
     } else if (lang === "te") {
       msg += `*RN Valves & Faucets* కు స్వాగతం! 🙏\n\n`;
       msg += `మీకు దేని కోసం సహాయం కావాలి?\n`;
@@ -1016,8 +1069,9 @@ export class FlowEngine {
       msg += `2. 🏪 Dealer\n`;
       msg += `3. 🛍️ Retailer\n`;
       msg += `4. 🏠 Personal Use (వ్యక్తిగత ఉపయోగం)\n`;
-      msg += `5. 🌐 భాష మార్చండి (Change Language)\n\n`;
-      msg += `(దయచేసి 1 నుండి 5 వరకు ఎంచుకోండి)`;
+      msg += `5. 📦 Website Order Enquiries (వెబ్‌సైట్ ఆర్డర్ విచారణ)\n`;
+      msg += `6. 🌐 భాష మార్చండి (Change Language)\n\n`;
+      msg += `(దయచేసి 1 నుండి 6 వరకు ఎంచుకోండి)`;
     } else if (lang === "ta") {
       msg += `*RN Valves & Faucets* உங்களை வரவேற்கிறது! 🙏\n\n`;
       msg += `உங்கள் தேவை என்னவென்று குறிப்பிடவும்:\n`;
@@ -1025,8 +1079,9 @@ export class FlowEngine {
       msg += `2. 🏪 Dealer\n`;
       msg += `3. 🛍️ Retailer\n`;
       msg += `4. 🏠 Personal Use (சொந்த பயன்பாடு)\n`;
-      msg += `5. 🌐 மொழியை மாற்றவும் (Change Language)\n\n`;
-      msg += `(1 முதல் 5 வரை தேர்வு செய்யவும்)`;
+      msg += `5. 📦 Website Order Enquiries (இணையதள ஆர்டர் விசாரணை)\n`;
+      msg += `6. 🌐 மொழியை மாற்றவும் (Change Language)\n\n`;
+      msg += `(1 முதல் 6 வரை தேர்வு செய்யவும்)`;
     } else if (lang === "ur") {
       msg += `*RN Valves & Faucets* میں خوش آمدید! 🙏\n\n`;
       msg += `سب سے پہلے بتائیں آپ کی ضرورت کس کے لیے ہے؟\n`;
@@ -1034,8 +1089,9 @@ export class FlowEngine {
       msg += `2. 🏪 Dealer\n`;
       msg += `3. 🛍️ Retailer\n`;
       msg += `4. 🏠 Personal Use (ذاتی استعمال)\n`;
-      msg += `5. 🌐 زبان تبدیل کریں (Change Language)\n\n`;
-      msg += `(براہ کرم 1 سے 5 میں سے انتخاب کریں)`;
+      msg += `5. 📦 Website Order Enquiries (آن لائن آرڈر پوچھ گچھ)\n`;
+      msg += `6. 🌐 زبان تبدیل کریں (Change Language)\n\n`;
+      msg += `(براہ کرم 1 سے 6 میں سے انتخاب کریں)`;
     } else {
       msg += `Welcome to *RN Valves & Faucets*! 🙏\n\n`;
       msg += `First, please tell us what you are looking for:\n`;
@@ -1043,10 +1099,29 @@ export class FlowEngine {
       msg += `2. 🏪 Dealer\n`;
       msg += `3. 🛍️ Retailer\n`;
       msg += `4. 🏠 Personal Use\n`;
-      msg += `5. 🌐 Change Language\n\n`;
-      msg += `(Please reply with 1 to 5)`;
+      msg += `5. 📦 Website Order Enquiries\n`;
+      msg += `6. 🌐 Change Language\n\n`;
+      msg += `(Please reply with 1 to 6)`;
     }
 
+    return { replyText: msg };
+  }
+
+  private static renderWebsiteOrderSupport(lang: string): FlowResponse {
+    let msg = "";
+    if (lang === "pa") {
+      msg = `📦 *RN Valves ਵੈੱਬਸਾਈਟ ਅਤੇ ਆਨਲਾਈਨ ਆਰਡਰ ਸਹਾਇਤਾ*\n\nਜੇਕਰ ਤੁਸੀਂ rnvalves.com 'ਤੇ ਆਰਡਰ ਦਿੱਤਾ ਹੈ ਜਾਂ ਵੈੱਬਸਾਈਟ ਆਰਡਰ ਸੰਬੰਧੀ ਕੋਈ ਸਹਾਇਤਾ ਚਾਹੀਦੀ ਹੈ, ਤਾਂ ਤੁਸੀਂ ਸਿੱਧੇ ਸਾਡੇ ਈ-ਕਾਮਰਸ ਐਗਜ਼ੀਕਿਊਟਿਵ ਨਾਲ ਸੰਪਰਕ ਕਰ ਸਕਦੇ ਹੋ:\n\n👤 *ਈ-ਕਾਮਰਸ ਐਗਜ਼ੀਕਿਊਟਿਵ (E-Commerce Executive):*\n📞 *ਸੰਪਰਕ / WhatsApp:* +91 93156 03920\n🌐 *ਆਨਲਾਈਨ ਸਟੋਰ:* https://rnvalves.com\n\nਜੇਕਰ ਤੁਹਾਡੇ ਕੋਲ *Order ID* ਹੈ, ਤਾਂ ਕਿਰਪਾ ਕਰਕੇ ਇੱਥੇ ਲਿਖ ਕੇ ਭੇਜੋ, ਸਾਡੀ ਟੀਮ ਤੁਰੰਤ ਸਟੇਟਸ ਚੈੱਕ ਕਰੇਗੀ!\n\n(ਮੁੱਖ ਮੇਨੂ ਲਈ *Menu* ਲਿਖੋ)`;
+    } else if (lang === "hi") {
+      msg = `📦 *RN Valves वेबसाइट और ऑनलाइन ऑर्डर सहायता*\n\nयदि आपने https://rnvalves.com पर ऑर्डर दिया है या वेबसाइट ऑर्डर के संबंध में कोई सहायता चाहिए, तो आप सीधे हमारे ई-कॉमर्स एग्जीक्यूटिव से संपर्क कर सकते हैं:\n\n👤 *ई-कॉमर्स एग्जीक्यूटिव (E-Commerce Executive):*\n📞 *कॉल / व्हाट्सएप:* +91 93156 03920\n🌐 *आधिकारिक स्टोर:* https://rnvalves.com\n\nयदि आपके पास *Order ID* है, तो कृपया यहाँ लिखकर भेजें, हमारी टीम तुरंत स्टेटस चेक करेगी!\n\n(मुख्य मेन्यू के लिए *Menu* लिखें)`;
+    } else if (lang === "te") {
+      msg = `📦 *RN Valves వెబ్‌సైట్ మరియు ఆన్‌లైన్ ఆర్డర్ సహాయం*\n\nమీరు rnvalves.com లో ఆర్డర్ చేసి ఉంటే లేదా వెబ్‌సైట్ ఆర్డర్ సహాయం కోసం, మీరు నేరుగా మా ఇ-కామర్స్ ఎగ్జిక్యూటివ్‌ని సంప్రదించవచ్చు:\n\n👤 *ఇ-కామర్స్ ఎగ్జిక్యూటివ్ (E-Commerce Executive):*\n📞 *కాల్ / WhatsApp:* +91 93156 03920\n🌐 *స్టోర్:* https://rnvalves.com\n\nమీ వద్ద *Order ID* ఉంటే, దయచేసి ఇక్కడ పంపండి!\n\n(ప్రధాన మెనూ కోసం *Menu* అని టైప్ చేయండి)`;
+    } else if (lang === "ta") {
+      msg = `📦 *RN Valves இணையதள ஆன்லைன் ஆர்டர் ஆதரவு*\n\nநீங்கள் rnvalves.com இல் ஆர்டர் செய்திருந்தால் அல்லது இணையதள ஆர்டர் உதவிக்கு, எங்கள் இ-காமர்ஸ் நிர்வாகியை நேரடியாக தொடர்பு கொள்ளலாம்:\n\n👤 *இ-காமர்ஸ் நிர்வாகி (E-Commerce Executive):*\n📞 *அழைப்பு / WhatsApp:* +91 93156 03920\n🌐 *ஸ்டோர்:* https://rnvalves.com\n\nஉங்களிடம் *Order ID* இருந்தால், தயவுசெய்து இங்கே அனுப்பவும்!\n\n(முதன்மை மெனுவுக்கு *Menu* என தட்டச்சு செய்யவும்)`;
+    } else if (lang === "ur") {
+      msg = `📦 *RN Valves ویب سائٹ اور آن لائن آرڈر سپورٹ*\n\nاگر آپ نے rnvalves.com پر آرڈر دیا ہے یا آن لائن آرڈر سے متعلق رہنمائی چاہیے، تو آپ براہ راست ہمارے ای کامرس ایگزیکٹو سے رابطہ کر سکتے ہیں:\n\n👤 *ای کامرس ایگزیکٹو (E-Commerce Executive):*\n📞 *کال / واٹس ایپ:* +91 93156 03920\n🌐 *اسٹور:* https://rnvalves.com\n\nاگر آپ کے پاس *Order ID* ہے، تو براہ کرم یہاں لکھ کر بھیجیں!\n\n(مین مینو کے لیے *Menu* لکھیں)`;
+    } else {
+      msg = `📦 *RN Valves Website & Online Order Support*\n\nIf you have placed an order on https://rnvalves.com or need assistance regarding website orders, you can connect directly with our E-Commerce Executive:\n\n👤 *E-Commerce Executive:*\n📞 *Call / WhatsApp:* +91 93156 03920\n🌐 *Official Store:* https://rnvalves.com\n\nIf you have an *Order ID*, please reply with your Order ID here, and our team will check the status immediately!\n\n(Type *Menu* to return to the main menu)`;
+    }
     return { replyText: msg };
   }
 
