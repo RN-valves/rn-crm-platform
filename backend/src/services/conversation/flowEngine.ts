@@ -2,6 +2,7 @@ import { getConversationStateModel, BotFlowState, IConversationState } from "../
 import { SalesRepDirectory, SalesRep } from "./salesRepDirectory.js";
 import { CatalogueDirectory, CatalogueCategory } from "./catalogueDirectory.js";
 import { getLeadModel } from "../../models/Lead.js";
+import { getContactModel } from "../../models/Contact.js";
 import { getMessageModel } from "../../models/Message.js";
 import { ProductRepository } from "../../repositories/ProductRepository.js";
 import { outgoingMessagesQueue } from "../../queues/queueManager.js";
@@ -371,6 +372,23 @@ export class FlowEngine {
   ): Promise<FlowResponse> {
     const currentState = session.state;
 
+    // Advanced input normalization: emojis, numerals, leading digits, strip punctuation
+    const norm = lower
+      .replace(/1️⃣|¹/g, "1")
+      .replace(/2️⃣|²/g, "2")
+      .replace(/3️⃣|³/g, "3")
+      .replace(/4️⃣/g, "4")
+      .replace(/5️⃣/g, "5")
+      .replace(/6️⃣/g, "6")
+      .replace(/7️⃣/g, "7")
+      .replace(/8️⃣/g, "8")
+      .trim();
+
+    // Match leading single digit option (e.g. "1.", "1)", "1 - dealer", "1 dealer", "#1")
+    const numMatch = norm.match(/^(?:#|\b)?([1-8])(?:[.)\s\-:]+.*)?$/);
+    const leadingDigit = numMatch ? numMatch[1] : null;
+    const cleanChoice = leadingDigit || norm;
+
     switch (currentState) {
       // ----------------------------------------------------
       // STATE 1: LANGUAGE SELECTION
@@ -393,7 +411,7 @@ export class FlowEngine {
           urdu: "ur",
         };
 
-        const chosenLang = langMap[lower] || (/2|hindi/i.test(lower) ? "hi" : /1|english/i.test(lower) ? "en" : null);
+        const chosenLang = langMap[cleanChoice] || langMap[leadingDigit || ""] || (/2|hindi/i.test(norm) ? "hi" : /1|english/i.test(norm) ? "en" : null);
 
         if (!chosenLang) {
           return this.renderLanguageSelection("Please select a valid option (1-6).");
@@ -408,25 +426,25 @@ export class FlowEngine {
       // STATE 2: REQUIREMENT TYPE
       // ----------------------------------------------------
       case "REQUIREMENT_TYPE": {
-        if (lower === "6" || lower.includes("bhasha") || lower.includes("language")) {
+        if (cleanChoice === "6" || norm.includes("bhasha") || norm.includes("language")) {
           session.state = "LANGUAGE_SELECTION";
           return this.renderLanguageSelection();
         }
 
         if (
-          lower === "5" ||
-          lower.includes("website") ||
-          lower.includes("order") ||
-          lower.includes("online") ||
-          lower.includes("ecommerce") ||
-          lower.includes("e-commerce")
+          cleanChoice === "5" ||
+          norm.includes("website") ||
+          norm.includes("order") ||
+          norm.includes("online") ||
+          norm.includes("ecommerce") ||
+          norm.includes("e-commerce")
         ) {
           session.customerType = "Website Order";
           session.state = "WEBSITE_ORDER_ENQUIRY";
           return this.renderWebsiteOrderSupport(session.language);
         }
 
-        if (lower === "4" || lower.includes("personal") || lower.includes("ghar")) {
+        if (cleanChoice === "4" || norm.includes("personal") || norm.includes("ghar") || norm.includes("home") || norm.includes("khud")) {
           session.customerType = "Personal Use";
           session.state = "PERSONAL_USE_END";
           const isHi = session.language === "hi";
@@ -438,9 +456,9 @@ export class FlowEngine {
         }
 
         let custType: "Distributor" | "Dealer" | "Retailer" | null = null;
-        if (lower === "1" || lower.includes("distributor")) custType = "Distributor";
-        else if (lower === "2" || lower.includes("dealer")) custType = "Dealer";
-        else if (lower === "3" || lower.includes("retailer")) custType = "Retailer";
+        if (cleanChoice === "1" || /distribut/i.test(norm) || /stockist/i.test(norm) || /wholesale/i.test(norm)) custType = "Distributor";
+        else if (cleanChoice === "2" || /dealer/i.test(norm) || /dukan|shop|store|sanitary/i.test(norm)) custType = "Dealer";
+        else if (cleanChoice === "3" || /retail/i.test(norm) || /plumber/i.test(norm)) custType = "Retailer";
 
         if (!custType) {
           const isHi = session.language === "hi";
@@ -529,12 +547,12 @@ export class FlowEngine {
       // STATE 3: BUSINESS MENU
       // ----------------------------------------------------
       case "BUSINESS_MENU": {
-        if (lower === "1" || lower.includes("catalog")) {
+        if (cleanChoice === "1" || norm.includes("catalog")) {
           session.state = "PRODUCT_CATALOGUES";
           return this.renderCategorySelection(session.language);
         }
 
-        if (lower === "2" || lower.includes("pricing") || lower.includes("enquiry") || lower.includes("rate") || lower.includes("sales")) {
+        if (cleanChoice === "2" || norm.includes("pricing") || norm.includes("enquiry") || norm.includes("rate") || norm.includes("sales")) {
           const isHi = session.language === "hi";
           session.state = "SALES_PIN_CODE";
           return {
@@ -554,7 +572,7 @@ export class FlowEngine {
           };
         }
 
-        if (lower === "3" || lower.includes("submit") || lower.includes("requirement")) {
+        if (cleanChoice === "3" || norm.includes("submit") || norm.includes("requirement")) {
           session.state = "FORM_NAME";
           const isHi = session.language === "hi";
           return {
@@ -564,11 +582,11 @@ export class FlowEngine {
           };
         }
 
-        if (lower === "4" || lower.includes("care") || lower.includes("complaint") || lower.includes("support") || lower.includes("shikayat") || lower.includes("service")) {
+        if (cleanChoice === "4" || norm.includes("care") || norm.includes("complaint") || norm.includes("support") || norm.includes("shikayat") || norm.includes("service")) {
           return this.renderCustomerCareCard(session.language);
         }
 
-        if (lower === "5" || lower.includes("main menu")) {
+        if (cleanChoice === "5" || norm.includes("main menu") || norm.includes("menu")) {
           session.state = "REQUIREMENT_TYPE";
           return this.renderRequirementType(session.language);
         }
@@ -585,12 +603,12 @@ export class FlowEngine {
       // STATE 4: PRODUCT CATALOGUES
       // ----------------------------------------------------
       case "PRODUCT_CATALOGUES": {
-        if (lower === "8" || lower.includes("main menu")) {
+        if (cleanChoice === "8" || norm.includes("main menu") || norm.includes("menu")) {
           session.state = "BUSINESS_MENU";
           return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
         }
 
-        const category = CatalogueDirectory.getCategory(lower);
+        const category = CatalogueDirectory.getCategory(cleanChoice);
         if (!category) {
           const isHi = session.language === "hi";
           return {
@@ -621,7 +639,7 @@ export class FlowEngine {
       // STATE 5: POST CATALOGUE OPTIONS
       // ----------------------------------------------------
       case "POST_CATALOGUE": {
-        if (lower === "1" || lower.includes("sales")) {
+        if (cleanChoice === "1" || norm.includes("sales")) {
           session.state = "SALES_PIN_CODE";
           const isHi = session.language === "hi";
           return {
@@ -631,7 +649,7 @@ export class FlowEngine {
           };
         }
 
-        if (lower === "2" || lower.includes("submit")) {
+        if (cleanChoice === "2" || norm.includes("submit")) {
           session.state = "FORM_NAME";
           const isHi = session.language === "hi";
           return {
@@ -641,12 +659,12 @@ export class FlowEngine {
           };
         }
 
-        if (lower === "3" || lower.includes("other") || lower.includes("category")) {
+        if (cleanChoice === "3" || norm.includes("other") || norm.includes("category")) {
           session.state = "PRODUCT_CATALOGUES";
           return this.renderCategorySelection(session.language);
         }
 
-        if (lower === "4" || lower.includes("main menu") || lower.includes("menu")) {
+        if (cleanChoice === "4" || norm.includes("main menu") || norm.includes("menu")) {
           session.state = "BUSINESS_MENU";
           return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
         }
@@ -849,20 +867,25 @@ export class FlowEngine {
       // STATE 11: FORM - INTEREST & FINAL CRM SAVE
       // ----------------------------------------------------
       case "FORM_INTEREST": {
-        const cat = CatalogueDirectory.getCategory(lower);
+        const cat = CatalogueDirectory.getCategory(cleanChoice);
         const interestName = cat ? cat.name : "All Categories";
         session.formData.interestedCategory = interestName;
 
         // 1. Save Lead into CRM Database
         const Lead = getLeadModel();
+        const Contact = getContactModel();
         const rep = session.formData.assignedAgent || (session.formData.pincode ? SalesRepDirectory.getRepByPin(session.formData.pincode) : SalesRepDirectory.getFallbackRep());
         const leadNumber = `RNL-${Math.floor(10000 + Math.random() * 90000)}`;
+
+        const leadPhone = session.formData.mobile || session.phone;
+        const cleanLeadDigits = leadPhone.replace(/\D/g, "");
+        const formattedLeadPhone = cleanLeadDigits.startsWith("91") ? `+${cleanLeadDigits}` : `+91${cleanLeadDigits}`;
 
         try {
           await Lead.create({
             leadNumber,
             customerName: session.formData.name || customerName || "Customer",
-            phone: session.formData.mobile || session.phone,
+            phone: formattedLeadPhone,
             businessType: session.customerType || "Dealer",
             city: rep.state,
             state: rep.state,
@@ -878,6 +901,32 @@ export class FlowEngine {
           console.log(`✅ [FlowEngine] Created Lead ${leadNumber} for ${session.formData.name} -> Assigned to ${rep.name}`);
         } catch (leadErr: any) {
           console.error(`❌ [FlowEngine] Failed to save lead: ${leadErr.message}`);
+        }
+
+        // 1b. Upsert Contact Record for CRM Directory & Inbox Profile 360
+        try {
+          await Contact.findOneAndUpdate(
+            { phone: { $in: [leadPhone, formattedLeadPhone, cleanLeadDigits] } },
+            {
+              $set: {
+                phone: formattedLeadPhone,
+                name: session.formData.name || customerName || "Customer",
+                businessName: session.formData.name || "",
+                businessType: session.customerType || "Dealer",
+                city: rep.state,
+                state: rep.state,
+                pincode: session.formData.pincode || "",
+                lastContactedAt: new Date(),
+              },
+              $setOnInsert: {
+                isVerifiedDealer: false,
+                tags: ["WhatsApp_Lead", session.customerType || "Dealer"],
+              },
+            },
+            { upsert: true, new: true }
+          );
+        } catch (contactErr: any) {
+          console.warn(`[FlowEngine] Contact upsert warning: ${contactErr.message}`);
         }
 
         // 2. Dispatch instant WhatsApp notification directly to Regional Sales Rep & Admin

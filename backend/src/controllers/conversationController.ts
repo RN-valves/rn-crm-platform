@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { getConversationControlModel } from "../models/ConversationControl.js";
 import { getMessageModel } from "../models/Message.js";
+import { getContactModel } from "../models/Contact.js";
+import { getLeadModel } from "../models/Lead.js";
 import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { chatwootClient } from "../services/chatwoot/chatwootClient.js";
 import { getAuditLogModel } from "../models/AuditLog.js";
@@ -24,6 +26,9 @@ export async function getConversations(req: Request, res: Response): Promise<voi
         .lean();
 
       const Message = getMessageModel();
+      const Contact = getContactModel();
+      const Lead = getLeadModel();
+
       const conversations = await Promise.all(
         rawConversations.map(async (conv) => {
           const cleanDigits = conv.phone.replace(/\D/g, "");
@@ -34,12 +39,24 @@ export async function getConversations(req: Request, res: Response): Promise<voi
             cleanDigits.startsWith("91") ? `+${cleanDigits}` : `+91${cleanDigits}`,
           ];
 
-          const lastMsg = await Message.findOne({ phone: { $in: phoneVariants } })
-            .sort({ createdAt: -1 })
-            .lean();
+          const [lastMsg, contact, lead] = await Promise.all([
+            Message.findOne({ phone: { $in: phoneVariants } }).sort({ createdAt: -1 }).lean(),
+            Contact.findOne({ phone: { $in: phoneVariants } }).lean(),
+            Lead.findOne({ phone: { $in: phoneVariants } }).sort({ createdAt: -1 }).lean(),
+          ]);
+
+          const resolvedName = contact?.name || lead?.customerName || (conv as any).customerName || "";
+          const resolvedBusiness = contact?.businessName || lead?.customerName || (conv as any).businessName || "";
+          const resolvedType = contact?.businessType || lead?.businessType || (conv as any).businessType || "Dealer";
+          const resolvedTeam = lead?.assignedEmployeeName ? `Sales (${lead.assignedEmployeeName})` : ((conv as any).assignedTeam || "Sales");
 
           return {
             ...conv,
+            customerName: resolvedName,
+            businessName: resolvedBusiness,
+            businessType: resolvedType,
+            assignedTeam: resolvedTeam,
+            city: contact?.city || lead?.city || "",
             lastMessage: lastMsg?.content || (conv.pauseReason ? `Status: ${conv.pauseReason}` : "Active chat"),
             lastMessageAt: lastMsg?.createdAt || conv.lastCustomerMessageAt || conv.updatedAt,
           };
