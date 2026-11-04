@@ -285,7 +285,7 @@ export class FlowEngine {
       const personLine = cleanText.match(/(?:contact\s*person|person\s*name|name)[:\s\-*]+([^\n\r]+)/i);
       if (personLine) personName = personLine[1].replace(/[*_~`]/g, "").trim();
 
-      const finalName = personName || shopName || customerName || "Customer";
+      const finalName = (personName ? FlowEngine.sanitizeAndExtractName(personName) : "") || (shopName ? FlowEngine.sanitizeAndExtractName(shopName) : "") || customerName || "Customer";
       const rep = pin ? SalesRepDirectory.getRepByPin(pin) : SalesRepDirectory.getFallbackRep();
       const leadNumber = `RNL-${Math.floor(10000 + Math.random() * 90000)}`;
 
@@ -867,16 +867,39 @@ export class FlowEngine {
           return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
         }
 
-        const cleanName = text.trim();
-        // Validation: Must not be purely digits, at least 2 characters, and not off-topic questions
-        if (cleanName.length < 2 || /^\d+$/.test(cleanName) || /[@$%^*_+=\[\]{}|\\<>~`]/g.test(cleanName) || /\b(kaun|kyu|kyun|discount|price|rate|kya|who|why|help|agent|human|talk|baat)\b/i.test(cleanName)) {
+        const raw = text.trim();
+        // Check for off-topic questions (discount, price, rate, kaun, etc.) -> Offer Human Takeover
+        if (/\b(kaun|kyu|kyun|discount|price|rate|kya|who|why|help|agent|human|talk|baat)\b/i.test(raw)) {
           session.state = "HUMAN_TAKEOVER_PROMPT";
           return this.renderHumanTakeoverPrompt(session.language);
         }
 
+        const cleanName = FlowEngine.sanitizeAndExtractName(raw);
+
+        // Validation: Must not be purely digits, at least 2 chars, not dummy filler
+        const invalidFillers = /^(hi|hello|hey|ok|okay|yes|no|haan|nahi|menu|test|demo|name|naam|bye|good|bad|nice)$/i;
+        if (cleanName.length < 2 || cleanName.length > 60 || /^\d+$/.test(cleanName) || /[@$%^*_+=\[\]{}|\\<>~`]/g.test(cleanName) || invalidFillers.test(cleanName) || /^(.)\1{3,}$/.test(cleanName)) {
+          const lang = session.language;
+          let retryPrompt = "";
+          if (lang === "pa") {
+            retryPrompt = `⚠️ ਕਿਰਪਾ ਕਰਕੇ ਆਪਣਾ ਅਸਲ ਨਾਮ ਜਾਂ ਦੁਕਾਨ/ਫਰਮ ਦਾ ਨਾਮ ਦਰਜ ਕਰੋ:\n(ਉਦਾਹਰਣ: Sharma Sanitary Store ਜਾਂ Rahul Gupta)`;
+          } else if (lang === "te") {
+            retryPrompt = `⚠️ దయచేసి మీ సరైన పేరు లేదా దుకాణం/సంస్థ పేరును నమోదు చేయండి:\n(ఉదాహరణ: Sharma Sanitary Store లేదా Rahul Gupta)`;
+          } else if (lang === "ta") {
+            retryPrompt = `⚠️ தயவுசெய்து உங்கள் சரியான பெயர் அல்லது கடை/நிறுவனத்தின் பெயரை உள்ளிடவும்:\n(எடுத்துக்காட்டு: Sharma Sanitary Store அல்லது Rahul Gupta)`;
+          } else if (lang === "ur") {
+            retryPrompt = `⚠️ براہ کرم اپنا درست نام یا دکان/فرم کا نام درج کریں:\n(مثال: Sharma Sanitary Store یا Rahul Gupta)`;
+          } else if (lang === "hi") {
+            retryPrompt = `⚠️ कृपया अपना सही नाम या दुकान/फर्म का नाम दर्ज करें:\n(उदाहरण: Sharma Sanitary Store या Rahul Gupta)`;
+          } else {
+            retryPrompt = `⚠️ Please enter a valid Name or Shop/Firm Name:\n(Example: Sharma Sanitary Store or Rahul Gupta)`;
+          }
+          return { replyText: retryPrompt };
+        }
+
         session.formData.name = cleanName;
         // Check if an explicit mobile number was included
-        const phoneMatch = cleanName.match(/\b([6-9]\d{9})\b/);
+        const phoneMatch = raw.match(/\b([6-9]\d{9})\b/);
         if (phoneMatch) {
           session.formData.mobile = phoneMatch[1];
         } else if (!session.formData.mobile) {
@@ -1845,5 +1868,32 @@ export class FlowEngine {
     }
 
     return { replyText: msg };
+  }
+
+  /**
+   * Helper: Smart Name Extractor & Sanitizer
+   * Extracts clean name from phrases like "my name is jeetu singh", "mera naam rahul hai"
+   */
+  private static sanitizeAndExtractName(rawText: string): string {
+    let name = rawText.trim();
+
+    // 1. Remove common conversational prefixes
+    name = name.replace(/^(my\s+name\s+is|mera\s+naam\s+hai|mera\s+naam|naam\s+hai|my\s+self|myself|i\s+am|im|i'm|this\s+is|here\s+is|hamara\s+naam|mera\s+name|naam)\s*[:\-]?\s+/i, "");
+
+    // 2. Remove trailing words like "hai", "hoon", "hu", "here", "ji", "sir"
+    name = name.replace(/\s+(hai|hoon|hu|here|ji|sir)$/i, "");
+
+    // 3. Clean up quotes, brackets, and extra punctuation
+    name = name.replace(/^["'`.\-_:\s]+|["'`.\-_:\s]+$/g, "").trim();
+
+    // 4. Proper capitalize words if user typed in lowercase (e.g. "jeetu singh" -> "Jeetu Singh")
+    if (name && name === name.toLowerCase()) {
+      name = name
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+
+    return name;
   }
 }
