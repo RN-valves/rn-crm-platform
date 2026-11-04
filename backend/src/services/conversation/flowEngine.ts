@@ -53,16 +53,17 @@ export class FlowEngine {
       leadNumber: string;
     }
   ): Promise<void> {
-    const cleanRepPhone = rep.mobile.replace(/\D/g, "");
+    const effectiveRep = rep || SalesRepDirectory.getFallbackRep();
+    const cleanRepPhone = (effectiveRep.mobile || "+91 93151 60881").replace(/\D/g, "");
     const customerPhone = leadDetails.customerPhone.replace(/\D/g, "");
 
     const alertToRep =
       `🚨 *नई डीलर लीड अलर्ट! (New WhatsApp Lead)*\n\n` +
-      `नमस्ते *${rep.name} ji*,\n` +
-      `आपके क्षेत्र (*${rep.area}*) से एक नई लीड दर्ज हुई है:\n\n` +
+      `नमस्ते *${effectiveRep.name} ji*,\n` +
+      `आपके क्षेत्र (*${effectiveRep.area}*) से एक नई लीड दर्ज हुई है:\n\n` +
       `👤 *ग्राहक/फर्म:* ${leadDetails.customerName}\n` +
       `📞 *मोबाइल:* +${customerPhone}\n` +
-      `📍 *पिन कोड:* ${leadDetails.pincode} (${rep.state})\n` +
+      `📍 *पिन कोड:* ${leadDetails.pincode} (${effectiveRep.state})\n` +
       `🏷️ *प्रकार:* ${leadDetails.customerType || "Dealer"}\n` +
       `📦 *उत्पाद श्रेणी:* ${leadDetails.productCategory}\n` +
       `🆔 *लीड आईडी:* ${leadDetails.leadNumber}\n\n` +
@@ -275,7 +276,7 @@ export class FlowEngine {
       const pinMatch = cleanText.match(/\b([1-9][0-9]{5})\b/);
       const phoneMatch = cleanText.match(/\b([6-9][0-9]{9,11})\b/);
 
-      const pin = pinMatch ? pinMatch[1] : (stateDoc.formData.pincode || "110001");
+      const pin = pinMatch ? pinMatch[1] : (stateDoc.formData.pincode || "");
       let mob = phoneMatch ? phoneMatch[1].slice(-10) : phone;
 
       let shopName = "";
@@ -287,7 +288,7 @@ export class FlowEngine {
       if (personLine) personName = personLine[1].replace(/[*_~`]/g, "").trim();
 
       const finalName = personName || shopName || customerName || "Customer";
-      const rep = SalesRepDirectory.getRepByPin(pin);
+      const rep = pin ? SalesRepDirectory.getRepByPin(pin) : SalesRepDirectory.getFallbackRep();
       const leadNumber = `RNL-${Math.floor(10000 + Math.random() * 90000)}`;
 
       const Lead = getLeadModel();
@@ -782,7 +783,7 @@ export class FlowEngine {
 
         // 1. Save Lead into CRM Database
         const Lead = getLeadModel();
-        const rep = session.formData.assignedAgent || SalesRepDirectory.getRepByPin(session.formData.pincode || "110001");
+        const rep = session.formData.assignedAgent || (session.formData.pincode ? SalesRepDirectory.getRepByPin(session.formData.pincode) : SalesRepDirectory.getFallbackRep());
         const leadNumber = `RNL-${Math.floor(10000 + Math.random() * 90000)}`;
 
         try {
@@ -812,7 +813,7 @@ export class FlowEngine {
           await FlowEngine.dispatchRepWhatsAppAlert(rep, {
             customerName: session.formData.name || customerName || "Customer",
             customerPhone: session.formData.mobile || session.phone,
-            pincode: session.formData.pincode || "110001",
+            pincode: session.formData.pincode || "Pan-India",
             customerType: session.customerType || "Dealer",
             productCategory: interestName,
             leadNumber,

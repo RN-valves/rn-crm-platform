@@ -6,12 +6,19 @@ export interface SalesRep {
 }
 
 export class SalesRepDirectory {
-  private static defaultRep: SalesRep = {
+  public static defaultRep: SalesRep = {
     name: "Amit Kumar Sir",
     mobile: "+91 93151 60881",
     area: "Central Support / Head Office",
     state: "Pan-India",
   };
+
+  /**
+   * Universal Fallback Rep (Amit Kumar Sir: +91 93151 60881)
+   */
+  static getFallbackRep(): SalesRep {
+    return this.defaultRep;
+  }
 
   /**
    * Map 6-digit Indian PIN Code to Regional Sales Manager
