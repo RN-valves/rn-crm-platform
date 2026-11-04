@@ -105,7 +105,13 @@ export function setupIncomingMessageWorker(): Worker {
 
       // 3. Check Conversation Mode (AI Mode vs Human Mode) & Staff Exclusions
       const staffPhonePatterns = [
-        "9315160881", "9315160882", "9315160883", "9315160884", "9315160885", "9315160886",
+        "9315160881", // Amit Kumar Sir
+        "9315596055", // Arpita
+        "9315593842", // Gaurav
+        "9643308980", // Vinod
+        "9315600189", // Danish
+        "9870288812", // Pradeep
+        "8076555914", // Khusi
       ];
       const isInternalStaff = staffPhonePatterns.some(num => normalizedPhone.includes(num)) ||
         (contact && (contact.tags?.includes("Staff") || contact.tags?.includes("Colleague") || contact.tags?.includes("DoNotReply") || contact.businessType === "Staff"));
