@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RN Valves & Faucets - WhatsApp CRM & Conversational AI Presentation</title>
+  <!-- Mermaid.js for Ultra HD Flowcharts -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --secondary: #0f172a;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --accent: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding-bottom: 80px;
+    }
+
+    /* Top Floating Presentation Bar */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      color: #fff;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .top-bar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-badge {
+      background: #0284c7;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+
+    .top-bar-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-action {
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-action:hover {
+      background: #0369a1;
+      transform: translateY(-1px);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+
+    /* Hero Header */
+    .hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #fff;
+      padding: 48px;
+      border-radius: 24px;
+      margin-bottom: 40px;
+      box-shadow: 0 12px 35px rgba(15, 23, 42, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .hero-tag {
+      display: inline-block;
+      background: rgba(2, 132, 199, 0.25);
+      border: 1px solid rgba(2, 132, 199, 0.5);
+      color: #38bdf8;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 16px;
+    }
+
+    .hero h1 {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.25;
+      margin-bottom: 12px;
+    }
+
+    .hero p {
+      font-size: 16px;
+      color: #94a3b8;
+      max-width: 780px;
+      line-height: 1.6;
+    }
+
+    /* Section Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px;
+      margin-bottom: 36px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      page-break-inside: avoid;
+    }
+
+    .card-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--secondary);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Diagram Container */
+    .diagram-box {
+      background: #fdfdfd;
+      border: 1px solid #edf2f7;
+      border-radius: 16px;
+      padding: 24px;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 14px 18px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: #f1f5f9;
+      color: var(--secondary);
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .badge-code {
+      font-family: 'JetBrains Mono', monospace;
+      background: #e2e8f0;
+      color: #0f172a;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .badge-tag {
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Print Styles for Flawless PDF Export */
+    @media print {
+      body {
+        background: #fff;
+        padding-bottom: 0;
+      }
+      .top-bar {
+        display: none !important;
+      }
+      .card {
+        border: 1px solid #ccc;
+        box-shadow: none;
+        margin-bottom: 24px;
+        page-break-inside: avoid;
+      }
+      .hero {
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+      .diagram-box {
+        border: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Presentation Toolbar -->
+  <div class="top-bar">
+    <div class="top-bar-brand">
+      <span class="brand-badge">RN VALVES</span>
+      <span class="brand-title">Executive Presentation — WhatsApp AI & CRM System</span>
+    </div>
+    <div class="top-bar-actions">
+      <button class="btn-action" onclick="window.print()">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+          <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>
+          <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/>
+        </svg>
+        Save as PDF / Print
+      </button>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Hero Header -->
+    <div class="hero">
+      <span class="hero-tag">Official Architecture Flow</span>
+      <h1>RN Valves & Faucets Private Limited</h1>
+      <p>Automated Multi-Lingual WhatsApp CRM, Deterministic Conversational State Machine, Instant Supabase Catalogues Delivery, and Regional Sales Territory Routing System.</p>
+    </div>
+
+    <!-- Section 1: Customer Journey & State Flow -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">📱 1. End-to-End WhatsApp Customer Flow</h2>
+          <p class="card-desc">Deterministic multi-lingual chatbot state transitions from initial greeting to catalogue download and qualified lead capture.</p>
+        </div>
+      </div>
+      <div class="diagram-box">
+        <div class="mermaid">
+flowchart TD
+    Start(["User initiates: 'Hi' / 'Namaste' / Any Message"]) --> LangState["1. LANGUAGE SELECTION<br/>• 1. English<br/>• 2. Hindi / हिंदी<br/>• 3. Telugu / తెలుగు<br/>• 4. Tamil / தமிழ்<br/>• 5. Punjabi / ਪੰਜਾਬੀ<br/>• 6. Urdu / اردو"]
+
+    LangState -->|"Valid Choice (1 - 6)"| ReqType["2. REQUIREMENT TYPE<br/>1. Distributor<br/>2. Dealer<br/>3. Retailer<br/>4. Personal Use<br/>5. Change Language"]
+    LangState -->|"Invalid Input"| LangRetry["⚠️ Guidance Prompt + Reprompt Languages"] --> LangState
+
+    ReqType -->|"4. Personal Use"| PersonalUse["🏠 PERSONAL USE EXIT<br/>• Delivers website: https://rnvalves.com<br/>• Bot remains silent until 'Menu' or 'Hi'"]
+    ReqType -->|"5. Change Language"| LangState
+    ReqType -->|"1. Distributor / 2. Dealer / 3. Retailer"| FormName["3. UPFRONT B2B LEAD CAPTURE (Name / Firm)<br/>• Captures Full Name or Shop/Firm Name<br/>• Auto-binds verified WhatsApp phone"]
+
+    %% Direct B2B Lead Funnel (Zero Leakage)
+    FormName -->|"Valid Name"| FormPin["4. AREA PIN CODE CAPTURE<br/>• Maps 6-digit PIN to Regional Sales Manager<br/>• Resolves regional manager, state & territory"]
+    FormName -->|"Back / Cancel"| BizMenu["BUSINESS MENU"]
+
+    FormPin -->|"Valid PIN"| FormCat["5. PRODUCT CATEGORY SELECTION<br/>• Select: CP Faucets, PTMT, Accessories, Showers, Valves, All Categories"]
+    FormPin -->|"Back / Cancel"| BizMenu
+
+    FormCat --> FinalSave["6. REAL-TIME CRM SAVE & SALES REP ALERT<br/>1. Create High-Priority Lead in MongoDB (leads collection)<br/>2. 📲 Instant WhatsApp Alert to Assigned Sales Manager<br/>3. 📄 Deliver Official Supabase Catalogue PDF<br/>4. 👤 Deliver Sales Manager Contact Card<br/>5. Status set to COMPLETED"]
+
+    FinalSave --> ShowOther["7. POST-LEAD EXPLORATION (Show Other)<br/>1. 📄 View Other Catalogues (PDFs)<br/>2. 🌐 Visit Official Website (rnvalves.com)<br/>3. 🏠 Main Menu"]
+
+    ShowOther -->|"1. View Other Catalogues"| CatSelect["8. CATEGORY DIRECTORY<br/>1. CP Faucets (Brass)<br/>2. PTMT Faucets<br/>3. Accessories<br/>4. Showers<br/>5. Ball Valves<br/>6. All Categories"]
+    CatSelect -->|"Select Category"| DeliverPDF["📄 DELIVER SUPABASE PDF DOCUMENT<br/>• Direct PDF file delivered inside WhatsApp"]
+    DeliverPDF --> ShowOther
+
+    ShowOther -->|"2. Visit Website"| WebLink["🌐 RN Valves Official Store: https://rnvalves.com"]
+    ShowOther -->|"3. Main Menu"| BizMenu
+
+    %% Branch D: Global Smart AI Catalog Bypass
+    BizMenu -.->|"Anytime: SKU Typed (e.g. RNALP28G15)"| SmartCard["🤖 SMART CATALOG BYPASS<br/>• High-Res Product Image<br/>• Verified Rate: ₹841/- (MRP: ₹.../-)<br/>• Stock Status & Warranty<br/>• Options: 1. Talk to Sales | 2. Catalogues | 3. Menu"]
+    SmartCard --> BizMenu
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Real-Time Dual Execution Model -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">⚡ 2. Instant Dual-Channel Dispatch (Customer & Sales Rep)</h2>
+          <p class="card-desc">When a lead submits their requirements, the customer receives materials and the territory sales manager is notified on WhatsApp simultaneously.</p>
+        </div>
+      </div>
+      <div class="diagram-box">
+        <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Customer as 👤 WhatsApp Customer
+    participant Engine as ⚙️ FlowEngine
+    participant CRM as 🗄️ MongoDB (rn-crm)
+    actor Rep as 👔 Regional Sales Rep (e.g. Arpita)
+    participant Dashboard as 📊 Kanban Pipeline
+
+    Customer->>Engine: Submits PIN: 274301, Interest: CP Faucets
+    Engine->>CRM: Create Lead (leadNumber: RNL-59281, assignedEmployeeName: 'Arpita', status: 'NEW', priority: 'HIGH')
+    CRM-->>Dashboard: Live WebSocket Push to /leads (Card appears in 'New Inquiries')
+
+    par Customer Confirmation
+        Engine->>Customer: 1. Regional Sales Manager Contact Card (Arpita: +91 93155 96055)<br/>2. Official Supabase Catalogue PDF Document
+    and Internal Rep Alert
+        Engine->>Rep: 📲 WhatsApp Alert: "🚨 नई डीलर लीड अलर्ट! Customer: Aditya Gupta, Phone: +91 8737029643, PIN: 274301 (UP). Please connect immediately!"
+    end
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Territory PIN Routing -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">📍 3. Automated Territory PIN Code Routing Matrix</h2>
+          <p class="card-desc">Real-time routing rules resolving customers to their designated regional managers across India.</p>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>PIN Code Prefix</th>
+            <th>Region / Territory</th>
+            <th>State</th>
+            <th>Assigned Regional Manager</th>
+            <th>Direct WhatsApp Phone</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge-code">11xxxx, 20xxxx–28xxxx, 80xxxx–85xxxx</span></td>
+            <td>UP, Bihar, Delhi NCR</td>
+            <td>UP / Bihar / Delhi NCR</td>
+            <td><strong>Arpita</strong></td>
+            <td><code>+91 93155 96055</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge-code">12xxxx–19xxxx, 36xxxx–39xxxx, 75xxxx–77xxxx</span></td>
+            <td>Haryana, Punjab, Gujarat, Orissa (Odisha)</td>
+            <td>Haryana / Punjab / Gujarat / Odisha</td>
+            <td><strong>Amit Kumar Sir</strong></td>
+            <td><code>+91 93151 60881</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge-code">30xxxx–34xxxx, 45xxxx–49xxxx</span></td>
+            <td>Rajasthan, Madhya Pradesh (MP), Chhattisgarh</td>
+            <td>Rajasthan / MP / Chhattisgarh</td>
+            <td><strong>Gaurav</strong></td>
+            <td><code>+91 93155 93842</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge-code">40xxxx–44xxxx, 67xxxx–69xxxx</span></td>
+            <td>Maharashtra, Kerala, Goa</td>
+            <td>Maharashtra / Kerala / Goa</td>
+            <td><strong>Vinod</strong></td>
+            <td><code>+91 96433 08980</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge-code">50xxxx–53xxxx</span></td>
+            <td>Andhra Pradesh, Telangana (Hyderabad)</td>
+            <td>Andhra Pradesh / Telangana</td>
+            <td><strong>Khusi</strong></td>
+            <td><code>+91 80765 55914</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge-code">56xxxx–59xxxx</span></td>
+            <td>Karnataka Region</td>
+            <td>Karnataka</td>
+            <td><strong>Pradeep</strong></td>
+            <td><code>+91 98702 88812</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge-code">60xxxx–64xxxx, 70xxxx–74xxxx, 78xxxx–79xxxx, 83xxxx</span></td>
+            <td>West Bengal, Assam, Tamil Nadu, Jharkhand</td>
+            <td>WB / Assam / Tamil Nadu / Jharkhand</td>
+            <td><strong>Danish</strong></td>
+            <td><code>+91 93156 00189</code></td>
+          </tr>
+          <tr>
+            <td><span class="badge-code">Fallback</span></td>
+            <td>All Other Territories / Central Support</td>
+            <td>Pan-India</td>
+            <td><strong>Amit Kumar Sir</strong></td>
+            <td><code>+91 93151 60881</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 4: Production Dashboards Integration -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">📊 4. Production Dashboards Utilization</h2>
+          <p class="card-desc">How each dashboard in the CRM ecosystem reflects real-time conversational actions.</p>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Dashboard</th>
+            <th>Production URL</th>
+            <th>Live Operational Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Kanban Sales Pipeline</strong></td>
+            <td><a href="https://crm.rnvalves.com/leads" target="_blank">crm.rnvalves.com/leads</a></td>
+            <td>Leads appear instantly under <strong>New Inquiries</strong> assigned to regional managers (Drag & Drop: <code>Contacted → Qualified → Closed</code>).</td>
+          </tr>
+          <tr>
+            <td><strong>Live WhatsApp Inbox</strong></td>
+            <td><a href="https://crm.rnvalves.com/inbox" target="_blank">crm.rnvalves.com/inbox</a></td>
+            <td>Streams real-time customer WhatsApp messages with timestamps, preview, and 1-click human agent takeover.</td>
+          </tr>
+          <tr>
+            <td><strong>Executive Overview</strong></td>
+            <td><a href="https://crm.rnvalves.com" target="_blank">crm.rnvalves.com</a></td>
+            <td>Real-time business telemetry: Total Contacts, Inbound Leads Today, Active AI vs Human chats, and conversion rates.</td>
+          </tr>
+          <tr>
+            <td><strong>Contacts Directory</strong></td>
+            <td><a href="https://crm.rnvalves.com/contacts" target="_blank">crm.rnvalves.com/contacts</a></td>
+            <td>Full directory of verified customers with phone numbers, tags (<code>Dealer</code>, <code>Retailer</code>, <code>Staff</code>), and inquiry counts.</td>
+          </tr>
+          <tr>
+            <td><strong>AI Bot Training & Settings</strong></td>
+            <td><a href="https://crm.rnvalves.com/ai-settings" target="_blank">crm.rnvalves.com/ai-settings</a></td>
+            <td>Live configuration panel to tune bot prompt instructions, temperature, and catalog search parameters without touching code.</td>
+          </tr>
+          <tr>
+            <td><strong>Chatwoot Team Support</strong></td>
+            <td><a href="https://inbox.rnvalves.com" target="_blank">inbox.rnvalves.com</a></td>
+            <td>Multi-agent team inbox where customer support reps can live-chat directly with WhatsApp users.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      flowchart: {
+        curve: 'basis',
+        useMaxWidth: true,
+        htmlLabels: true
+      }
+    });
+  </script>
+</body>
+</html>
