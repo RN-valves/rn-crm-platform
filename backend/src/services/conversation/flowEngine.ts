@@ -444,8 +444,28 @@ export class FlowEngine {
         }
 
         session.customerType = custType;
-        session.state = "BUSINESS_MENU";
-        return this.renderBusinessMenu(session.language, custType);
+        session.state = "FORM_NAME";
+        session.formData = {
+          mobile: session.phone.replace(/\D/g, "").slice(-10),
+        };
+
+        const lang = session.language;
+        let welcomePrompt = "";
+        if (lang === "pa") {
+          welcomePrompt = `🤝 *ਧੰਨਵਾਦ! RN Valves ${custType} ਨੈੱਟਵਰਕ ਵਿੱਚ ਤੁਹਾਡਾ ਸੁਆਗਤ ਹੈ।*\n\nਆਪਣੇ ਖੇਤਰੀ ਸੇਲਜ਼ ਮੈਨੇਜਰ ਨਾਲ ਜੁੜਨ ਅਤੇ ਵਿਸ਼ੇਸ਼ ${custType} ਰੇਟ ਲਿਸਟ ਪ੍ਰਾਪਤ ਕਰਨ ਲਈ, ਕਿਰਪਾ ਕਰਕੇ ਕੁਝ ਵੇਰਵੇ ਸਾਂਝੇ ਕਰੋ:\n\n📝 *ਕਿਰਪਾ ਕਰਕੇ ਆਪਣਾ ਪੂਰਾ ਨਾਮ ਜਾਂ ਦੁਕਾਨ/ਫ਼ਰਮ ਦਾ ਨਾਮ ਦਰਜ ਕਰੋ:*\n(ਉਦਾਹਰਣ: Sharma Sanitary Store ਜਾਂ Rahul Gupta)`;
+        } else if (lang === "te") {
+          welcomePrompt = `🤝 *ధన్యవాదాలు! RN Valves ${custType} నెట్‌వర్క్‌కి స్వాగతం.*\n\nమీ ప్రాంతీయ సేల్స్ మేనేజర్‌తో కనెక్ట్ కావడానికి మరియు ప్రత్యేక ${custType} ధరల జాబితా కోసం:\n\n📝 *దయచేసి మీ పూర్తి పేరు లేదా షాప్/ఫర్మ్ పేరు నమోదు చేయండి:*\n(ఉదాహరణ: Sharma Sanitary Store లేదా Rahul Gupta)`;
+        } else if (lang === "ta") {
+          welcomePrompt = `🤝 *நன்றி! RN Valves ${custType} நெட்வொர்க்கிற்கு வரவேற்கிறோம்.*\n\nஉங்கள் பிராந்திய விற்பனை மேலாளருடன் இணைவதற்கும் பிரத்யேக ${custType} விலை பட்டியலுக்கும்:\n\n📝 *தயவுசெய்து உங்கள் முழு பெயர் அல்லது கடையின் பெயரை உள்ளிடவும்:*\n(எடுத்துக்காட்டு: Sharma Sanitary Store அல்லது Rahul Gupta)`;
+        } else if (lang === "ur") {
+          welcomePrompt = `🤝 *شکریہ! RN Valves ${custType} نیٹ ورک میں خوش آمدید۔*\n\nاپنے علاقائی سیلز مینیجر سے رابطہ قائم کرنے اور خصوصی قیمتوں کے لیے:\n\n📝 *براہ کرم اپنا پورا نام یا دکان/فرم کا نام درج کریں:*\n(مثال: Sharma Sanitary Store یا Rahul Gupta)`;
+        } else if (lang === "hi") {
+          welcomePrompt = `🤝 *धन्यवाद! RN Valves ${custType} नेटवर्क में आपका स्वागत है।* 🙏\n\nआपके क्षेत्र के अधिकृत रीजनल सेल्स मैनेजर से जोड़ने और विशेष ${custType} प्राइज लिस्ट / कैटलॉग प्रदान करने के लिए, कृपया कुछ विवरण साझा करें:\n\n📝 *कृपया अपना पूरा नाम या दुकान/फर्म का नाम लिखें:*\n(उदाहरण: Sharma Sanitary Store या Rahul Gupta)`;
+        } else {
+          welcomePrompt = `🤝 *Thank you! Welcome to the RN Valves ${custType} Network.* 🙏\n\nTo connect you directly with your Regional Sales Manager and share exclusive wholesale ${custType} pricing & catalogues, please share a few quick details:\n\n📝 *Please enter your Full Name or Firm/Shop Name:*\n(Example: Sharma Sanitary Store or Rahul Gupta)`;
+        }
+
+        return { replyText: welcomePrompt };
       }
 
       // ----------------------------------------------------
@@ -684,24 +704,43 @@ export class FlowEngine {
         }
 
         const cleanName = text.trim();
-        // Validation: Allow letters, spaces, dots, hyphens, and &, /, ()
-        if (cleanName.length < 2 || /[0-9@$%^*_+=\[\]{}|\\<>~`]/g.test(cleanName)) {
+        // Validation: Must not be purely digits, at least 2 characters
+        if (cleanName.length < 2 || /^\d+$/.test(cleanName) || /[@$%^*_+=\[\]{}|\\<>~`]/g.test(cleanName)) {
           const isHi = session.language === "hi";
           return {
             replyText: isHi
-              ? `⚠️ कृपया अपना या अपनी दुकान/फर्म का मान्य नाम लिखें।\nउदाहरण: Aditya Enterprises या Sumit Kumar`
-              : `⚠️ Please enter a valid name for yourself or your business.\nExample: Aditya Enterprises or Sumit Kumar`,
+              ? `⚠️ कृपया अपना या अपनी दुकान/फर्म का मान्य नाम लिखें।\nउदाहरण: Sharma Sanitary Store या Rahul Gupta`
+              : `⚠️ Please enter a valid name for yourself or your business.\nExample: Sharma Sanitary Store or Rahul Gupta`,
           };
         }
 
         session.formData.name = cleanName;
-        session.state = "FORM_MOBILE";
-        const isHi = session.language === "hi";
-        return {
-          replyText: isHi
-            ? `धन्यवाद *${cleanName}*! कृपया अपना 10 अंकों का मोबाइल नंबर दर्ज करें:`
-            : `Thank you *${cleanName}*! Please enter your 10-digit mobile number:`,
-        };
+        // Check if an explicit mobile number was included
+        const phoneMatch = cleanName.match(/\b([6-9]\d{9})\b/);
+        if (phoneMatch) {
+          session.formData.mobile = phoneMatch[1];
+        } else if (!session.formData.mobile) {
+          session.formData.mobile = session.phone.replace(/\D/g, "").slice(-10);
+        }
+
+        session.state = "FORM_PIN";
+        const lang = session.language;
+        let pinPrompt = "";
+        if (lang === "pa") {
+          pinPrompt = `ਧੰਨਵਾਦ *${cleanName}* ਜੀ! 🙏\n\n📍 *ਕਿਰਪਾ ਕਰਕੇ ਆਪਣੇ ਖੇਤਰ ਦਾ 6-ਅੰਕੀ ਪਿਨ ਕੋਡ (Area PIN Code) ਦਰਜ ਕਰੋ:*\n(ਉਦਾਹਰਣ: 110001 ਜਾਂ 141001)`;
+        } else if (lang === "te") {
+          pinPrompt = `ధన్యవాదాలు *${cleanName}* గారు! 🙏\n\n📍 *దయచేసి మీ ప్రాంతం యొక్క 6-అంకెల పిన్ కోడ్ (Area PIN Code) నమోదు చేయండి:*\n(ఉదాహరణ: 500001)`;
+        } else if (lang === "ta") {
+          pinPrompt = `நன்றி *${cleanName}*! 🙏\n\n📍 *தயவுசெய்து உங்கள் 6-இலக்க பகுதி பின் குறியீட்டை (Area PIN Code) உள்ளிடவும்:*\n(எடுத்துக்காட்டு: 600001)`;
+        } else if (lang === "ur") {
+          pinPrompt = `شکریہ *${cleanName}* صاحب! 🙏\n\n📍 *براہ کرم اپنے علاقے کا 6 ہندسوں کا پن کوڈ درج کریں:*\n(مثال: 110001)`;
+        } else if (lang === "hi") {
+          pinPrompt = `धन्यवाद *${cleanName}* जी! 🙏\n\n📍 *कृपया अपनी दुकान/फर्म का 6-अंकीय एरिया पिन कोड (Area PIN Code) दर्ज करें:*\n(उदाहरण: 110001 या 274301)`;
+        } else {
+          pinPrompt = `Thank you *${cleanName}*! 🙏\n\n📍 *Please enter your 6-digit Area PIN Code:*\n(Example: 110001 or 274301)`;
+        }
+
+        return { replyText: pinPrompt };
       }
 
       // ----------------------------------------------------
@@ -823,33 +862,63 @@ export class FlowEngine {
         }
 
         session.state = "COMPLETED";
-        const isHi = session.language === "hi";
+        const custPhone = (session.formData.mobile || session.phone).replace(/\D/g, "");
 
         let finalMsg = "";
-        if (isHi) {
+        const lang = session.language;
+        if (lang === "pa") {
+          finalMsg = `🎉 *ਧੰਨਵਾਦ ${session.formData.name}!* ਤੁਹਾਡੀ ਲੋੜ ਸਫਲਤਾਪੂਰਵਕ ਦਰਜ ਕਰ ਲਈ ਗਈ ਹੈ।\n\n`;
+          finalMsg += `📋 *ਤੁਹਾਡੇ ਵੇਰਵੇ:*\n`;
+          finalMsg += `• ਨਾਮ: ${session.formData.name}\n`;
+          finalMsg += `• ਮੋਬਾਈਲ: +${custPhone}\n`;
+          finalMsg += `• ਪਿਨ ਕੋਡ: ${session.formData.pincode} (${rep.state})\n`;
+          finalMsg += `• ਸ਼੍ਰੇਣੀ: ${interestName}\n\n`;
+          finalMsg += `👤 *ਤੁਹਾਡੇ ਖੇਤਰੀ ਸੇਲਜ਼ ਮੈਨੇਜਰ (Regional Sales Manager):*\n`;
+          finalMsg += `• ਨਾਮ: *${rep.name}*\n`;
+          finalMsg += `• ਮੋਬਾਈਲ: *${rep.mobile}*\n`;
+          finalMsg += `• ਖੇਤਰ: ${rep.area} (${rep.state})\n\n`;
+          finalMsg += `ਸਾਡੀ ਸੇਲਜ਼ ਟੀਮ ਜਲਦੀ ਹੀ ਤੁਹਾਡੇ ਨਾਲ ਸੰਪਰਕ ਕਰੇਗੀ।\n\n`;
+          finalMsg += `━━━━━━━━━━━━━━━━━━━\n`;
+          finalMsg += `*ਤੁਸੀਂ ਅੱਗੇ ਕੀ ਦੇਖਣਾ ਚਾਹੁੰਦੇ ਹੋ?*\n`;
+          finalMsg += `1. 📄 ਹੋਰ ਕੈਟਾਲਾਗ ਦੇਖੋ (Other Catalogues)\n`;
+          finalMsg += `2. 🌐 ਵੈੱਬਸਾਈਟ ਦੇਖੋ (rnvalves.com)\n`;
+          finalMsg += `3. 🏠 Main Menu`;
+        } else if (lang === "hi") {
           finalMsg = `🎉 *धन्यवाद ${session.formData.name}!* आपकी आवश्यकता सफलतापूर्वक दर्ज कर ली गई है।\n\n`;
           finalMsg += `📋 *आपके विवरण:*\n`;
           finalMsg += `• नाम: ${session.formData.name}\n`;
-          finalMsg += `• मोबाइल: ${session.formData.mobile}\n`;
-          finalMsg += `• पिन कोड: ${session.formData.pincode}\n`;
+          finalMsg += `• मोबाइल: +${custPhone}\n`;
+          finalMsg += `• पिन कोड: ${session.formData.pincode} (${rep.state})\n`;
+          finalMsg += `• प्रकार: ${session.customerType || "Dealer"}\n`;
           finalMsg += `• उत्पाद रुचि: ${interestName}\n\n`;
-          finalMsg += `👤 *आपके क्षेत्रीय बिक्री प्रतिनिधि (Regional Sales Manager):*\n`;
+          finalMsg += `👤 *आपके क्षेत्रीय बिक्री प्रबंधक (Regional Sales Manager):*\n`;
           finalMsg += `• नाम: *${rep.name}*\n`;
           finalMsg += `• मोबाइल: *${rep.mobile}*\n`;
           finalMsg += `• क्षेत्र: ${rep.area} (${rep.state})\n\n`;
-          finalMsg += `हमारी बिक्री टीम आपसे जल्द ही संपर्क करेगी।\n\n1. 🏠 Main Menu`;
+          finalMsg += `हमारी बिक्री टीम आपसे अतिशीघ्र विशेष डीलर प्राइज लिस्ट के साथ संपर्क करेगी।\n\n`;
+          finalMsg += `━━━━━━━━━━━━━━━━━━━\n`;
+          finalMsg += `*आप आगे क्या देखना चाहेंगे?*\n`;
+          finalMsg += `1. 📄 View Other Catalogues (अन्य कैटलॉग देखें)\n`;
+          finalMsg += `2. 🌐 Visit Official Website (वेबसाइट देखें)\n`;
+          finalMsg += `3. 🏠 Main Menu`;
         } else {
           finalMsg = `🎉 *Thank you ${session.formData.name}!* Your requirement has been successfully submitted.\n\n`;
           finalMsg += `📋 *Your Details:*\n`;
           finalMsg += `• Name: ${session.formData.name}\n`;
-          finalMsg += `• Mobile: ${session.formData.mobile}\n`;
-          finalMsg += `• PIN Code: ${session.formData.pincode}\n`;
+          finalMsg += `• Mobile: +${custPhone}\n`;
+          finalMsg += `• PIN Code: ${session.formData.pincode} (${rep.state})\n`;
+          finalMsg += `• Type: ${session.customerType || "Dealer"}\n`;
           finalMsg += `• Category: ${interestName}\n\n`;
           finalMsg += `👤 *Your Regional Sales Representative:*\n`;
           finalMsg += `• Name: *${rep.name}*\n`;
           finalMsg += `• Mobile: *${rep.mobile}*\n`;
           finalMsg += `• Territory: ${rep.area} (${rep.state})\n\n`;
-          finalMsg += `Our team will contact you shortly.\n\n1. 🏠 Main Menu`;
+          finalMsg += `Our sales team will connect with you shortly with exclusive pricing.\n\n`;
+          finalMsg += `━━━━━━━━━━━━━━━━━━━\n`;
+          finalMsg += `*What would you like to explore next?*\n`;
+          finalMsg += `1. 📄 View Other Catalogues\n`;
+          finalMsg += `2. 🌐 Visit Official Website (rnvalves.com)\n`;
+          finalMsg += `3. 🏠 Main Menu`;
         }
 
         return {
@@ -862,17 +931,33 @@ export class FlowEngine {
       }
 
       // ----------------------------------------------------
-      // STATE 12: COMPLETED
+      // STATE 12: COMPLETED (SHOW OTHER OPTIONS)
       // ----------------------------------------------------
       case "COMPLETED": {
-        if (lower === "1" || lower.includes("main menu") || lower.includes("menu")) {
+        if (lower === "1" || lower.includes("catalog") || lower.includes("other") || lower.includes("category")) {
+          session.state = "PRODUCT_CATALOGUES";
+          return this.renderCategorySelection(session.language);
+        }
+
+        if (lower === "2" || lower.includes("website") || lower.includes("site")) {
+          const isHi = session.language === "hi";
+          return {
+            replyText: isHi
+              ? `🌐 *RN Valves & Faucets आधिकारिक वेबसाइट:*\nhttps://rnvalves.com\n\nयहाँ आप हमारे 200+ प्रीमियम ब्रास व PTMT उत्पाद, तकनीकी विवरण एवं वारंटी देख सकते हैं।\n\n1. 📄 View Other Catalogues\n2. 🏠 Main Menu`
+              : `🌐 *RN Valves & Faucets Official Website:*\nhttps://rnvalves.com\n\nExplore our full range of 200+ premium brass & PTMT faucets, technical specs & warranties.\n\n1. 📄 View Other Catalogues\n2. 🏠 Main Menu`,
+          };
+        }
+
+        if (lower === "3" || lower.includes("main menu") || lower.includes("menu")) {
           session.state = "BUSINESS_MENU";
           return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
         }
+
+        const isHi = session.language === "hi";
         return {
-          replyText: session.language === "hi"
-            ? `मुख्य मेन्यू पर जाने के लिए कृपया *1* या *Main Menu* लिखें।`
-            : `To return to the main menu, please type *1* or *Main Menu*.`,
+          replyText: isHi
+            ? `कृपया नीचे दिए गए विकल्पों में से चुनें:\n1. 📄 अन्य कैटलॉग देखें (View Other Catalogues)\n2. 🌐 वेबसाइट देखें (Visit Website)\n3. 🏠 Main Menu`
+            : `Please choose from the options below:\n1. 📄 View Other Catalogues\n2. 🌐 Visit Official Website\n3. 🏠 Main Menu`,
         };
       }
 
