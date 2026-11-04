@@ -722,12 +722,7 @@ export class FlowEngine {
       // STATE 7: SALES REP SHOWN
       // ----------------------------------------------------
       case "SALES_REP_SHOWN": {
-        if (lower === "1" || lower.includes("main menu") || lower.includes("menu")) {
-          session.state = "BUSINESS_MENU";
-          return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
-        }
-
-        if (lower === "2" || lower.includes("submit")) {
+        if (cleanChoice === "1" || norm.includes("submit") || norm.includes("requirement")) {
           session.state = "FORM_NAME";
           const isHi = session.language === "hi";
           return {
@@ -737,11 +732,25 @@ export class FlowEngine {
           };
         }
 
+        if (cleanChoice === "2" || norm.includes("catalog") || norm.includes("other") || norm.includes("category")) {
+          session.state = "PRODUCT_CATALOGUES";
+          return this.renderCategorySelection(session.language);
+        }
+
+        if (cleanChoice === "3" || norm.includes("care") || norm.includes("complaint") || norm.includes("support") || norm.includes("service")) {
+          return this.renderCustomerCareCard(session.language);
+        }
+
+        if (cleanChoice === "4" || norm.includes("main menu") || norm.includes("menu") || norm.includes("home")) {
+          session.state = "BUSINESS_MENU";
+          return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
+        }
+
         const isHi = session.language === "hi";
         return {
           replyText: isHi
-            ? `कृपया 1 या 2 चुनें:\n1. Main Menu\n2. Submit Requirement`
-            : `Please choose 1 or 2:\n1. Main Menu\n2. Submit Requirement`,
+            ? `कृपया नीचे दिए गए विकल्पों (1 से 4) में से चुनें:\n1. 📝 Submit Requirement (आवश्यकता दर्ज करें)\n2. 📄 View Other Catalogues (अन्य कैटलॉग देखें)\n3. 📞 Customer Care & Support (कस्टमर केयर सहायता)\n4. 🏠 Main Menu`
+            : `Please choose from the options below (1-4):\n1. 📝 Submit Requirement\n2. 📄 View Other Catalogues\n3. 📞 Customer Care & Support\n4. 🏠 Main Menu`,
         };
       }
 
@@ -961,10 +970,14 @@ export class FlowEngine {
           finalMsg += `• ਖੇਤਰ: ${rep.area} (${rep.state})\n\n`;
           finalMsg += `ਸਾਡੀ ਸੇਲਜ਼ ਟੀਮ ਜਲਦੀ ਹੀ ਤੁਹਾਡੇ ਨਾਲ ਸੰਪਰਕ ਕਰੇਗੀ।\n\n`;
           finalMsg += `━━━━━━━━━━━━━━━━━━━\n`;
-          finalMsg += `*ਤੁਸੀਂ ਅੱਗੇ ਕੀ ਦੇਖਣਾ ਚਾਹੁੰਦੇ ਹੋ?*\n`;
-          finalMsg += `1. 📄 ਹੋਰ ਕੈਟਾਲਾਗ ਦੇਖੋ (Other Catalogues)\n`;
-          finalMsg += `2. 🌐 ਵੈੱਬਸਾਈਟ ਦੇਖੋ (rnvalves.com)\n`;
-          finalMsg += `3. 🏠 Main Menu`;
+          finalMsg += `*ਤੁਸੀਂ ਅੱਗੇ ਕੀ ਦੇਖਣਾ ਚਾਹੁੰਦੇ ਹੋ? (What would you like to explore next?)*\n\n`;
+          finalMsg += `1. 👤 Talk to Sales Team (ਸੇਲਜ਼ ਟੀਮ ਨਾਲ ਗੱਲ ਕਰੋ)\n`;
+          finalMsg += `2. 📝 Submit Requirement (ਹੋਰ ਲੋੜ ਦਰਜ ਕਰੋ)\n`;
+          finalMsg += `3. 📄 View Other Catalogues (ਹੋਰ ਕੈਟਾਲਾਗ ਦੇਖੋ)\n`;
+          finalMsg += `4. 📞 Customer Care & Support (ਕਸਟਮਰ ਕੇਅਰ ਤੇ ਸ਼ਿਕਾਇਤ)\n`;
+          finalMsg += `5. 🌐 Visit Official Website (ਵੈੱਬਸਾਈਟ ਦੇਖੋ - rnvalves.com)\n`;
+          finalMsg += `6. 🏠 Main Menu (ਮੁੱਖ ਮੀਨੂ)\n\n`;
+          finalMsg += `(1 ਤੋਂ 6 ਵਿੱਚੋਂ ਇੱਕ ਨੰਬਰ ਭੇਜੋ)`;
         } else if (lang === "hi") {
           finalMsg = `🎉 *धन्यवाद ${session.formData.name}!* आपकी आवश्यकता सफलतापूर्वक दर्ज कर ली गई है।\n\n`;
           finalMsg += `📋 *आपके विवरण:*\n`;
@@ -979,10 +992,14 @@ export class FlowEngine {
           finalMsg += `• क्षेत्र: ${rep.area} (${rep.state})\n\n`;
           finalMsg += `हमारी बिक्री टीम आपसे अतिशीघ्र विशेष डीलर प्राइज लिस्ट के साथ संपर्क करेगी।\n\n`;
           finalMsg += `━━━━━━━━━━━━━━━━━━━\n`;
-          finalMsg += `*आप आगे क्या देखना चाहेंगे?*\n`;
-          finalMsg += `1. 📄 View Other Catalogues (अन्य कैटलॉग देखें)\n`;
-          finalMsg += `2. 🌐 Visit Official Website (वेबसाइट देखें)\n`;
-          finalMsg += `3. 🏠 Main Menu`;
+          finalMsg += `*आप आगे क्या देखना चाहेंगे? (What would you like to explore next?)*\n\n`;
+          finalMsg += `1. 👤 Talk to Sales Team (सेल्स टीम से तुरंत बात करें)\n`;
+          finalMsg += `2. 📝 Submit Requirement (अतिरिक्त आवश्यकता दर्ज करें)\n`;
+          finalMsg += `3. 📄 View Other Catalogues (अन्य कैटलॉग देखें)\n`;
+          finalMsg += `4. 📞 Customer Care & Support (कस्टमर केयर व शिकायत सहायता)\n`;
+          finalMsg += `5. 🌐 Visit Official Website (वेबसाइट देखें - rnvalves.com)\n`;
+          finalMsg += `6. 🏠 Main Menu (मुख्य मेन्यू)\n\n`;
+          finalMsg += `(1 से 6 में से एक नंबर भेजें)`;
         } else {
           finalMsg = `🎉 *Thank you ${session.formData.name}!* Your requirement has been successfully submitted.\n\n`;
           finalMsg += `📋 *Your Details:*\n`;
@@ -997,10 +1014,14 @@ export class FlowEngine {
           finalMsg += `• Territory: ${rep.area} (${rep.state})\n\n`;
           finalMsg += `Our sales team will connect with you shortly with exclusive pricing.\n\n`;
           finalMsg += `━━━━━━━━━━━━━━━━━━━\n`;
-          finalMsg += `*What would you like to explore next?*\n`;
-          finalMsg += `1. 📄 View Other Catalogues\n`;
-          finalMsg += `2. 🌐 Visit Official Website (rnvalves.com)\n`;
-          finalMsg += `3. 🏠 Main Menu`;
+          finalMsg += `*What would you like to explore next?*\n\n`;
+          finalMsg += `1. 👤 Talk to Sales Team\n`;
+          finalMsg += `2. 📝 Submit Requirement\n`;
+          finalMsg += `3. 📄 View Other Catalogues\n`;
+          finalMsg += `4. 📞 Customer Care & Support\n`;
+          finalMsg += `5. 🌐 Visit Official Website (rnvalves.com)\n`;
+          finalMsg += `6. 🏠 Main Menu\n\n`;
+          finalMsg += `(Please reply with 1 to 6)`;
         }
 
         return {
@@ -1016,21 +1037,41 @@ export class FlowEngine {
       // STATE 12: COMPLETED (SHOW OTHER OPTIONS)
       // ----------------------------------------------------
       case "COMPLETED": {
-        if (lower === "1" || lower.includes("catalog") || lower.includes("other") || lower.includes("category")) {
+        if (cleanChoice === "1" || norm.includes("sales") || norm.includes("talk") || norm.includes("team") || norm.includes("baat")) {
+          const rep = session.formData.assignedAgent || (session.formData.pincode ? SalesRepDirectory.getRepByPin(session.formData.pincode) : SalesRepDirectory.getFallbackRep());
+          session.state = "SALES_REP_SHOWN";
+          return this.renderSalesRepCard(session.language, rep, session.formData.pincode || "Pan-India");
+        }
+
+        if (cleanChoice === "2" || norm.includes("submit") || norm.includes("requirement") || norm.includes("need") || norm.includes("quote")) {
+          session.state = "FORM_INTEREST";
+          const isHi = session.language === "hi";
+          return {
+            replyText: isHi
+              ? `📝 *नई आवश्यकता / पूछताछ दर्ज करें*\n\nकृपया बताएं कि आप किस उत्पाद श्रेणी (Product Category) या मॉडल में रुचि रखते हैं:\n\n1. CP Faucets\n2. PTMT Faucets\n3. Accessories\n4. Health Faucets\n5. Showers\n6. Ball Valves\n7. All Categories\n\n(1 से 7 में से एक नंबर भेजें या सीधे आइटम कोड लिखें)`
+              : `📝 *Submit Requirement / Inquiry*\n\nPlease select the product category or item you are interested in:\n\n1. CP Faucets\n2. PTMT Faucets\n3. Accessories\n4. Health Faucets\n5. Showers\n6. Ball Valves\n7. All Categories\n\n(Reply with 1 to 7 or send item codes directly)`,
+          };
+        }
+
+        if (cleanChoice === "3" || norm.includes("catalog") || norm.includes("other") || norm.includes("category")) {
           session.state = "PRODUCT_CATALOGUES";
           return this.renderCategorySelection(session.language);
         }
 
-        if (lower === "2" || lower.includes("website") || lower.includes("site")) {
+        if (cleanChoice === "4" || norm.includes("care") || norm.includes("complaint") || norm.includes("support") || norm.includes("shikayat") || norm.includes("service")) {
+          return this.renderCustomerCareCard(session.language);
+        }
+
+        if (cleanChoice === "5" || norm.includes("website") || norm.includes("site") || norm.includes("online")) {
           const isHi = session.language === "hi";
           return {
             replyText: isHi
-              ? `🌐 *RN Valves & Faucets आधिकारिक वेबसाइट:*\nhttps://rnvalves.com\n\nयहाँ आप हमारे 200+ प्रीमियम ब्रास व PTMT उत्पाद, तकनीकी विवरण एवं वारंटी देख सकते हैं।\n\n1. 📄 View Other Catalogues\n2. 🏠 Main Menu`
-              : `🌐 *RN Valves & Faucets Official Website:*\nhttps://rnvalves.com\n\nExplore our full range of 200+ premium brass & PTMT faucets, technical specs & warranties.\n\n1. 📄 View Other Catalogues\n2. 🏠 Main Menu`,
+              ? `🌐 *RN Valves & Faucets आधिकारिक वेबसाइट:*\nhttps://rnvalves.com\n\nयहाँ आप हमारे 200+ प्रीमियम ब्रास व PTMT उत्पाद, तकनीकी विवरण एवं वारंटी देख सकते हैं।\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`
+              : `🌐 *RN Valves & Faucets Official Website:*\nhttps://rnvalves.com\n\nExplore our full range of 200+ premium brass & PTMT faucets, technical specs & warranties.\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`,
           };
         }
 
-        if (lower === "3" || lower.includes("main menu") || lower.includes("menu")) {
+        if (cleanChoice === "6" || norm.includes("main menu") || norm.includes("menu") || norm.includes("home")) {
           session.state = "BUSINESS_MENU";
           return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
         }
@@ -1038,8 +1079,8 @@ export class FlowEngine {
         const isHi = session.language === "hi";
         return {
           replyText: isHi
-            ? `कृपया नीचे दिए गए विकल्पों में से चुनें:\n1. 📄 अन्य कैटलॉग देखें (View Other Catalogues)\n2. 🌐 वेबसाइट देखें (Visit Website)\n3. 🏠 Main Menu`
-            : `Please choose from the options below:\n1. 📄 View Other Catalogues\n2. 🌐 Visit Official Website\n3. 🏠 Main Menu`,
+            ? `कृपया नीचे दिए गए विकल्पों (1 से 6) में से चुनें:\n\n1. 👤 Talk to Sales Team (सेल्स टीम से बात करें)\n2. 📝 Submit Requirement (आवश्यकता दर्ज करें)\n3. 📄 View Other Catalogues (अन्य कैटलॉग देखें)\n4. 📞 Customer Care & Support (कस्टमर केयर व शिकायत)\n5. 🌐 Visit Official Website (वेबसाइट देखें)\n6. 🏠 Main Menu (मुख्य मेन्यू)`
+            : `Please choose from the options below (1 to 6):\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🌐 Visit Official Website (rnvalves.com)\n6. 🏠 Main Menu`,
         };
       }
 
@@ -1296,34 +1337,44 @@ export class FlowEngine {
   }
 
   private static renderSalesRepCard(lang: string, rep: SalesRep, pinCode: string): FlowResponse {
+    const cleanRepPhone = rep.mobile.replace(/\D/g, "");
     let msg = "";
     if (lang === "pa") {
       msg += `📍 *ਖੇਤਰ ਲੱਭਿਆ:* ਪਿਨ ਕੋਡ ${pinCode} (${rep.state})\n\n`;
       msg += `ਤੁਹਾਡੇ ਖੇਤਰੀ ਸੇਲਜ਼ ਮੈਨੇਜਰ ਦੇ ਸੰਪਰਕ ਵੇਰਵੇ:\n\n`;
       msg += `👤 *ਨਾਮ:* ${rep.name}\n`;
       msg += `📱 *ਮੋਬਾਈਲ:* ${rep.mobile}\n`;
+      msg += `💬 *WhatsApp:* https://wa.me/${cleanRepPhone}\n`;
       msg += `📍 *ਖੇਤਰ:* ${rep.area} (${rep.state})\n\n`;
       msg += `ਤੁਸੀਂ ਅੱਗੇ ਕੀ ਕਰਨਾ ਚਾਹੁੰਦੇ ਹੋ?\n`;
-      msg += `1. 🏠 Main Menu\n`;
-      msg += `2. 📝 Submit Requirement`;
+      msg += `1. 📝 Submit Requirement (ਲੋੜ ਦਰਜ ਕਰੋ)\n`;
+      msg += `2. 📄 View Other Catalogues (ਕੈਟਾਲਾਗ ਦੇਖੋ)\n`;
+      msg += `3. 📞 Customer Care & Support (ਕਸਟਮਰ ਕੇਅਰ)\n`;
+      msg += `4. 🏠 Main Menu`;
     } else if (lang === "hi") {
       msg += `📍 *क्षेत्र खोज:* पिन कोड ${pinCode} (${rep.state})\n\n`;
-      msg += `यहाँ आपके क्षेत्रीय बिक्री प्रतिनिधि (Regional Sales Manager) के संपर्क विवरण हैं:\n\n`;
+      msg += `यहाँ आपके क्षेत्रीय बिक्री प्रबंधक (Regional Sales Manager) के संपर्क विवरण हैं:\n\n`;
       msg += `👤 *नाम:* ${rep.name}\n`;
       msg += `📱 *मोबाइल:* ${rep.mobile}\n`;
+      msg += `💬 *WhatsApp चैट:* https://wa.me/${cleanRepPhone}\n`;
       msg += `📍 *क्षेत्र:* ${rep.area} (${rep.state})\n\n`;
       msg += `आप आगे क्या करना चाहेंगे?\n`;
-      msg += `1. 🏠 Main Menu\n`;
-      msg += `2. 📝 Submit Requirement`;
+      msg += `1. 📝 Submit Requirement (आवश्यकता दर्ज करें)\n`;
+      msg += `2. 📄 View Other Catalogues (कैटलॉग देखें)\n`;
+      msg += `3. 📞 Customer Care & Support (कस्टमर केयर सहायता)\n`;
+      msg += `4. 🏠 Main Menu`;
     } else {
       msg += `📍 *Region Located:* PIN Code ${pinCode} (${rep.state})\n\n`;
-      msg += `Here are the contact details for your Regional Sales Manager:\n\n`;
+      msg += `Here are the direct contact details for your Regional Sales Manager:\n\n`;
       msg += `👤 *Name:* ${rep.name}\n`;
       msg += `📱 *Mobile:* ${rep.mobile}\n`;
+      msg += `💬 *Direct WhatsApp:* https://wa.me/${cleanRepPhone}\n`;
       msg += `📍 *Territory:* ${rep.area} (${rep.state})\n\n`;
       msg += `How would you like to proceed?\n`;
-      msg += `1. 🏠 Main Menu\n`;
-      msg += `2. 📝 Submit Requirement`;
+      msg += `1. 📝 Submit Requirement\n`;
+      msg += `2. 📄 View Other Catalogues\n`;
+      msg += `3. 📞 Customer Care & Support\n`;
+      msg += `4. 🏠 Main Menu`;
     }
 
     return { replyText: msg };
