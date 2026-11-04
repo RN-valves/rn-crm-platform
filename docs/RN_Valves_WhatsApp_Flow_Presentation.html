@@ -312,11 +312,12 @@
 flowchart TD
     Start(["User initiates: 'Hi' / 'Namaste' / Any Message"]) --> LangState["1. LANGUAGE SELECTION<br/>• 1. English<br/>• 2. Hindi / हिंदी<br/>• 3. Telugu / తెలుగు<br/>• 4. Tamil / தமிழ்<br/>• 5. Punjabi / ਪੰਜਾਬੀ<br/>• 6. Urdu / اردو"]
 
-    LangState -->|"Valid Choice (1 - 6)"| ReqType["2. REQUIREMENT TYPE<br/>1. Distributor<br/>2. Dealer<br/>3. Retailer<br/>4. Personal Use<br/>5. Change Language"]
+    LangState -->|"Valid Choice (1 - 6)"| ReqType["2. REQUIREMENT TYPE<br/>1. 🏢 Distributor<br/>2. 🏪 Dealer<br/>3. 🛍️ Retailer<br/>4. 🏠 Personal Use<br/>5. 📦 Website Order Enquiries<br/>6. 🌐 Change Language"]
     LangState -->|"Invalid Input"| LangRetry["⚠️ Guidance Prompt + Reprompt Languages"] --> LangState
 
     ReqType -->|"4. Personal Use"| PersonalUse["🏠 PERSONAL USE EXIT<br/>• Delivers website: https://rnvalves.com<br/>• Bot remains silent until 'Menu' or 'Hi'"]
-    ReqType -->|"5. Change Language"| LangState
+    ReqType -->|"5. Website Order Enquiries"| EcommOrder["📦 WEBSITE ORDER SUPPORT<br/>• E-Commerce Executive Contact: +91 93156 03920<br/>• Submit Order ID for instant status check<br/>• Direct WhatsApp alert to Ecomm Executive"]
+    ReqType -->|"6. Change Language"| LangState
     ReqType -->|"1. Distributor / 2. Dealer / 3. Retailer"| FormName["3. UPFRONT B2B LEAD CAPTURE (Name / Firm)<br/>• Captures Full Name or Shop/Firm Name<br/>• Auto-binds verified WhatsApp phone"]
 
     %% Direct B2B Lead Funnel (Zero Leakage)
