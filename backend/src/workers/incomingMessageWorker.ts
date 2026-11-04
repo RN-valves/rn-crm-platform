@@ -121,7 +121,7 @@ export function setupIncomingMessageWorker(): Worker {
       // Check on-the-fly Mute Commands (#mute / #stop / #ai off)
       const cleanLower = textContent.trim().toLowerCase();
       const isMuteCommand = ["#mute", "#stop", "#aioff", "#ai off", "#staff"].includes(cleanLower);
-      const isUnmuteCommand = ["#unmute", "#aion", "#ai on"].includes(cleanLower);
+      const isUnmuteCommand = ["#unmute", "#aion", "#ai on", "menu", "start", "#bot", "restart"].includes(cleanLower) && !isInternalStaff;
 
       let mode: "ai" | "human" = isInternalStaff ? "human" : "ai";
       try {

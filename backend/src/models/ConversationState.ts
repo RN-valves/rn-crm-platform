@@ -16,7 +16,8 @@ export type BotFlowState =
   | "FORM_MOBILE"
   | "FORM_PIN"
   | "FORM_INTEREST"
-  | "COMPLETED";
+  | "COMPLETED"
+  | "HUMAN_TAKEOVER_PROMPT";
 
 export interface IConversationState extends Document {
   phone: string;

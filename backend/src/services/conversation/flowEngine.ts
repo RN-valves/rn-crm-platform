@@ -1,4 +1,5 @@
 import { getConversationStateModel, BotFlowState, IConversationState } from "../../models/ConversationState.js";
+import { getConversationControlModel } from "../../models/ConversationControl.js";
 import { SalesRepDirectory, SalesRep } from "./salesRepDirectory.js";
 import { CatalogueDirectory, CatalogueCategory } from "./catalogueDirectory.js";
 import { getLeadModel } from "../../models/Lead.js";
@@ -221,9 +222,10 @@ export class FlowEngine {
       return this.renderLanguageSelection();
     }
 
-    // 5. Smart AI Catalog Bypass (e.g. "RNALP28G15" or specific product inquiry)
-    const { skuCode, keywords } = ProductRepository.extractSearchTerms(cleanText);
-    if (skuCode || (keywords.length >= 2 && !/^(1|2|3|4|5|6|7|8)$/.test(cleanText))) {
+    // 5. Strict Product SKU Lookup (Only if explicit item code e.g. "RNALP28G15" or "RN-102" is provided)
+    const { skuCode } = ProductRepository.extractSearchTerms(cleanText);
+    const isStrictSku = skuCode && /^[a-z0-9\-]{4,15}$/i.test(skuCode) && /\d/.test(skuCode) && !/^(1|2|3|4|5|6|7|8)$/.test(cleanText);
+    if (isStrictSku) {
       const searchResults = await ProductRepository.searchProducts(cleanText, 1);
       if (searchResults && searchResults.length > 0) {
         const top = searchResults[0];
@@ -414,6 +416,10 @@ export class FlowEngine {
         const chosenLang = langMap[cleanChoice] || langMap[leadingDigit || ""] || (/2|hindi/i.test(norm) ? "hi" : /1|english/i.test(norm) ? "en" : null);
 
         if (!chosenLang) {
+          if (norm.length > 2 && !/^[1-6]$/.test(cleanChoice)) {
+            session.state = "HUMAN_TAKEOVER_PROMPT";
+            return this.renderHumanTakeoverPrompt(session.language);
+          }
           return this.renderLanguageSelection("Please select a valid option (1-6).");
         }
 
@@ -461,12 +467,8 @@ export class FlowEngine {
         else if (cleanChoice === "3" || /retail/i.test(norm) || /plumber/i.test(norm)) custType = "Retailer";
 
         if (!custType) {
-          const isHi = session.language === "hi";
-          return {
-            replyText: isHi
-              ? `कृपया 1 से 6 के बीच सही विकल्प चुनें:\n1. 🏢 Distributor\n2. 🏪 Dealer\n3. 🛍️ Retailer\n4. 🏠 Personal Use\n5. 📦 Website Order Enquiries\n6. 🌐 भाषा बदलें`
-              : `Please choose a valid option (1-6):\n1. 🏢 Distributor\n2. 🏪 Dealer\n3. 🛍️ Retailer\n4. 🏠 Personal Use\n5. 📦 Website Order Enquiries\n6. 🌐 Change Language`,
-          };
+          session.state = "HUMAN_TAKEOVER_PROMPT";
+          return this.renderHumanTakeoverPrompt(session.language);
         }
 
         session.customerType = custType;
@@ -591,12 +593,8 @@ export class FlowEngine {
           return this.renderRequirementType(session.language);
         }
 
-        const isHi = session.language === "hi";
-        return {
-          replyText: isHi
-            ? `माफ़ कीजिए, मैं समझ नहीं पाया। कृपया 1-5 में से चुनें:\n1. 📄 Product Catalogues\n2. 💰 Pricing & Sales Team\n3. 📝 Submit Requirement\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`
-            : `Sorry, I couldn't understand. Please choose from 1-5:\n1. 📄 Product Catalogues\n2. 💰 Pricing & Sales Team\n3. 📝 Submit Requirement\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`,
-        };
+        session.state = "HUMAN_TAKEOVER_PROMPT";
+        return this.renderHumanTakeoverPrompt(session.language);
       }
 
       // ----------------------------------------------------
@@ -610,12 +608,8 @@ export class FlowEngine {
 
         const category = CatalogueDirectory.getCategory(cleanChoice);
         if (!category) {
-          const isHi = session.language === "hi";
-          return {
-            replyText: isHi
-              ? `कृपया 1 से 8 में से एक श्रेणी चुनें:`
-              : `Please choose a valid category (1-8):`,
-          };
+          session.state = "HUMAN_TAKEOVER_PROMPT";
+          return this.renderHumanTakeoverPrompt(session.language);
         }
 
         session.state = "POST_CATALOGUE";
@@ -669,12 +663,8 @@ export class FlowEngine {
           return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
         }
 
-        const isHi = session.language === "hi";
-        return {
-          replyText: isHi
-            ? `कृपया 1 से 4 में से चुनें:\n1. Talk to Sales Team\n2. Submit Requirement\n3. View Other Categories\n4. Main Menu`
-            : `Please choose an option (1-4):\n1. Talk to Sales Team\n2. Submit Requirement\n3. View Other Categories\n4. Main Menu`,
-        };
+        session.state = "HUMAN_TAKEOVER_PROMPT";
+        return this.renderHumanTakeoverPrompt(session.language);
       }
 
       // ----------------------------------------------------
@@ -746,12 +736,8 @@ export class FlowEngine {
           return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
         }
 
-        const isHi = session.language === "hi";
-        return {
-          replyText: isHi
-            ? `कृपया नीचे दिए गए विकल्पों (1 से 4) में से चुनें:\n1. 📝 Submit Requirement (आवश्यकता दर्ज करें)\n2. 📄 View Other Catalogues (अन्य कैटलॉग देखें)\n3. 📞 Customer Care & Support (कस्टमर केयर सहायता)\n4. 🏠 Main Menu`
-            : `Please choose from the options below (1-4):\n1. 📝 Submit Requirement\n2. 📄 View Other Catalogues\n3. 📞 Customer Care & Support\n4. 🏠 Main Menu`,
-        };
+        session.state = "HUMAN_TAKEOVER_PROMPT";
+        return this.renderHumanTakeoverPrompt(session.language);
       }
 
       // ----------------------------------------------------
@@ -764,14 +750,10 @@ export class FlowEngine {
         }
 
         const cleanName = text.trim();
-        // Validation: Must not be purely digits, at least 2 characters
-        if (cleanName.length < 2 || /^\d+$/.test(cleanName) || /[@$%^*_+=\[\]{}|\\<>~`]/g.test(cleanName)) {
-          const isHi = session.language === "hi";
-          return {
-            replyText: isHi
-              ? `⚠️ कृपया अपना या अपनी दुकान/फर्म का मान्य नाम लिखें।\nउदाहरण: Sharma Sanitary Store या Rahul Gupta`
-              : `⚠️ Please enter a valid name for yourself or your business.\nExample: Sharma Sanitary Store or Rahul Gupta`,
-          };
+        // Validation: Must not be purely digits, at least 2 characters, and not off-topic questions
+        if (cleanName.length < 2 || /^\d+$/.test(cleanName) || /[@$%^*_+=\[\]{}|\\<>~`]/g.test(cleanName) || /\b(kaun|kyu|kyun|discount|price|rate|kya|who|why|help|agent|human|talk|baat)\b/i.test(cleanName)) {
+          session.state = "HUMAN_TAKEOVER_PROMPT";
+          return this.renderHumanTakeoverPrompt(session.language);
         }
 
         session.formData.name = cleanName;
@@ -851,12 +833,8 @@ export class FlowEngine {
         const cleanPin = pinMatch ? pinMatch[1] : text.replace(/\D/g, "");
 
         if (cleanPin.length !== 6) {
-          const isHi = session.language === "hi";
-          return {
-            replyText: isHi
-              ? `⚠️ कृपया 6 अंकों का मान्य एरिया पिन कोड दर्ज करें। उदाहरण: 110001`
-              : `⚠️ Please enter a valid 6-digit Area PIN Code. Example: 110001`,
-          };
+          session.state = "HUMAN_TAKEOVER_PROMPT";
+          return this.renderHumanTakeoverPrompt(session.language);
         }
 
         session.formData.pincode = cleanPin;
@@ -1076,12 +1054,83 @@ export class FlowEngine {
           return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
         }
 
-        const isHi = session.language === "hi";
-        return {
-          replyText: isHi
-            ? `कृपया नीचे दिए गए विकल्पों (1 से 6) में से चुनें:\n\n1. 👤 Talk to Sales Team (सेल्स टीम से बात करें)\n2. 📝 Submit Requirement (आवश्यकता दर्ज करें)\n3. 📄 View Other Catalogues (अन्य कैटलॉग देखें)\n4. 📞 Customer Care & Support (कस्टमर केयर व शिकायत)\n5. 🌐 Visit Official Website (वेबसाइट देखें)\n6. 🏠 Main Menu (मुख्य मेन्यू)`
-            : `Please choose from the options below (1 to 6):\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🌐 Visit Official Website (rnvalves.com)\n6. 🏠 Main Menu`,
-        };
+        session.state = "HUMAN_TAKEOVER_PROMPT";
+        return this.renderHumanTakeoverPrompt(session.language);
+      }
+
+      // ----------------------------------------------------
+      // STATE 13: HUMAN TAKEOVER PROMPT
+      // ----------------------------------------------------
+      case "HUMAN_TAKEOVER_PROMPT": {
+        const isYes =
+          cleanChoice === "1" ||
+          /^(yes|ha|haan|han|agent|human|executive|person|baat|connect|help|bulao|chahiye|insaan|man)$/i.test(norm) ||
+          /takeover|take over/i.test(norm);
+        const isNo =
+          cleanChoice === "2" ||
+          /^(no|nahi|na|menu|main menu|home|back|cancel|wapas)$/i.test(norm);
+
+        if (isYes) {
+          // Switch to Human Mode in ConversationControl
+          try {
+            const ConversationControl = getConversationControlModel();
+            const cleanDigits = session.phone.replace(/\D/g, "");
+            const phoneVariants = [
+              session.phone,
+              `+${cleanDigits}`,
+              cleanDigits,
+              cleanDigits.startsWith("91") ? `+${cleanDigits}` : `+91${cleanDigits}`,
+            ];
+            await ConversationControl.updateMany(
+              { phone: { $in: phoneVariants } },
+              {
+                $set: {
+                  mode: "human",
+                  pauseReason: "Customer requested human takeover via chat",
+                  lastCustomerMessageAt: new Date(),
+                },
+              },
+              { upsert: true }
+            );
+          } catch (e: any) {
+            console.warn(`[FlowEngine] Failed to update ConversationControl to human mode: ${e.message}`);
+          }
+
+          // Forward internal alert into Chatwoot conversation
+          try {
+            const ConversationControl = getConversationControlModel();
+            const control = await ConversationControl.findOne({ phone: session.phone });
+            if (control?.chatwootConversationId) {
+              await chatwootClient.createMessage({
+                conversationId: Number(control.chatwootConversationId),
+                content: `🚨 [Alert]: Customer ${session.formData.name || session.phone} requested Human Takeover from WhatsApp. AI auto-reply is now paused for this chat.`,
+                messageType: "incoming",
+              });
+            }
+          } catch (e: any) {}
+
+          const isHi = session.language === "hi";
+          return {
+            replyText: isHi
+              ? `✅ *ह्यूमन टेकओवर एक्टिव (Human Takeover Activated)*\n\n` +
+                `आपको हमारे लाइव कस्टमर सपोर्ट / सेल्स प्रतिनिधि से कनेक्ट कर दिया गया है।\n\n` +
+                `👨‍💼 हमारे प्रतिनिधि अतिशीघ्र इसी चैट पर आपसे सीधे बात करेंगे।\n\n` +
+                `☎️ *तत्काल सहायता के लिए कॉल करें:* 1800 12340 0400 (टोल-फ्री) या +91 93151 60881\n\n` +
+                `(बॉट को दोबारा चालू करने के लिए कभी भी *#aion* या *Menu* लिखें)`
+              : `✅ *Human Takeover Activated*\n\n` +
+                `You have been connected directly with our Live Support / Sales Team.\n\n` +
+                `👨‍💼 Our representative will reply to you on this chat shortly.\n\n` +
+                `☎️ *For immediate assistance, call:* 1800 12340 0400 (Toll-Free) or +91 93151 60881\n\n` +
+                `(To restart the AI bot anytime, simply type *#aion* or *Menu*)`,
+          };
+        }
+
+        if (isNo) {
+          session.state = "BUSINESS_MENU";
+          return this.renderBusinessMenu(session.language, session.customerType || "Dealer");
+        }
+
+        return this.renderHumanTakeoverPrompt(session.language);
       }
 
       default: {
@@ -1094,6 +1143,33 @@ export class FlowEngine {
   // ==========================================
   // RENDER HELPERS
   // ==========================================
+
+  private static renderHumanTakeoverPrompt(lang: string): FlowResponse {
+    let msg = "";
+    if (lang === "hi") {
+      msg = `🤖 *RN Valves AI असिस्टेंट*\n\n` +
+        `माफ़ कीजिए, मैं केवल RN Valves के आधिकारिक मेन्यू व तय विकल्पों में सहायता कर सकता हूँ।\n\n` +
+        `क्या आप हमारे कस्टमर सपोर्ट / सेल्स प्रतिनिधि से सीधे बात करना चाहते हैं?\n\n` +
+        `1. 👨‍💼 हाँ, प्रतिनिधि से सीधे बात करनी है (Human Takeover)\n` +
+        `2. 🏠 मुख्य मेन्यू पर जाएं (Main Menu)\n\n` +
+        `(कृपया 1 या 2 भेजें)`;
+    } else if (lang === "pa") {
+      msg = `🤖 *RN Valves AI ਅਸਿਸਟੈਂਟ*\n\n` +
+        `ਮਾਫ਼ ਕਰਨਾ, ਮੈਂ ਸਿਰਫ਼ RN Valves ਦੇ ਅਧਿਕਾਰਤ ਮੀਨੂ ਅਤੇ ਚੋਣਾਂ ਵਿੱਚ ਸਹਾਇਤਾ ਕਰ ਸਕਦਾ ਹਾਂ।\n\n` +
+        `ਕੀ ਤੁਸੀਂ ਸਾਡੇ ਕਸਟਮਰ ਸਪੋਰਟ / ਸੇਲਜ਼ ਪ੍ਰਤੀਨਿਧੀ ਨਾਲ ਸਿੱਧਾ ਗੱਲ ਕਰਨਾ ਚਾਹੁੰਦੇ ਹੋ?\n\n` +
+        `1. 👨‍💼 ਹਾਂ, ਪ੍ਰਤੀਨਿਧੀ ਨਾਲ ਗੱਲ ਕਰੋ (Human Takeover)\n` +
+        `2. 🏠 ਮੁੱਖ ਮੀਨੂ 'ਤੇ ਜਾਓ (Main Menu)\n\n` +
+        `(ਕਿਰਪਾ ਕਰਕੇ 1 ਜਾਂ 2 ਭੇਜੋ)`;
+    } else {
+      msg = `🤖 *RN Valves AI Assistant*\n\n` +
+        `I can only assist you through RN Valves official options and catalog services.\n\n` +
+        `Would you like to connect directly with our Live Support / Sales Representative?\n\n` +
+        `1. 👨‍💼 Yes, connect with Human Agent (Human Takeover)\n` +
+        `2. 🏠 Return to Main Menu\n\n` +
+        `(Please reply with 1 or 2)`;
+    }
+    return { replyText: msg };
+  }
 
   private static renderLanguageSelection(prefixMsg: string = ""): FlowResponse {
     let msg = "";
