@@ -113,6 +113,7 @@ export function setupIncomingMessageWorker(): Worker {
         "9870288812", // Pradeep
         "8076555914", // Khusi
         "9315603920", // E-Commerce Executive / Website Support
+        "9891201208", // Complaint & Service Desk
       ];
       const isInternalStaff = staffPhonePatterns.some(num => normalizedPhone.includes(num)) ||
         (contact && (contact.tags?.includes("Staff") || contact.tags?.includes("Colleague") || contact.tags?.includes("DoNotReply") || contact.businessType === "Staff"));

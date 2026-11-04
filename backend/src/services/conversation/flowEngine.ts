@@ -185,15 +185,10 @@ export class FlowEngine {
       };
     }
 
-    // 4b. Human Support / Call Request Intent
-    const isHumanRequest = /\b(call me|call karo|phone karo|contact number|customer care|helpline|human|agent|executive|insaan se baat|baat karni hai)\b/i.test(cleanText);
-    if (isHumanRequest) {
-      const isHi = stateDoc.language === "hi";
-      return {
-        replyText: isHi
-          ? `👤 *RN Valves सपोर्ट & कस्टमर केयर*\n\nआप सीधे हमारे प्रतिनिधियों से संपर्क कर सकते हैं:\n\n📞 *हेल्पलाइन:* +91 93151 60881\n👤 *सेंट्रल सपोर्ट:* Amit Kumar\n⏰ *समय:* सुबह 10:00 से शाम 7:00 (सोम-शनि)\n\nअपने क्षेत्र के सेल्स मैनेजर से सीधा जुड़ने के लिए अपना *6-अंकीय एरिया पिन कोड* भेजें!\n\nमुख्य मेन्यू के लिए *Menu* लिखें।`
-          : `👤 *RN Valves Support & Customer Care*\n\nYou can connect directly with our representatives:\n\n📞 *Central Helpline:* +91 93151 60881\n👤 *Central Support:* Amit Kumar\n⏰ *Hours:* 10:00 AM - 7:00 PM (Mon-Sat)\n\nTo connect directly with your regional territory manager, please reply with your *6-digit Area PIN Code*.\n\nType *Menu* to return to the main menu.`,
-      };
+    // 4b. Customer Care, Complaints & Helpline Intent
+    const isCareOrComplaint = /\b(call me|call karo|phone karo|contact number|customer care|helpline|human|agent|executive|insaan se baat|baat karni hai|complaint|shikayat|problem|kharab|service|warranty|defect|damage|toll free|tollfree|email|1800|9891201208)\b/i.test(cleanText);
+    if (isCareOrComplaint) {
+      return this.renderCustomerCareCard(stateDoc.language);
     }
 
     // 4c. Global Shortcuts (Hi / Reset, Main Menu, Change Language, Back)
@@ -539,7 +534,7 @@ export class FlowEngine {
           return this.renderCategorySelection(session.language);
         }
 
-        if (lower === "2" || lower.includes("pricing") || lower.includes("enquiry") || lower.includes("rate")) {
+        if (lower === "2" || lower.includes("pricing") || lower.includes("enquiry") || lower.includes("rate") || lower.includes("sales")) {
           const isHi = session.language === "hi";
           session.state = "SALES_PIN_CODE";
           return {
@@ -559,31 +554,18 @@ export class FlowEngine {
           };
         }
 
-        if (lower === "3" || lower.includes("sales")) {
-          // If PIN code already collected in session, reuse it
-          if (session.formData.pincode && session.formData.pincode.length === 6) {
-            const rep = SalesRepDirectory.getRepByPin(session.formData.pincode);
-            session.state = "SALES_REP_SHOWN";
-            return this.renderSalesRepCard(session.language, rep, session.formData.pincode);
-          }
-
-          session.state = "SALES_PIN_CODE";
-          const isHi = session.language === "hi";
-          return {
-            replyText: isHi
-              ? `कृपया अपने क्षेत्र का 6-अंकीय एरिया पिन कोड (Area PIN Code) दर्ज करें:\n(उदाहरण: 110001)`
-              : `Please enter your 6-digit Area PIN Code to connect with your Regional Sales Manager:\n(Example: 110001)`,
-          };
-        }
-
-        if (lower === "4" || lower.includes("submit") || lower.includes("requirement")) {
+        if (lower === "3" || lower.includes("submit") || lower.includes("requirement")) {
           session.state = "FORM_NAME";
           const isHi = session.language === "hi";
           return {
             replyText: isHi
-              ? `कृपया अपना पूरा नाम दर्ज करें:`
-              : `Please enter your Full Name:`,
+              ? `कृपया अपना पूरा नाम या दुकान/फर्म का नाम दर्ज करें:\n(उदाहरण: Sharma Sanitary Store या Rahul Gupta)`
+              : `Please enter your Full Name or Firm/Shop Name:\n(Example: Sharma Sanitary Store or Rahul Gupta)`,
           };
+        }
+
+        if (lower === "4" || lower.includes("care") || lower.includes("complaint") || lower.includes("support") || lower.includes("shikayat") || lower.includes("service")) {
+          return this.renderCustomerCareCard(session.language);
         }
 
         if (lower === "5" || lower.includes("main menu")) {
@@ -594,8 +576,8 @@ export class FlowEngine {
         const isHi = session.language === "hi";
         return {
           replyText: isHi
-            ? `माफ़ कीजिए, मैं समझ नहीं पाया। कृपया 1-5 में से चुनें:`
-            : `Sorry, I couldn't understand. Please choose from 1-5:`,
+            ? `माफ़ कीजिए, मैं समझ नहीं पाया। कृपया 1-5 में से चुनें:\n1. 📄 Product Catalogues\n2. 💰 Pricing & Sales Team\n3. 📝 Submit Requirement\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`
+            : `Sorry, I couldn't understand. Please choose from 1-5:\n1. 📄 Product Catalogues\n2. 💰 Pricing & Sales Team\n3. 📝 Submit Requirement\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`,
         };
       }
 
@@ -1125,60 +1107,98 @@ export class FlowEngine {
     return { replyText: msg };
   }
 
+  private static renderCustomerCareCard(lang: string): FlowResponse {
+    let msg = "";
+    if (lang === "hi") {
+      msg = `📞 *RN Valves आधिकारिक कस्टमर केयर व सपोर्ट*\n\n` +
+        `आप हमारी सहायता टीम से सीधे संपर्क कर सकते हैं:\n\n` +
+        `☎️ *टोल-फ्री कस्टमर केयर:* 1800 12340 0400\n` +
+        `🛠️ *शिकायत व सर्विस डेस्क:* +91 98912 01208\n` +
+        `📧 *आधिकारिक ईमेल:* enquiry@rnvalves.com\n` +
+        `📦 *वेबसाइट ऑर्डर सहायता:* +91 93156 03920 (E-Commerce Desk)\n` +
+        `👤 *सेल्स व डीलरशिप हेल्पलाइन:* +91 93151 60881 (Amit Kumar Sir)\n` +
+        `⏰ *समय:* सुबह 10:00 से शाम 7:00 (सोम-शनि)\n\n` +
+        `📍 *अपने क्षेत्र के रीजनल सेल्स मैनेजर से जुड़ने के लिए अपना 6-अंकीय एरिया पिन कोड भेजें!*\n\n` +
+        `मुख्य मेन्यू के लिए *Menu* लिखें।`;
+    } else if (lang === "pa") {
+      msg = `📞 *RN Valves ਅਧਿਕਾਰਤ ਕਸਟਮਰ ਕੇਅਰ ਅਤੇ ਸਹਾਇਤਾ*\n\n` +
+        `ਤੁਸੀਂ ਸਾਡੀ ਸਹਾਇਤਾ ਟੀਮ ਨਾਲ ਸਿੱਧਾ ਸੰਪਰਕ ਕਰ ਸਕਦੇ ਹੋ:\n\n` +
+        `☎️ *ਟੋਲ-ਫ੍ਰੀ ਕਸਟਮਰ ਕੇਅਰ:* 1800 12340 0400\n` +
+        `🛠️ *ਸ਼ਿਕਾਇਤ ਅਤੇ ਸਰਵਿਸ ਡੈਸਕ:* +91 98912 01208\n` +
+        `📧 *ਅਧਿਕਾਰਤ ਈਮੇਲ:* enquiry@rnvalves.com\n` +
+        `📦 *ਵੈੱਬਸਾਈਟ ਆਰਡਰ ਸਹਾਇਤਾ:* +91 93156 03920\n` +
+        `👤 *ਸੇਲਜ਼ ਹੈਲਪਲਾਈਨ:* +91 93151 60881 (Amit Kumar Sir)\n` +
+        `⏰ *ਸਮਾਂ:* ਸਵੇਰੇ 10:00 ਤੋਂ ਸ਼ਾਮ 7:00 (ਸੋਮ-ਸ਼ਨੀ)\n\n` +
+        `ਮੁੱਖ ਮੀਨੂ ਲਈ *Menu* ਲਿਖੋ।`;
+    } else {
+      msg = `📞 *RN Valves Official Customer Care & Support*\n\n` +
+        `You can reach our dedicated support departments directly:\n\n` +
+        `☎️ *Toll-Free Customer Care:* 1800 12340 0400\n` +
+        `🛠️ *Complaint & Service Desk:* +91 98912 01208\n` +
+        `📧 *Official Email:* enquiry@rnvalves.com\n` +
+        `📦 *Website & Online Orders:* +91 93156 03920 (E-Commerce Desk)\n` +
+        `👤 *Sales & Dealership Helpline:* +91 93151 60881 (Amit Kumar Sir)\n` +
+        `⏰ *Working Hours:* 10:00 AM - 7:00 PM (Mon-Sat)\n\n` +
+        `📍 *To connect directly with your Regional Sales Manager, please reply with your 6-digit Area PIN Code.*\n\n` +
+        `Type *Menu* to return to the main menu.`;
+    }
+    return { replyText: msg };
+  }
+
   private static renderBusinessMenu(lang: string, customerType: string): FlowResponse {
     let msg = "";
     if (lang === "pa") {
       msg += `*${customerType} Business Menu*\n`;
       msg += `ਕਿਰਪਾ ਕਰਕੇ ਚੁਣੋ ਕਿ ਤੁਹਾਨੂੰ ਕਿਸ ਸੰਬੰਧ ਵਿੱਚ ਸਹਾਇਤਾ ਚਾਹੀਦੀ ਹੈ:\n\n`;
       msg += `1. 📄 Product Catalogues (ਉਤਪਾਦ ਕੈਟਾਲਾਗ)\n`;
-      msg += `2. 💰 Pricing / Enquiry (ਕੀਮਤ / ਪੁੱਛਗਿੱਛ)\n`;
-      msg += `3. 👤 Talk to Sales Team (ਸੇਲਜ਼ ਟੀਮ ਨਾਲ ਗੱਲ ਕਰੋ)\n`;
-      msg += `4. 📝 Submit Requirement (ਲੋੜ ਦਰਜ ਕਰੋ)\n`;
+      msg += `2. 💰 Pricing & Sales Team (ਕੀਮਤ / ਸੇਲਜ਼ ਟੀਮ)\n`;
+      msg += `3. 📝 Submit Requirement (ਲੋੜ ਦਰਜ ਕਰੋ)\n`;
+      msg += `4. 📞 Customer Care & Support (ਕਸਟਮਰ ਕੇਅਰ ਤੇ ਸ਼ਿਕਾਇਤ)\n`;
       msg += `5. 🏠 Main Menu (ਮੁੱਖ ਮੀਨੂ)\n\n`;
       msg += `(ਕਿਰਪਾ ਕਰਕੇ 1 ਤੋਂ 5 ਵਿੱਚੋਂ ਚੁਣੋ)`;
     } else if (lang === "hi") {
       msg += `*${customerType} Business Menu*\n`;
       msg += `कृपया चुनें कि आपको किस संबंध में सहायता चाहिए:\n\n`;
       msg += `1. 📄 Product Catalogues (उत्पाद कैटलॉग)\n`;
-      msg += `2. 💰 Pricing / Enquiry (मूल्य / पूछताछ)\n`;
-      msg += `3. 👤 Talk to Sales Team (बिक्री टीम से बात करें)\n`;
-      msg += `4. 📝 Submit Requirement (आवश्यकता दर्ज करें)\n`;
+      msg += `2. 💰 Pricing & Sales Team (मूल्य व सेल्स टीम)\n`;
+      msg += `3. 📝 Submit Requirement (आवश्यकता दर्ज करें)\n`;
+      msg += `4. 📞 Customer Care & Support (कस्टमर केयर व शिकायत)\n`;
       msg += `5. 🏠 Main Menu\n\n`;
       msg += `(कृपया 1 से 5 में से चुनें)`;
     } else if (lang === "te") {
       msg += `*${customerType} Business Menu*\n`;
       msg += `మీకు ఎలా సహాయం చేయగలమో ఎంచుకోండి:\n\n`;
       msg += `1. 📄 Product Catalogues (ఉత్పత్తి కేటలాగ్‌లు)\n`;
-      msg += `2. 💰 Pricing / Enquiry (ధరలు / విచారణ)\n`;
-      msg += `3. 👤 Talk to Sales Team (సేల్స్ టీమ్‌తో మాట్లాడండి)\n`;
-      msg += `4. 📝 Submit Requirement (మీ అవసరాన్ని సమర్పించండి)\n`;
+      msg += `2. 💰 Pricing & Sales Team (ధరలు / సేల్స్ టీమ్)\n`;
+      msg += `3. 📝 Submit Requirement (మీ అవసరాన్ని సమర్పించండి)\n`;
+      msg += `4. 📞 Customer Care & Support (కస్టమర్ కేర్ & ఫిర్యాదులు)\n`;
       msg += `5. 🏠 Main Menu\n\n`;
       msg += `(1 నుండి 5 వరకు ఎంచుకోండి)`;
     } else if (lang === "ta") {
       msg += `*${customerType} Business Menu*\n`;
       msg += `உங்களுக்கு தேவையான சேவையை தேர்ந்தெடுக்கவும்:\n\n`;
       msg += `1. 📄 Product Catalogues (தயாரிப்பு அட்டவணை)\n`;
-      msg += `2. 💰 Pricing / Enquiry (விலை விவரங்கள்)\n`;
-      msg += `3. 👤 Talk to Sales Team (விற்பனை குழுவுடன் பேச)\n`;
-      msg += `4. 📝 Submit Requirement (உங்கள் தேவையை சமர்ப்பிக்க)\n`;
+      msg += `2. 💰 Pricing & Sales Team (விலை / விற்பனை குழு)\n`;
+      msg += `3. 📝 Submit Requirement (உங்கள் தேவையை சமர்ப்பிக்க)\n`;
+      msg += `4. 📞 Customer Care & Support (வாடிக்கையாளர் சேவை & புகார்கள்)\n`;
       msg += `5. 🏠 Main Menu\n\n`;
       msg += `(1 முதல் 5 வரை தேர்வு செய்யவும்)`;
     } else if (lang === "ur") {
       msg += `*${customerType} Business Menu*\n`;
-      msg += `برائے مہربانی منتخب کریں کہ آپ کو کس بارے میں مدد چاہیے:\n\n`;
+      msg += `برائے مہربانی منتخب کریں कि آپ کو کس بارے میں مدد چاہیے:\n\n`;
       msg += `1. 📄 Product Catalogues (پروڈکٹ کیٹلاگ)\n`;
-      msg += `2. 💰 Pricing / Enquiry (قیمت / معلومات)\n`;
-      msg += `3. 👤 Talk to Sales Team (سیلز ٹیم سے بات کریں)\n`;
-      msg += `4. 📝 Submit Requirement (اپنی ضرورت درج کریں)\n`;
+      msg += `2. 💰 Pricing & Sales Team (قیمت اور سیلز ٹیم)\n`;
+      msg += `3. 📝 Submit Requirement (اپنی ضرورت درج کریں)\n`;
+      msg += `4. 📞 Customer Care & Support (کسٹمر کیئر و شکایات)\n`;
       msg += `5. 🏠 Main Menu\n\n`;
       msg += `(براہ کرم 1 سے 5 میں سے انتخاب کریں)`;
     } else {
       msg += `*${customerType} Business Menu*\n`;
       msg += `Please select how we can assist you:\n\n`;
       msg += `1. 📄 Product Catalogues\n`;
-      msg += `2. 💰 Pricing / Enquiry\n`;
-      msg += `3. 👤 Talk to Sales Team\n`;
-      msg += `4. 📝 Submit Requirement\n`;
+      msg += `2. 💰 Pricing & Sales Team\n`;
+      msg += `3. 📝 Submit Requirement\n`;
+      msg += `4. 📞 Customer Care & Support (Toll-Free & Complaints)\n`;
       msg += `5. 🏠 Main Menu\n\n`;
       msg += `(Please reply with 1 to 5)`;
     }
