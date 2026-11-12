@@ -3,6 +3,7 @@ import { getLeadModel, LeadStatus } from "../models/Lead.js";
 import { getAuditLogModel } from "../models/AuditLog.js";
 import { getConversationStateModel } from "../models/ConversationState.js";
 import { getConversationControlModel } from "../models/ConversationControl.js";
+import { getCrmConnection } from "../database/connections.js";
 
 export async function getLeads(req: Request, res: Response): Promise<void> {
   try {
@@ -205,6 +206,20 @@ export async function cleanTestNumberLeads(req: Request, res: Response): Promise
   ];
 
   try {
+    const conn = getCrmConnection();
+    if (conn.readyState !== 1) {
+      try {
+        await conn.asPromise();
+      } catch {}
+    }
+
+    if (conn.readyState !== 1) {
+      res.status(503).json({
+        error: "Database is currently reconnecting to MongoDB Atlas. Please try again in a few moments.",
+      });
+      return;
+    }
+
     const Lead = getLeadModel();
     const leadDeleteResult = await Lead.deleteMany({
       $or: [

@@ -6,15 +6,17 @@ let ecommConnection: Connection;
 
 export async function initDatabases(): Promise<{ crmConnection: Connection; ecommConnection: Connection }> {
   try {
+    const crmUri = config.CRM_MONGODB_URI;
+    const ecommUri = config.ECOMM_MONGODB_URI;
+
     // 1. Dedicated CRM Database Connection (Writeable)
-    crmConnection = mongoose.createConnection(config.CRM_MONGODB_URI, {
+    crmConnection = mongoose.createConnection(crmUri, {
       maxPoolSize: 20,
-      serverSelectionTimeoutMS: 5000,
-      bufferCommands: false,
+      serverSelectionTimeoutMS: 10000,
     });
 
     crmConnection.on("connected", () => {
-      console.log("✅ [Database] Connected to RN CRM database.");
+      console.log("✅ [Database] Connected to RN CRM database (Atlas).");
     });
 
     crmConnection.on("error", (err) => {
@@ -22,11 +24,10 @@ export async function initDatabases(): Promise<{ crmConnection: Connection; ecom
     });
 
     // 2. Existing eCommerce Database Connection (Strict Read-Only)
-    ecommConnection = mongoose.createConnection(config.ECOMM_MONGODB_URI, {
+    ecommConnection = mongoose.createConnection(ecommUri, {
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000,
       readPreference: "secondaryPreferred",
-      bufferCommands: false,
     });
 
     ecommConnection.on("connected", () => {
@@ -36,6 +37,17 @@ export async function initDatabases(): Promise<{ crmConnection: Connection; ecom
     ecommConnection.on("error", (err) => {
       console.error("❌ [Database] RN eCommerce database connection error:", err);
     });
+
+    // Await initial connection handshake before starting HTTP listeners
+    try {
+      await Promise.allSettled([
+        crmConnection.asPromise(),
+        ecommConnection.asPromise(),
+      ]);
+      console.log("✅ [Database] Initial connection handshake completed.");
+    } catch (connErr) {
+      console.warn("⚠️ [Database] Initial connection handshake notice:", connErr);
+    }
 
     return { crmConnection, ecommConnection };
   } catch (error) {

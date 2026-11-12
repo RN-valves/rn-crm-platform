@@ -4,6 +4,7 @@ import { getContactModel } from "../models/Contact.js";
 import { getConversationControlModel } from "../models/ConversationControl.js";
 import { getConversationStateModel } from "../models/ConversationState.js";
 import { getSalesExecutiveModel, INITIAL_SALES_EXECUTIVES } from "../models/SalesExecutive.js";
+import { getCrmConnection } from "../database/connections.js";
 
 const STAFF_PHONE_PATTERNS = [
   "9315160881", // Amit Kumar Sir
@@ -34,6 +35,13 @@ function normalizeRepName(name: string): string {
 
 export async function getDistributionAnalytics(req: Request, res: Response): Promise<void> {
   try {
+    const conn = getCrmConnection();
+    if (conn.readyState !== 1) {
+      try {
+        await conn.asPromise();
+      } catch {}
+    }
+
     const Lead = getLeadModel();
     const Contact = getContactModel();
     const ConversationControl = getConversationControlModel();

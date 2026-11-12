@@ -12,8 +12,26 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default("7d"),
 
   // Databases
-  CRM_MONGODB_URI: z.string().default("mongodb://localhost:27017/rn-crm"),
-  ECOMM_MONGODB_URI: z.string().default("mongodb://localhost:27017/rn-valves"),
+  CRM_MONGODB_URI: z
+    .string()
+    .default(
+      "mongodb+srv://web_db_user:EoK0ZBimp3zGV9ZY@rncluster.jbtr81i.mongodb.net/rn-crm?retryWrites=true&w=majority&appName=RNcluster"
+    )
+    .transform((val) =>
+      !val || val.includes("localhost")
+        ? "mongodb+srv://web_db_user:EoK0ZBimp3zGV9ZY@rncluster.jbtr81i.mongodb.net/rn-crm?retryWrites=true&w=majority&appName=RNcluster"
+        : val
+    ),
+  ECOMM_MONGODB_URI: z
+    .string()
+    .default(
+      "mongodb+srv://web_db_user:EoK0ZBimp3zGV9ZY@rncluster.jbtr81i.mongodb.net/rn-valves?retryWrites=true&w=majority&appName=RNcluster"
+    )
+    .transform((val) =>
+      !val || val.includes("localhost")
+        ? "mongodb+srv://web_db_user:EoK0ZBimp3zGV9ZY@rncluster.jbtr81i.mongodb.net/rn-valves?retryWrites=true&w=majority&appName=RNcluster"
+        : val
+    ),
 
   // Redis
   REDIS_HOST: z.string().default("localhost"),
