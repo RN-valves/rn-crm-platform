@@ -1,13 +1,5 @@
-import dns from "dns";
 import mongoose, { Connection } from "mongoose";
 import { config } from "../config/env.js";
-
-// Guarantee DNS resolves through reliable public DNS resolvers inside Docker containers
-try {
-  dns.setServers(["8.8.8.8", "1.1.1.1", "8.8.4.4"]);
-} catch (e) {
-  // Ignore in environments where setServers is restricted
-}
 
 let crmConnection: Connection;
 let ecommConnection: Connection;
@@ -23,8 +15,8 @@ export async function initDatabases(): Promise<{ crmConnection: Connection; ecom
     // 1. Dedicated CRM Database Connection (Writeable)
     crmConnection = mongoose.createConnection(crmUri, {
       maxPoolSize: 20,
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 8000,
     });
 
     crmConnection.on("connected", () => {
@@ -44,8 +36,8 @@ export async function initDatabases(): Promise<{ crmConnection: Connection; ecom
     // 2. Existing eCommerce Database Connection (Strict Read-Only)
     ecommConnection = mongoose.createConnection(ecommUri, {
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 8000,
       readPreference: "secondaryPreferred",
     });
 
@@ -63,13 +55,13 @@ export async function initDatabases(): Promise<{ crmConnection: Connection; ecom
       console.warn("⚠️ [Database] RN eCommerce database connection disconnected.");
     });
 
-    // Await initial connection handshake before continuing bootstrap
+    // Await initial connection handshake non-fatally
     try {
       await Promise.allSettled([
         crmConnection.asPromise(),
         ecommConnection.asPromise(),
       ]);
-      console.log(`✅ [Database] Connection handshakes finished. CRM readyState: ${crmConnection.readyState}, ECOMM readyState: ${ecommConnection.readyState}`);
+      console.log(`✅ [Database] Initial handshake finished. CRM: ${crmConnection.readyState}, ECOMM: ${ecommConnection.readyState}`);
     } catch (connErr: any) {
       console.warn("⚠️ [Database] Initial connection handshake notice:", connErr?.message || connErr);
     }

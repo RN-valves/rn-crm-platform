@@ -54,50 +54,6 @@ function testTcp(host: string, port: number, timeoutMs = 2000): Promise<{ ok: bo
   });
 }
 
-function getOutboundIp(timeoutMs = 2000): Promise<string> {
-  return new Promise((resolve) => {
-    let resolved = false;
-    const timer = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        resolve("timeout");
-      }
-    }, timeoutMs);
-
-    try {
-      const req = https.get("https://api.ipify.org?format=json", (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timer);
-            try {
-              resolve(JSON.parse(data).ip);
-            } catch {
-              resolve(data.trim() || "parse_error");
-            }
-          }
-        });
-      });
-
-      req.on("error", (err) => {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timer);
-          resolve(`error: ${err.message}`);
-        }
-      });
-    } catch (e: any) {
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timer);
-        resolve(`error: ${e.message}`);
-      }
-    }
-  });
-}
-
 router.get("/health", async (req: Request, res: Response) => {
   let crmDbStatus = "disconnected";
   let ecommDbStatus = "disconnected";
@@ -126,15 +82,15 @@ router.get("/health", async (req: Request, res: Response) => {
 
   let diagnostics: any = null;
   if (req.query.diag === "true" || crmDbStatus !== "connected") {
-    const [outboundIp, tcpGoogle, tcpAtlasShard] = await Promise.all([
-      getOutboundIp(2500),
+    const [tcpIp1111, tcpAtlasIp27017, tcpGoogle] = await Promise.all([
+      testTcp("1.1.1.1", 80, 2000),
+      testTcp("159.41.242.133", 27017, 2000),
       testTcp("google.com", 443, 2000),
-      testTcp("ac-k85qtjy-shard-00-00.jbtr81i.mongodb.net", 27017, 2500),
     ]);
     diagnostics = {
-      containerOutboundIp: outboundIp,
-      tcpGoogle443: tcpGoogle,
-      tcpAtlasShard27017: tcpAtlasShard,
+      directIpInternet: tcpIp1111,
+      directAtlasPort27017: tcpAtlasIp27017,
+      dnsGoogle443: tcpGoogle,
     };
   }
 
