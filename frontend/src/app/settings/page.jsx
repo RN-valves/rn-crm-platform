@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import Header from "../../components/Header";
 import { crmApi } from "../../lib/api";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/Card";
+import Badge from "../../components/ui/Badge";
+import Button from "../../components/ui/Button";
 import {
   Activity,
   Server,
@@ -12,12 +15,15 @@ import {
   CheckCircle2,
   Clock,
   FileText,
+  Copy,
+  Check,
 } from "lucide-react";
 
 export default function SettingsAndHealth() {
   const [health, setHealth] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [copiedKey, setCopiedKey] = useState(null);
 
   const fetchHealth = async () => {
     setLoading(true);
@@ -39,136 +45,238 @@ export default function SettingsAndHealth() {
     fetchHealth();
   }, []);
 
-  const services = health?.services || {};
+  const handleCopy = (text, key) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+    <div className="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-50 dark:bg-slate-950 transition-colors">
       <Header
         title="System Health & Integrations"
-        subtitle="Live connection diagnostics for Evolution API, Chatwoot, Redis Queues, and Audit Trail"
+        subtitle="Live connection diagnostics for Evolution API, Chatwoot, Redis Queues, and Security Trail"
         onRefresh={fetchHealth}
+        loading={loading}
       />
 
-      <main className="p-8 space-y-8 max-w-6xl mx-auto w-full">
+      <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-6xl mx-auto w-full">
         {/* Service Diagnostics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Evolution API */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-bold uppercase tracking-wider">Evolution API</span>
-              <Server className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div className="mt-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                <span className="font-bold text-sm text-slate-900">Instance: RNchat</span>
+          <Card hover>
+            <CardContent className="p-5 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider">
+                  Evolution API
+                </span>
+                <Server className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <p className="text-[11px] text-slate-500 mt-1 font-mono">v2.3.7 • Baileys</p>
-            </div>
-          </div>
+              <div className="mt-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="font-bold text-sm text-slate-900 dark:text-white">
+                    RNchat Instance
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
+                  v2.3.7 • Baileys Multi-Device
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Chatwoot */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-bold uppercase tracking-wider">Chatwoot Inbox</span>
-              <Activity className="w-5 h-5 text-blue-600" />
-            </div>
-            <div className="mt-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                <span className="font-bold text-sm text-slate-900">API Channel Inbox</span>
+          <Card hover>
+            <CardContent className="p-5 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider">
+                  Chatwoot Inbox
+                </span>
+                <Activity className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">Shared Agent Desk</p>
-            </div>
-          </div>
+              <div className="mt-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                  <span className="font-bold text-sm text-slate-900 dark:text-white">
+                    API Channel Active
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Shared Agent Desk
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Redis & Queues */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-bold uppercase tracking-wider">BullMQ Queues</span>
-              <Server className="w-5 h-5 text-purple-600" />
-            </div>
-            <div className="mt-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
-                <span className="font-bold text-sm text-slate-900">5 Active Queues</span>
+          <Card hover>
+            <CardContent className="p-5 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider">
+                  BullMQ Queues
+                </span>
+                <Server className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">Exponential Backoff</p>
-            </div>
-          </div>
+              <div className="mt-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                  <span className="font-bold text-sm text-slate-900 dark:text-white">
+                    5 Active Queues
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Exponential Backoff
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Dual Database */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-bold uppercase tracking-wider">Databases</span>
-              <Database className="w-5 h-5 text-indigo-600" />
-            </div>
-            <div className="mt-3">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
-                <span className="font-bold text-sm text-slate-900">Dual MongoDB</span>
+          <Card hover>
+            <CardContent className="p-5 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider">
+                  Databases
+                </span>
+                <Database className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">Read-Only eCommerce</p>
-            </div>
-          </div>
+              <div className="mt-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                  <span className="font-bold text-sm text-slate-900 dark:text-white">
+                    Dual MongoDB
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  CRM + Read-Only eCommerce
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Webhooks Endpoints Card */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center gap-2">
-            <Webhook className="w-5 h-5 text-rn-600" />
-            <h3 className="font-bold text-slate-900 text-sm">Active Webhook Listeners</h3>
-          </div>
-          <div className="space-y-3 font-mono text-xs">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <span className="text-slate-600">Evolution API Webhook:</span>
-              <span className="font-bold text-slate-800">POST /api/webhooks/evolution</span>
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Webhook className="w-4 h-4 text-rn-600" />
+                <span>Active Webhook Listeners</span>
+              </CardTitle>
+              <CardDescription>
+                Incoming webhooks routed to CRM workers
+              </CardDescription>
             </div>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-              <span className="text-slate-600">Chatwoot Webhook:</span>
-              <span className="font-bold text-slate-800">POST /api/webhooks/chatwoot</span>
+          </CardHeader>
+          <CardContent className="space-y-3 font-mono text-xs">
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/90 dark:border-slate-800 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-bold text-slate-400 font-sans block">
+                  Evolution API Inbound Webhook
+                </span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  POST /api/webhooks/evolution
+                </span>
+              </div>
+              <button
+                onClick={() => handleCopy("/api/webhooks/evolution", "evo")}
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                title="Copy endpoint"
+              >
+                {copiedKey === "evo" ? (
+                  <Check className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </button>
             </div>
-          </div>
-        </div>
+
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/90 dark:border-slate-800 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-bold text-slate-400 font-sans block">
+                  Chatwoot Agent Event Webhook
+                </span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  POST /api/webhooks/chatwoot
+                </span>
+              </div>
+              <button
+                onClick={() => handleCopy("/api/webhooks/chatwoot", "chatwoot")}
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                title="Copy endpoint"
+              >
+                {copiedKey === "chatwoot" ? (
+                  <Check className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Audit Trail */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+        <Card>
+          <CardHeader>
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">Security & Activity Audit Logs</h3>
-              <p className="text-xs text-slate-500">Real-time trace of human agent takeovers, lead updates, and AI actions</p>
+              <CardTitle>Security & Activity Audit Logs</CardTitle>
+              <CardDescription>
+                Real-time trace of human agent takeovers, lead movements, and AI actions
+              </CardDescription>
             </div>
-          </div>
+            <Badge variant="neutral" size="sm">
+              {auditLogs.length} Events Logged
+            </Badge>
+          </CardHeader>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="px-6 py-3.5">Actor</th>
-                  <th className="px-6 py-3.5">Action</th>
+                  <th className="px-6 py-3.5">Action Taken</th>
                   <th className="px-6 py-3.5">Target Entity</th>
                   <th className="px-6 py-3.5">Timestamp</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {auditLogs.map((log) => (
-                  <tr key={log._id} className="hover:bg-slate-50">
-                    <td className="px-6 py-3.5 font-bold text-slate-900">{log.actorName}</td>
-                    <td className="px-6 py-3.5">
-                      <span className="px-2 py-0.5 rounded font-mono text-[10px] bg-slate-100 text-slate-800 font-semibold">
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 text-slate-600">{log.entityId}</td>
-                    <td className="px-6 py-3.5 text-slate-400">
-                      {new Date(log.createdAt).toLocaleString()}
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                {auditLogs.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-6 py-10 text-center text-slate-400 dark:text-slate-500 text-xs"
+                    >
+                      No audit events recorded yet.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  auditLogs.map((log) => (
+                    <tr
+                      key={log._id || log.createdAt}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <td className="px-6 py-3.5 font-bold text-slate-900 dark:text-white">
+                        {log.actorName}
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <Badge variant="primary" size="xs">
+                          {log.action}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-3.5 font-mono text-slate-600 dark:text-slate-400">
+                        {log.entityId}
+                      </td>
+                      <td className="px-6 py-3.5 text-slate-400 font-mono">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       </main>
     </div>
   );

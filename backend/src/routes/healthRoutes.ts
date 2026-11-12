@@ -3,26 +3,38 @@ import { getCrmConnection, getEcommConnection } from "../database/connections.js
 
 const router = Router();
 
+function getConnStatus(conn: any): string {
+  if (!conn) return "uninitialized";
+  switch (conn.readyState) {
+    case 1:
+      return "connected";
+    case 2:
+      return "connecting";
+    case 3:
+      return "disconnecting";
+    default:
+      return "disconnected";
+  }
+}
+
 router.get("/health", (_req: Request, res: Response) => {
   let crmDbStatus = "disconnected";
   let ecommDbStatus = "disconnected";
 
   try {
-    const crm = getCrmConnection();
-    crmDbStatus = crm.readyState === 1 ? "connected" : "connecting";
+    crmDbStatus = getConnStatus(getCrmConnection());
   } catch {
     crmDbStatus = "uninitialized";
   }
 
   try {
-    const ecomm = getEcommConnection();
-    ecommDbStatus = ecomm.readyState === 1 ? "connected" : "connecting";
+    ecommDbStatus = getConnStatus(getEcommConnection());
   } catch {
     ecommDbStatus = "uninitialized";
   }
 
   res.status(200).json({
-    status: "healthy",
+    status: crmDbStatus === "connected" ? "healthy" : "degraded",
     service: "rn-crm-backend",
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),

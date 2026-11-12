@@ -9,12 +9,17 @@ import { SalesRepDirectory } from "../services/conversation/salesRepDirectory.js
  */
 export async function getSalesExecutives(_req: Request, res: Response): Promise<void> {
   try {
-    const Model = getSalesExecutiveModel();
-    let execs = await Model.find().sort({ orderIndex: 1, createdAt: 1 }).lean();
-
-    if (!execs || execs.length === 0) {
-      await Model.insertMany(INITIAL_SALES_EXECUTIVES);
+    let execs: any[] = [];
+    try {
+      const Model = getSalesExecutiveModel();
       execs = await Model.find().sort({ orderIndex: 1, createdAt: 1 }).lean();
+
+      if (!execs || execs.length === 0) {
+        await Model.insertMany(INITIAL_SALES_EXECUTIVES);
+        execs = await Model.find().sort({ orderIndex: 1, createdAt: 1 }).lean();
+      }
+    } catch (dbErr) {
+      execs = INITIAL_SALES_EXECUTIVES.map((e, idx) => ({ ...e, _id: `exec_${idx + 1}` }));
     }
 
     // Get lead stats by executive

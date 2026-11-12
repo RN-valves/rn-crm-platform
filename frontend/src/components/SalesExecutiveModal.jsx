@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { crmApi } from "../lib/api";
+import Modal from "./ui/Modal";
+import Button from "./ui/Button";
+import Input from "./ui/Input";
+import Badge from "./ui/Badge";
 import {
-  X,
   Plus,
   Edit2,
   Trash2,
@@ -12,7 +15,9 @@ import {
   Check,
   AlertCircle,
   Users,
-  Shield,
+  ShieldCheck,
+  Hash,
+  Sparkles,
 } from "lucide-react";
 
 export default function SalesExecutiveModal({ isOpen, onClose, onUpdated }) {
@@ -116,14 +121,14 @@ export default function SalesExecutiveModal({ isOpen, onClose, onUpdated }) {
         setSuccessMsg(`Executive ${payload.name} updated successfully!`);
       } else {
         await crmApi.createSalesExecutive(payload);
-        setSuccessMsg(`Executive ${payload.name} added successfully!`);
+        setSuccessMsg(`Executive ${payload.name} registered successfully!`);
       }
 
       await fetchExecutives();
       setIsEditing(false);
       if (onUpdated) onUpdated();
 
-      setTimeout(() => setSuccessMsg(null), 4000);
+      setTimeout(() => setSuccessMsg(null), 3500);
     } catch (err) {
       console.error("Save error:", err);
       setError(err.message || "Failed to save executive");
@@ -146,320 +151,249 @@ export default function SalesExecutiveModal({ isOpen, onClose, onUpdated }) {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-rn-50 text-rn-600 rounded-xl">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Sales Executive & Territory Manager
-              </h2>
-              <p className="text-xs text-slate-500">
-                Manage sales team contacts, assigned states, and PIN code routing for WhatsApp leads
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Sales Executive & Territory Manager"
+      subtitle="Manage team contacts, territory routing, and PIN code assignment for WhatsApp leads"
+      maxWidth="max-w-3xl"
+    >
+      <div className="space-y-4">
         {/* Feedback Notices */}
         {error && (
-          <div className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
+          <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs rounded-xl flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
         {successMsg && (
-          <div className="mx-6 mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center gap-2">
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 text-xs rounded-xl flex items-center gap-2">
             <Check className="w-4 h-4 shrink-0" />
             <span>{successMsg}</span>
           </div>
         )}
 
-        {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
-          {isEditing ? (
-            /* Add / Edit Form */
-            <form onSubmit={handleSave} className="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-200">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                <h3 className="text-sm font-bold text-slate-900">
-                  {currentId ? "Edit Sales Executive" : "Add New Sales Executive"}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="text-xs font-semibold text-slate-500 hover:text-slate-700"
-                >
-                  Cancel
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Executive Name */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Executive Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Arpita or Gaurav"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-rn-500"
-                  />
-                </div>
-
-                {/* Mobile / WhatsApp Number */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Mobile / WhatsApp Contact *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. +91 93155 96055"
-                    value={formData.mobile}
-                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-rn-500 font-mono"
-                  />
-                </div>
-
-                {/* Assigned States / Territory */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Assigned States / Territory *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. UP / Bihar / Delhi NCR"
-                    value={formData.state}
-                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-rn-500"
-                  />
-                </div>
-
-                {/* Area Description */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Area Description
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Delhi NCR, UP & Bihar Region"
-                    value={formData.area}
-                    onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-rn-500"
-                  />
-                </div>
-              </div>
-
-              {/* PIN Code Prefixes */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Assigned PIN Code 2-digit Prefixes (comma separated)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 11, 20, 21, 22, 23, 24, 25, 26, 27, 28, 80, 81"
-                  value={formData.pinPrefixes}
-                  onChange={(e) => setFormData({ ...formData, pinPrefixes: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-rn-500 font-mono"
-                />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Indian PIN codes starting with these 2 digits will be automatically routed to this executive by the WhatsApp AI bot.
-                </p>
-              </div>
-
-              {/* Toggles */}
-              <div className="flex items-center gap-6 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="rounded text-rn-600 focus:ring-rn-500 w-4 h-4"
-                  />
-                  Active (Receives WhatsApp Leads)
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={formData.isDefaultFallback}
-                    onChange={(e) => setFormData({ ...formData, isDefaultFallback: e.target.checked })}
-                    className="rounded text-rn-600 focus:ring-rn-500 w-4 h-4"
-                  />
-                  Default Fallback (e.g. Central Support)
-                </label>
-              </div>
-
-              {/* Buttons */}
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-5 py-2 text-xs font-bold text-white bg-rn-600 hover:bg-rn-700 rounded-lg shadow-sm transition-colors disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : currentId ? "Save Changes" : "Create Executive"}
-                </button>
-              </div>
-            </form>
-          ) : (
-            /* Executives List */
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Configured Sales Executives ({executives.length})
-                </span>
-                <button
-                  onClick={handleOpenAdd}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rn-600 hover:bg-rn-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Sales Executive
-                </button>
-              </div>
-
-              {loading ? (
-                <div className="py-12 text-center text-slate-400 text-xs font-medium">
-                  Loading sales executives...
-                </div>
-              ) : executives.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-xs font-medium bg-slate-50 rounded-xl border border-slate-200">
-                  No sales executives found. Click "Add Sales Executive" to register one.
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">
-                  {executives.map((exec) => (
-                    <div
-                      key={exec._id}
-                      className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-slate-900">{exec.name}</h4>
-                          {exec.isDefaultFallback && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                              Central Fallback
-                            </span>
-                          )}
-                          {!exec.isActive && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                              Inactive
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                          <span className="flex items-center gap-1 font-mono font-medium text-emerald-700">
-                            <Phone className="w-3 h-3 text-emerald-600" />
-                            {exec.mobile}
-                          </span>
-                          <span className="flex items-center gap-1 text-slate-700">
-                            <MapPin className="w-3 h-3 text-rn-500" />
-                            {exec.state}
-                          </span>
-                        </div>
-
-                        {exec.area && (
-                          <p className="text-[11px] text-slate-500">
-                            Region: {exec.area}
-                          </p>
-                        )}
-
-                        {exec.pinPrefixes && exec.pinPrefixes.length > 0 && (
-                          <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                            <span className="text-[10px] text-slate-400 font-medium">PINs:</span>
-                            {exec.pinPrefixes.slice(0, 10).map((p) => (
-                              <span
-                                key={p}
-                                className="text-[10px] px-1 py-0.2 bg-slate-100 rounded text-slate-600 font-mono"
-                              >
-                                {p}*
-                              </span>
-                            ))}
-                            {exec.pinPrefixes.length > 10 && (
-                              <span className="text-[10px] text-slate-400">
-                                +{exec.pinPrefixes.length - 10} more
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Right Action & Stats */}
-                      <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
-                        <div className="text-right">
-                          <p className="text-xs font-bold text-slate-900">
-                            {exec.leadsHandled || 0} leads
-                          </p>
-                          <p className="text-[10px] font-semibold text-emerald-600">
-                            {exec.converted || 0} won
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleOpenEdit(exec)}
-                            title="Edit Executive"
-                            className="p-1.5 text-slate-400 hover:text-rn-600 hover:bg-slate-100 rounded-lg transition-colors"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          {!exec.isDefaultFallback && (
-                            <button
-                              onClick={() => handleDelete(exec._id, exec.name)}
-                              title="Delete Executive"
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-rn-600" />
-            Changes take effect immediately across WhatsApp AI lead routing and CRM reports.
-          </p>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition-colors"
+        {isEditing ? (
+          /* Add / Edit Form */
+          <form
+            onSubmit={handleSave}
+            className="space-y-4 bg-slate-50 dark:bg-slate-800/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/80"
           >
-            Close
-          </button>
-        </div>
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                {currentId ? "Edit Sales Executive Profile" : "Register New Sales Executive"}
+              </h4>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => setIsEditing(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="Executive Full Name *"
+                type="text"
+                required
+                placeholder="e.g. Arpita or Gaurav"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+
+              <Input
+                label="WhatsApp Mobile Number *"
+                type="text"
+                required
+                placeholder="+91 93155 96055"
+                value={formData.mobile}
+                onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                icon={Phone}
+              />
+
+              <Input
+                label="Assigned State / Primary Region *"
+                type="text"
+                required
+                placeholder="e.g. UP / Bihar / Delhi NCR"
+                value={formData.state}
+                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                icon={MapPin}
+              />
+
+              <Input
+                label="Detailed Territory / Area"
+                type="text"
+                placeholder="e.g. North Zone & Wholesale Traders"
+                value={formData.area}
+                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Input
+                label="Assigned 2-digit PIN Code Prefixes (comma separated)"
+                type="text"
+                placeholder="e.g. 11, 20, 21, 22, 24, 26, 80"
+                value={formData.pinPrefixes}
+                onChange={(e) => setFormData({ ...formData, pinPrefixes: e.target.value })}
+                icon={Hash}
+                helperText="Indian PIN codes matching these 2 digits are routed to this executive by the AI assistant."
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-6 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  className="rounded text-rn-600 focus:ring-rn-500 w-4 h-4 cursor-pointer"
+                />
+                Active (Receives WhatsApp Leads)
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={formData.isDefaultFallback}
+                  onChange={(e) => setFormData({ ...formData, isDefaultFallback: e.target.checked })}
+                  className="rounded text-rn-600 focus:ring-rn-500 w-4 h-4 cursor-pointer"
+                />
+                Central Fallback (Receives unassigned/unmapped regions)
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-200 dark:border-slate-700">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditing(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={saving}
+              >
+                {saving ? "Saving..." : currentId ? "Update Executive" : "Register Executive"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          /* Executives List */
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Configured Sales Team ({executives.length})
+              </span>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleOpenAdd}
+                icon={Plus}
+              >
+                Add Executive
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="py-12 text-center text-slate-400 text-xs font-medium space-y-2">
+                <div className="animate-spin w-5 h-5 border-2 border-rn-600 border-t-transparent rounded-full mx-auto" />
+                <p>Loading sales team members...</p>
+              </div>
+            ) : executives.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs font-medium bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800">
+                No sales executives found. Click "Add Executive" to create one.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                {executives.map((exec) => (
+                  <div
+                    key={exec._id}
+                    className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                          {exec.name}
+                        </h4>
+                        {exec.isDefaultFallback && (
+                          <Badge variant="warning" size="xs">
+                            Central Fallback
+                          </Badge>
+                        )}
+                        {!exec.isActive ? (
+                          <Badge variant="neutral" size="xs">
+                            Inactive
+                          </Badge>
+                        ) : (
+                          <Badge variant="success" size="xs" dot>
+                            Active
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
+                        <span className="flex items-center gap-1 font-mono font-medium text-emerald-700 dark:text-emerald-400">
+                          <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                          {exec.mobile}
+                        </span>
+                        <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                          <MapPin className="w-3 h-3 text-rn-500 shrink-0" />
+                          {exec.state}
+                        </span>
+                        {exec.area && (
+                          <span className="text-slate-500 dark:text-slate-400">
+                            • {exec.area}
+                          </span>
+                        )}
+                      </div>
+
+                      {exec.pinPrefixes && exec.pinPrefixes.length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                          <span className="text-[10px] text-slate-400 font-medium">PINs:</span>
+                          {exec.pinPrefixes.map((p) => (
+                            <span
+                              key={p}
+                              className="text-[10px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300 font-mono"
+                            >
+                              {p}*
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 pt-2 md:pt-0">
+                      <Button
+                        variant="secondary"
+                        size="xs"
+                        onClick={() => handleOpenEdit(exec)}
+                        icon={Edit2}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="subtle-danger"
+                        size="xs"
+                        onClick={() => handleDelete(exec._id, exec.name)}
+                        icon={Trash2}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

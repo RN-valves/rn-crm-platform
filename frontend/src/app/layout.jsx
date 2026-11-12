@@ -1,5 +1,6 @@
 import "./globals.css";
 import Sidebar from "../components/Sidebar";
+import Providers from "../components/Providers";
 
 export const metadata = {
   title: "RN Valves & Faucets - WhatsApp CRM & AI Automation Platform",
@@ -8,12 +9,14 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className="flex min-h-screen bg-slate-50 text-slate-900">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {children}
-        </div>
+    <html lang="en" suppressHydrationWarning>
+      <body className="flex min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-rn-600 selection:text-white transition-colors duration-150">
+        <Providers>
+          <Sidebar />
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {children}
+          </div>
+        </Providers>
       </body>
     </html>
   );

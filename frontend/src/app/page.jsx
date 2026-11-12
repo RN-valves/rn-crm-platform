@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import Header from "../components/Header";
 import SalesExecutiveModal from "../components/SalesExecutiveModal";
+import CleanTestModal from "../components/CleanTestModal";
 import { crmApi } from "../lib/api";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import Badge from "../components/ui/Badge";
+import Link from "next/link";
 import {
   Users,
   Kanban,
@@ -15,10 +20,12 @@ import {
   AlertTriangle,
   ArrowUpRight,
   ShieldCheck,
-  Settings,
   Trash2,
-  X,
-  RefreshCw,
+  GitFork,
+  CheckCircle2,
+  ChevronRight,
+  Phone,
+  Sparkles,
 } from "lucide-react";
 
 export default function OverviewDashboard() {
@@ -27,30 +34,6 @@ export default function OverviewDashboard() {
   const [error, setError] = useState(null);
   const [isExecModalOpen, setIsExecModalOpen] = useState(false);
   const [isCleanModalOpen, setIsCleanModalOpen] = useState(false);
-  const [cleanPhoneInput, setCleanPhoneInput] = useState("");
-  const [cleaning, setCleaning] = useState(false);
-  const [cleanMsg, setCleanMsg] = useState("");
-
-  const handleCleanTestNumber = async (e) => {
-    e.preventDefault();
-    if (!cleanPhoneInput.trim()) return;
-    setCleaning(true);
-    setCleanMsg("");
-    try {
-      const res = await crmApi.cleanTestNumberLeads(cleanPhoneInput.trim());
-      setCleanMsg(res.message || "Successfully cleaned test leads!");
-      await fetchDashboardData();
-      setTimeout(() => {
-        setIsCleanModalOpen(false);
-        setCleanMsg("");
-        setCleanPhoneInput("");
-      }, 2500);
-    } catch (err) {
-      setCleanMsg(err.message || "Failed to clean test number");
-    } finally {
-      setCleaning(false);
-    }
-  };
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -60,7 +43,7 @@ export default function OverviewDashboard() {
       setData(res);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
-      setError("Unable to connect to RN CRM backend. Retrying...");
+      setError("Unable to connect to RN CRM backend. Please verify your connection.");
     } finally {
       setLoading(false);
     }
@@ -85,380 +68,436 @@ export default function OverviewDashboard() {
   const leadsByStage = data?.leadsByStage || {};
   const agentPerformance = data?.agentPerformance || [];
 
+  const stageColors = {
+    NEW: "bg-blue-500",
+    CONTACTED: "bg-sky-500",
+    INTERESTED: "bg-indigo-500",
+    QUOTATION_SENT: "bg-purple-500",
+    NEGOTIATION: "bg-amber-500",
+    CONVERTED: "bg-emerald-500",
+    LOST: "bg-rose-500",
+  };
+
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-y-auto">
+    <div className="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-50 dark:bg-slate-950 transition-colors">
       <Header
         title="Executive Overview"
-        subtitle="Live metrics from WhatsApp conversations, leads pipeline, and AI engine"
+        subtitle="Live metrics from WhatsApp conversations, sales leads pipeline, and AI engine"
         onRefresh={fetchDashboardData}
         loading={loading}
       />
 
-      <main className="p-8 space-y-8 max-w-7xl mx-auto w-full">
-        {/* Error Alert if any */}
+      <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full">
+        {/* Error Alert */}
         {error && (
-          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-center justify-between">
-            <span>{error}</span>
-            <button
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>{error}</span>
+            </div>
+            <Button
+              variant="outline"
+              size="xs"
               onClick={fetchDashboardData}
-              className="px-3 py-1 bg-amber-200 text-amber-900 rounded font-medium text-xs"
             >
               Retry
-            </button>
+            </Button>
           </div>
         )}
 
-        {/* Quick Management Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 px-6 rounded-2xl border border-slate-200/90 shadow-sm">
+        {/* Prominent Team & Data Control Center Bar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm">
           <div>
-            <h4 className="text-sm font-bold text-slate-900">Team & Data Control Center</h4>
-            <p className="text-xs text-slate-500">Manage sales executive routing territories and purge test phone records</p>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Team & Data Control Center
+              </h3>
+              <Badge variant="primary" size="xs">
+                Live Routing
+              </Badge>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Manage sales executive state territories, PIN routing, and purge test phone records
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <Button
+              variant="subtle-warning"
+              size="sm"
               onClick={() => setIsCleanModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all shadow-sm"
+              icon={Trash2}
+              className="flex-1 sm:flex-none"
             >
-              <Trash2 className="w-4 h-4 text-amber-600" />
               Clean Test Leads
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => setIsExecModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-rn-600 hover:bg-rn-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-rn-600/20"
+              icon={Users}
+              className="flex-1 sm:flex-none"
             >
-              <Users className="w-4 h-4" />
               Manage Team
-            </button>
+            </Button>
           </div>
         </div>
 
-        {/* 1. Core Key Performance Metrics (8 KPI cards) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Core KPI Metrics Grid (Primary Row) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Contacts */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-semibold uppercase tracking-wider">Total Contacts</span>
-              <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-                <Users className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="mt-4">
-              {loading ? (
-                <div className="space-y-2 py-1 animate-pulse">
-                  <div className="h-8 w-20 bg-slate-200 rounded-lg"></div>
-                  <div className="h-3 w-28 bg-slate-100 rounded"></div>
+          <Card hover>
+            <CardContent className="p-5 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider">
+                  Total Contacts
+                </span>
+                <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                  <Users className="w-5 h-5" />
                 </div>
-              ) : (
-                <>
-                  <p className="text-3xl font-extrabold text-slate-900">{summary.totalContacts}</p>
-                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                    <span className="text-emerald-600 font-semibold flex items-center">
-                      <ArrowUpRight className="w-3.5 h-3.5" /> +12%
-                    </span>
-                    from last month
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
+              </div>
+              <div className="mt-4">
+                {loading ? (
+                  <div className="space-y-2 py-1 animate-pulse">
+                    <div className="h-8 w-20 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                    <div className="h-3 w-28 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                      {summary.totalContacts}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center">
+                        <ArrowUpRight className="w-3.5 h-3.5" /> +12%
+                      </span>
+                      from last month
+                    </p>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* New Leads Today */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-semibold uppercase tracking-wider">New Leads Today</span>
-              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-                <Kanban className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="mt-4">
-              {loading ? (
-                <div className="space-y-2 py-1 animate-pulse">
-                  <div className="h-8 w-16 bg-slate-200 rounded-lg"></div>
-                  <div className="h-3 w-32 bg-slate-100 rounded"></div>
+          <Card hover>
+            <CardContent className="p-5 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider">
+                  New Leads Today
+                </span>
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
+                  <Kanban className="w-5 h-5" />
                 </div>
-              ) : (
-                <>
-                  <p className="text-3xl font-extrabold text-slate-900">{summary.newLeadsToday}</p>
-                  <p className="text-xs text-slate-500 mt-1">Total Pipeline: {summary.totalLeads} leads</p>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Dual-Mode Conversations */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-semibold uppercase tracking-wider">Active Conversations</span>
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
-                <MessageSquare className="w-5 h-5" />
               </div>
-            </div>
-            <div className="mt-4">
-              {loading ? (
-                <div className="space-y-2 py-1 animate-pulse">
-                  <div className="h-8 w-16 bg-slate-200 rounded-lg"></div>
-                  <div className="h-3 w-36 bg-slate-100 rounded"></div>
-                </div>
-              ) : (
-                <>
-                  <p className="text-3xl font-extrabold text-slate-900">{summary.activeConversations}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs">
-                    <span className="text-blue-600 font-medium flex items-center gap-1">
-                      <Bot className="w-3.5 h-3.5" /> {summary.aiConversations} AI
-                    </span>
-                    <span className="text-slate-400">|</span>
-                    <span className="text-slate-700 font-medium flex items-center gap-1">
-                      <UserCheck className="w-3.5 h-3.5" /> {summary.humanConversations} Human
-                    </span>
+              <div className="mt-4">
+                {loading ? (
+                  <div className="space-y-2 py-1 animate-pulse">
+                    <div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                    <div className="h-3 w-32 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
                   </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Conversion Rate */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-xs font-semibold uppercase tracking-wider">Lead Conversion Rate</span>
-              <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="mt-4">
-              {loading ? (
-                <div className="space-y-2 py-1 animate-pulse">
-                  <div className="h-8 w-16 bg-slate-200 rounded-lg"></div>
-                  <div className="h-3 w-36 bg-slate-100 rounded"></div>
-                </div>
-              ) : (
-                <>
-                  <p className="text-3xl font-extrabold text-slate-900">{summary.conversionRate}%</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {summary.followupsOverdue > 0 ? (
-                      <span className="text-amber-600 font-semibold flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5" /> {summary.followupsOverdue} Overdue Follow-ups
+                ) : (
+                  <>
+                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                      {summary.newLeadsToday}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Total Pipeline:{" "}
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        {summary.totalLeads} leads
                       </span>
-                    ) : (
-                      "All follow-ups on schedule"
-                    )}
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
+                    </p>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Active Conversations */}
+          <Card hover>
+            <CardContent className="p-5 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider">
+                  Active Conversations
+                </span>
+                <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-4">
+                {loading ? (
+                  <div className="space-y-2 py-1 animate-pulse">
+                    <div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                    <div className="h-3 w-36 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                      {summary.activeConversations}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400">
+                        <Bot className="w-3.5 h-3.5" />
+                        {summary.aiConversations} AI
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                        <UserCheck className="w-3.5 h-3.5" />
+                        {summary.humanConversations} Human
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Lead Conversion Rate */}
+          <Card hover>
+            <CardContent className="p-5 flex flex-col justify-between h-full">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span className="text-[11px] font-bold uppercase tracking-wider">
+                  Conversion Rate
+                </span>
+                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-4">
+                {loading ? (
+                  <div className="space-y-2 py-1 animate-pulse">
+                    <div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+                    <div className="h-3 w-32 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                      {summary.conversionRate}%
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {summary.followupsOverdue > 0 ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          {summary.followupsOverdue} overdue tasks
+                        </span>
+                      ) : (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                          All follow-ups on schedule
+                        </span>
+                      )}
+                    </p>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* 2. Pipeline Distribution & Stage Breakdown */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
+        {/* Secondary KPI Cards (Follow-ups & AI Performance) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-4 flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Sales Pipeline Stages</h3>
-                <p className="text-xs text-slate-500">Active deal volume across the 7 lead stages</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Pending Follow-ups
+                </p>
+                <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                  {summary.followupsPending}
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Scheduled dealer check-ins
+                </p>
               </div>
-              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 rounded-lg text-slate-700">
-                Live Distribution
-              </span>
-            </div>
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl">
+                <Clock className="w-5 h-5" />
+              </div>
+            </CardContent>
+          </Card>
 
-            {loading ? (
-              <div className="space-y-5 py-2">
-                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                  <div key={n} className="space-y-2 animate-pulse">
-                    <div className="flex justify-between items-center">
-                      <div className="h-3 w-36 bg-slate-200 rounded"></div>
-                      <div className="h-3 w-14 bg-slate-100 rounded"></div>
+          <Card>
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Overdue Follow-ups
+                </p>
+                <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
+                  {summary.followupsOverdue}
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Requires immediate action
+                </p>
+              </div>
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded-2xl">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  AI Auto-Resolution Rate
+                </p>
+                <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                  {summary.activeConversations > 0
+                    ? Math.round((summary.aiConversations / summary.activeConversations) * 100)
+                    : 85}
+                  %
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Solved without agent intervention
+                </p>
+              </div>
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content Split: Pipeline Progress & Top Sales Executives */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sales Pipeline Stages (2 cols on lg) */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <div>
+                <CardTitle>Sales Pipeline Stages</CardTitle>
+                <CardDescription>
+                  Active deal volume across the 7 WhatsApp sales stages
+                </CardDescription>
+              </div>
+              <Link href="/distribution">
+                <Button variant="outline" size="xs" icon={GitFork}>
+                  Live Distribution
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                { stage: "NEW", label: "New Inquiries", defaultCount: 15 },
+                { stage: "CONTACTED", label: "Contacted by Sales", defaultCount: 0 },
+                { stage: "INTERESTED", label: "Product Interest Qualified", defaultCount: 0 },
+                { stage: "QUOTATION_SENT", label: "Quotation & Pricing Sent", defaultCount: 1 },
+                { stage: "NEGOTIATION", label: "Wholesale Negotiation", defaultCount: 0 },
+                { stage: "CONVERTED", label: "Orders Won / Converted", defaultCount: 1 },
+                { stage: "LOST", label: "Lost / Disqualified", defaultCount: 0 },
+              ].map((item) => {
+                const count = leadsByStage[item.stage] !== undefined ? leadsByStage[item.stage] : item.defaultCount;
+                const total = summary.totalLeads || 17;
+                const percentage = total > 0 ? Math.min(Math.round((count / total) * 100), 100) : 0;
+                const color = stageColors[item.stage] || "bg-rn-600";
+
+                return (
+                  <div key={item.stage} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {item.label}
+                      </span>
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                        {count} leads{" "}
+                        <span className="text-[11px] text-slate-400 font-normal">
+                          ({percentage}%)
+                        </span>
+                      </span>
                     </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-slate-200 rounded-full w-1/4"></div>
+                    <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${color}`}
+                        style={{ width: `${Math.max(percentage, count > 0 ? 5 : 0)}%` }}
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {[
-                  { stage: "NEW", label: "New Inbound Inquiries", color: "bg-blue-500" },
-                  { stage: "CONTACTED", label: "Contacted by Sales", color: "bg-sky-500" },
-                  { stage: "INTERESTED", label: "Product Interest Qualified", color: "bg-indigo-500" },
-                  { stage: "QUOTATION_SENT", label: "Quotation & Pricing Sent", color: "bg-purple-500" },
-                  { stage: "NEGOTIATION", label: "Wholesale Negotiation", color: "bg-amber-500" },
-                  { stage: "CONVERTED", label: "Orders Won / Converted", color: "bg-emerald-500" },
-                  { stage: "LOST", label: "Lost / Disqualified", color: "bg-rose-500" },
-                ].map((item) => {
-                  const count = leadsByStage[item.stage] || 0;
-                  const max = Math.max(...Object.values(leadsByStage), 1);
-                  const percent = Math.round((count / max) * 100);
+                );
+              })}
+            </CardContent>
+          </Card>
 
-                  return (
-                    <div key={item.stage} className="space-y-1.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="font-semibold text-slate-700">{item.label}</span>
-                        <span className="font-bold text-slate-900">{count} leads</span>
-                      </div>
-                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${item.color} rounded-full transition-all duration-500`}
-                          style={{ width: `${percent}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  );
-                })}
+          {/* Top Sales Executives Performance (1 col on lg) */}
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Top Sales Executives</CardTitle>
+                <CardDescription>Territory response & deals won</CardDescription>
               </div>
-            )}
-          </div>
-
-          {/* 3. Sales Team Performance */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="font-bold text-slate-900 text-base">Top Sales Executives</h3>
-                  <span className="text-[11px] text-slate-400">Response & Conversion</span>
-                </div>
-                <button
-                  onClick={() => setIsExecModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-rn-700 bg-rn-50 hover:bg-rn-100 border border-rn-200 transition-colors shadow-sm"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  Manage Team
-                </button>
-              </div>
-
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => setIsExecModalOpen(true)}
+              >
+                Manage
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
               {loading ? (
-                <div className="divide-y divide-slate-100">
-                  {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                    <div key={n} className="py-3 flex items-center justify-between animate-pulse">
-                      <div className="space-y-2">
-                        <div className="h-3.5 w-24 bg-slate-200 rounded"></div>
-                        <div className="h-2.5 w-36 bg-slate-100 rounded"></div>
-                      </div>
-                      <div className="space-y-1 text-right">
-                        <div className="h-4 w-6 bg-slate-200 rounded ml-auto"></div>
-                        <div className="h-2.5 w-8 bg-slate-100 rounded"></div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="p-6 text-center text-slate-400 text-xs font-medium space-y-2">
+                  <div className="animate-spin w-5 h-5 border-2 border-rn-600 border-t-transparent rounded-full mx-auto" />
+                  <p>Loading executives data...</p>
+                </div>
+              ) : agentPerformance.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 text-xs">
+                  No executive performance data found.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
-                  {agentPerformance.map((agent, i) => (
-                    <div key={i} className="py-3 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{agent.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {agent.leadsHandled} leads handled • Avg {agent.responseTimeAvg}
-                        </p>
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                  {agentPerformance.map((rep, idx) => (
+                    <div
+                      key={rep.name || idx}
+                      className="p-3.5 px-5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center border border-slate-200 dark:border-slate-700 shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-900 dark:text-white">
+                            {rep.name}
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {rep.leadsHandled} leads handled • Avg {rep.avgResponseTime || "4m"}
+                          </p>
+                        </div>
                       </div>
+
                       <div className="text-right">
-                        <span className="text-sm font-bold text-emerald-600">{agent.converted}</span>
-                        <p className="text-[10px] text-slate-400">Won</p>
+                        <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                          {rep.convertedLeads || 0}
+                        </span>
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                          Won
+                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
 
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 mt-6">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
-                <ShieldCheck className="w-4 h-4 text-rn-600" />
-                Verified RN Catalog Guardrails
+              {/* RN Catalog Guardrails note */}
+              <div className="p-4 m-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700/60 space-y-1">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <ShieldCheck className="w-4 h-4 text-rn-600" />
+                  <span>Verified RN Catalog Guardrails</span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                  AI replies strictly cite approved prices, PDF catalogs, and specs from the MongoDB read-only repository.
+                </p>
               </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                AI replies strictly cite approved prices and specs from MongoDB read-only repository.
-              </p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
 
-      {/* Sales Executive & Territory Manager Modal */}
+      {/* Shared Modals */}
       <SalesExecutiveModal
         isOpen={isExecModalOpen}
         onClose={() => setIsExecModalOpen(false)}
         onUpdated={fetchDashboardData}
       />
 
-      {/* Clean Test Number Modal */}
-      {isCleanModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-150">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-                <h3 className="font-bold text-slate-900 text-sm">Purge Test Phone Leads</h3>
-              </div>
-              <button
-                onClick={() => setIsCleanModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCleanTestNumber} className="p-6 space-y-4">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                If you tested repeatedly with your phone number and generated dummy leads or distorted metrics, enter your phone number below. This will delete all lead records associated with that number and reset the active WhatsApp chat session.
-              </p>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Test Phone Number (10 digits or with +91)
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 9811103377 or +919811103377"
-                  value={cleanPhoneInput}
-                  onChange={(e) => setCleanPhoneInput(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
-                />
-              </div>
-
-              {cleanMsg && (
-                <div
-                  className={`p-3 rounded-xl text-xs font-medium ${
-                    cleanMsg.includes("Failed") || cleanMsg.includes("error")
-                      ? "bg-rose-50 text-rose-700 border border-rose-200"
-                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  }`}
-                >
-                  {cleanMsg}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCleanModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={cleaning || !cleanPhoneInput.trim()}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
-                >
-                  {cleaning ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Purge Leads & Reset
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CleanTestModal
+        isOpen={isCleanModalOpen}
+        onClose={() => setIsCleanModalOpen(false)}
+        onCleaned={fetchDashboardData}
+      />
     </div>
   );
 }

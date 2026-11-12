@@ -2,44 +2,45 @@
 
 import { useState, useEffect } from "react";
 import Header from "../../components/Header";
+import CleanTestModal from "../../components/CleanTestModal";
 import { crmApi } from "../../lib/api";
+import { Card, CardContent } from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import Badge from "../../components/ui/Badge";
+import Input from "../../components/ui/Input";
 import {
   Kanban,
-  Plus,
-  Filter,
+  Table as TableIcon,
   Search,
-  Calendar,
-  Building,
   User,
   ArrowRight,
   Phone,
-  CheckCircle,
+  Building,
   Trash2,
   RefreshCw,
-  X,
-  AlertTriangle,
+  Clock,
+  Sparkles,
+  ExternalLink,
 } from "lucide-react";
 
 const PIPELINE_STAGES = [
-  { id: "NEW", title: "New Inquiries", color: "border-blue-500", badge: "bg-blue-100 text-blue-800" },
-  { id: "CONTACTED", title: "Contacted", color: "border-sky-500", badge: "bg-sky-100 text-sky-800" },
-  { id: "INTERESTED", title: "Interested", color: "border-indigo-500", badge: "bg-indigo-100 text-indigo-800" },
-  { id: "QUOTATION_SENT", title: "Quotation Sent", color: "border-purple-500", badge: "bg-purple-100 text-purple-800" },
-  { id: "NEGOTIATION", title: "Negotiation", color: "border-amber-500", badge: "bg-amber-100 text-amber-800" },
-  { id: "CONVERTED", title: "Converted", color: "border-emerald-500", badge: "bg-emerald-100 text-emerald-800" },
-  { id: "LOST", title: "Lost", color: "border-rose-500", badge: "bg-rose-100 text-rose-800" },
+  { id: "NEW", title: "New Inquiries", variant: "info" },
+  { id: "CONTACTED", title: "Contacted", variant: "primary" },
+  { id: "INTERESTED", title: "Interested", variant: "indigo" },
+  { id: "QUOTATION_SENT", title: "Quotation Sent", variant: "purple" },
+  { id: "NEGOTIATION", title: "Negotiation", variant: "warning" },
+  { id: "CONVERTED", title: "Converted", variant: "success" },
+  { id: "LOST", title: "Lost", variant: "danger" },
 ];
 
 export default function LeadsKanban() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState("kanban"); // "kanban" | "table"
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
   const [repFilter, setRepFilter] = useState("ALL");
   const [isCleanModalOpen, setIsCleanModalOpen] = useState(false);
-  const [cleanPhoneInput, setCleanPhoneInput] = useState("");
-  const [cleaning, setCleaning] = useState(false);
-  const [cleanMsg, setCleanMsg] = useState("");
 
   const SALES_EXECUTIVES = [
     "ALL",
@@ -89,60 +90,85 @@ export default function LeadsKanban() {
     }
   };
 
-  const handleCleanTestNumber = async (e) => {
-    e.preventDefault();
-    if (!cleanPhoneInput.trim()) return;
-    setCleaning(true);
-    setCleanMsg("");
-    try {
-      const res = await crmApi.cleanTestNumberLeads(cleanPhoneInput.trim());
-      setCleanMsg(res.message || "Successfully cleaned test leads!");
-      await fetchLeads();
-      setTimeout(() => {
-        setIsCleanModalOpen(false);
-        setCleanMsg("");
-        setCleanPhoneInput("");
-      }, 2500);
-    } catch (err) {
-      setCleanMsg(err.message || "Failed to clean test number");
-    } finally {
-      setCleaning(false);
-    }
-  };
+  const filteredLeads = leads.filter((l) => {
+    const matchesPriority = priorityFilter === "ALL" || l.priority === priorityFilter;
+    const matchesRep =
+      repFilter === "ALL" ||
+      l.assignedEmployeeName?.toLowerCase().includes(repFilter.toLowerCase());
+
+    const s = search.toLowerCase();
+    const matchesSearch =
+      !search ||
+      l.customerName?.toLowerCase().includes(s) ||
+      l.phone?.toLowerCase().includes(s) ||
+      l.leadNumber?.toLowerCase().includes(s) ||
+      l.businessName?.toLowerCase().includes(s) ||
+      l.assignedEmployeeName?.toLowerCase().includes(s) ||
+      l.city?.toLowerCase().includes(s);
+
+    return matchesPriority && matchesRep && matchesSearch;
+  });
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden">
+    <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors">
       <Header
         title="Sales Pipeline"
-        subtitle="Manage inbound WhatsApp leads across sales stages"
+        subtitle="Manage inbound WhatsApp leads across 7 conversion stages"
         onRefresh={fetchLeads}
         loading={loading}
+        actions={
+          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <button
+              onClick={() => setViewMode("kanban")}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                viewMode === "kanban"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              }`}
+              title="Kanban Board View"
+            >
+              <Kanban className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Kanban</span>
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                viewMode === "table"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
+                  : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              }`}
+              title="Table List View"
+            >
+              <TableIcon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Table</span>
+            </button>
+          </div>
+        }
       />
 
-      {/* Filter Bar */}
-      <div className="p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3 flex-1 max-w-md">
-          <div className="relative w-full">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search leads by customer, phone, lead ID, executive..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-100 rounded-lg border border-transparent focus:bg-white focus:border-rn-500 focus:outline-none"
-            />
-          </div>
+      {/* Filter and Action Bar */}
+      <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-[260px] max-w-md">
+          <Input
+            type="text"
+            placeholder="Search leads by customer, phone, ID, territory..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            icon={Search}
+          />
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Executive Filter Dropdown */}
           <div className="flex items-center gap-1.5 text-xs">
-            <User className="w-3.5 h-3.5 text-slate-500" />
-            <span className="text-slate-500 font-medium">Executive:</span>
+            <User className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-slate-500 dark:text-slate-400 font-medium hidden sm:inline">
+              Executive:
+            </span>
             <select
               value={repFilter}
               onChange={(e) => setRepFilter(e.target.value)}
-              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 border border-slate-200 text-slate-700 focus:outline-none focus:border-rn-500"
+              className="px-2.5 py-2 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rn-500/20"
             >
               {SALES_EXECUTIVES.map((rep) => (
                 <option key={rep} value={rep}>
@@ -152,15 +178,16 @@ export default function LeadsKanban() {
             </select>
           </div>
 
-          {/* Priority Filter */}
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-slate-500 font-medium">Priority:</span>
+          {/* Priority Filters */}
+          <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
             {["ALL", "URGENT", "HIGH", "MEDIUM", "LOW"].map((p) => (
               <button
                 key={p}
                 onClick={() => setPriorityFilter(p)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
-                  priorityFilter === p ? "bg-rn-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-colors ${
+                  priorityFilter === p
+                    ? "bg-rn-600 text-white shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
                 {p}
@@ -168,146 +195,141 @@ export default function LeadsKanban() {
             ))}
           </div>
 
-          {/* Clean Test Number Button */}
-          <button
+          {/* Clean Test Leads Button */}
+          <Button
+            variant="subtle-warning"
+            size="sm"
             onClick={() => setIsCleanModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition-colors shadow-sm ml-auto md:ml-0"
+            icon={Trash2}
           >
-            <Trash2 className="w-3.5 h-3.5 text-amber-600" />
             Clean Test Leads
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Kanban Board Horizontal Scroll Container */}
-      <div className="flex-1 p-6 overflow-x-auto bg-slate-100/70">
-        <div className="flex gap-5 min-w-max h-full">
-          {PIPELINE_STAGES.map((stage) => {
-            const stageLeads = leads.filter((l) => {
-              const matchesStage = l.status === stage.id;
-              const matchesPriority = priorityFilter === "ALL" || l.priority === priorityFilter;
-              const matchesRep =
-                repFilter === "ALL" ||
-                l.assignedEmployeeName?.toLowerCase().includes(repFilter.toLowerCase());
+      {/* Main Content Area: Kanban or Table */}
+      {viewMode === "kanban" ? (
+        /* Kanban Board Horizontal Scroll */
+        <div className="flex-1 p-4 sm:p-6 overflow-x-auto bg-slate-100/60 dark:bg-slate-950">
+          <div className="flex gap-4 min-w-max h-full">
+            {PIPELINE_STAGES.map((stage) => {
+              const stageLeads = filteredLeads.filter((l) => l.status === stage.id);
 
-              const s = search.toLowerCase();
-              const matchesSearch =
-                !search ||
-                l.customerName?.toLowerCase().includes(s) ||
-                l.phone?.toLowerCase().includes(s) ||
-                l.leadNumber?.toLowerCase().includes(s) ||
-                l.businessName?.toLowerCase().includes(s) ||
-                l.assignedEmployeeName?.toLowerCase().includes(s) ||
-                l.city?.toLowerCase().includes(s);
-
-              return matchesStage && matchesPriority && matchesRep && matchesSearch;
-            });
-
-            return (
-              <div
-                key={stage.id}
-                className="w-72 bg-slate-50/80 rounded-2xl border border-slate-200 flex flex-col max-h-full"
-              >
-                {/* Stage Header */}
-                <div className="p-4 border-b border-slate-200/80 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs text-slate-900">{stage.title}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${stage.badge}`}>
-                      {stageLeads.length}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Stage Cards Stream */}
-                <div className="flex-1 p-3 overflow-y-auto space-y-3">
-                  {loading ? (
-                    <div className="space-y-3">
-                      {[1, 2].map((s) => (
-                        <div
-                          key={s}
-                          className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm animate-pulse space-y-3"
-                        >
-                          <div className="flex justify-between items-center">
-                            <div className="h-3 w-16 bg-slate-200 rounded"></div>
-                            <div className="h-3 w-12 bg-slate-100 rounded"></div>
-                          </div>
-                          <div className="space-y-1.5">
-                            <div className="h-4 w-28 bg-slate-200 rounded"></div>
-                            <div className="h-3 w-20 bg-slate-100 rounded"></div>
-                          </div>
-                          <div className="h-6 w-full bg-slate-100 rounded-lg"></div>
-                          <div className="flex justify-between pt-1 border-t border-slate-100">
-                            <div className="h-3 w-12 bg-slate-200 rounded"></div>
-                            <div className="h-3 w-16 bg-slate-100 rounded"></div>
-                          </div>
-                        </div>
-                      ))}
+              return (
+                <div
+                  key={stage.id}
+                  className="w-72 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm rounded-2xl border border-slate-200/90 dark:border-slate-800 flex flex-col max-h-full shadow-sm"
+                >
+                  {/* Stage Header */}
+                  <div className="p-3.5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-slate-900 dark:text-white">
+                        {stage.title}
+                      </span>
+                      <Badge variant={stage.variant} size="xs">
+                        {stageLeads.length}
+                      </Badge>
                     </div>
-                  ) : (
-                    <>
-                      {stageLeads.map((lead) => (
+                  </div>
+
+                  {/* Stage Cards Stream */}
+                  <div className="flex-1 p-3 overflow-y-auto space-y-3">
+                    {loading ? (
+                      <div className="space-y-3">
+                        {[1, 2].map((s) => (
+                          <div
+                            key={s}
+                            className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 animate-pulse space-y-3"
+                          >
+                            <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                            <div className="h-4 w-28 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                            <div className="h-8 w-full bg-slate-100 dark:bg-slate-700/60 rounded"></div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : stageLeads.length === 0 ? (
+                      <div className="text-center py-10 text-slate-400 dark:text-slate-500 text-xs font-medium">
+                        No leads in this stage
+                      </div>
+                    ) : (
+                      stageLeads.map((lead) => (
                         <div
                           key={lead._id}
-                          className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2.5"
+                          className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col gap-2.5 group"
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-mono font-bold text-slate-400">
+                              <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">
                                 {lead.leadNumber}
                               </span>
                               <button
-                                onClick={() => handleDeleteLead(lead._id, lead.leadNumber, lead.customerName)}
+                                onClick={() =>
+                                  handleDeleteLead(
+                                    lead._id,
+                                    lead.leadNumber,
+                                    lead.customerName
+                                  )
+                                }
                                 title="Delete this lead"
-                                className="text-slate-300 hover:text-rose-600 p-0.5 rounded transition-colors"
+                                className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 p-0.5 rounded transition-all"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
                             <div className="flex items-center gap-1">
-                              {(lead.requirementDescription?.includes("Repeat") || lead.isDuplicateResolved) && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                              {(lead.requirementDescription?.includes("Repeat") ||
+                                lead.isDuplicateResolved) && (
+                                <Badge variant="info" size="xs">
                                   🔄 Repeat
-                                </span>
+                                </Badge>
                               )}
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                              <Badge
+                                variant={
                                   lead.priority === "URGENT"
-                                    ? "bg-rose-100 text-rose-700"
+                                    ? "danger"
                                     : lead.priority === "HIGH"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-slate-100 text-slate-600"
-                                }`}
+                                    ? "warning"
+                                    : "neutral"
+                                }
+                                size="xs"
                               >
                                 {lead.priority}
-                              </span>
+                              </Badge>
                             </div>
                           </div>
 
                           <div>
-                            <h4 className="font-bold text-slate-900 text-xs">{lead.customerName}</h4>
-                            <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5 font-mono font-medium">
-                              <Phone className="w-3 h-3 text-emerald-600" />
+                            <h4 className="font-bold text-slate-900 dark:text-white text-xs">
+                              {lead.customerName}
+                            </h4>
+                            <a
+                              href={`https://wa.me/${lead.phone?.replace(/[^0-9]/g, "")}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 mt-0.5 font-mono font-medium"
+                            >
+                              <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
                               {lead.phone}
-                            </p>
+                            </a>
                             {lead.businessName && (
-                              <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                                <Building className="w-3 h-3 text-slate-400" />
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                                <Building className="w-3 h-3 text-slate-400 shrink-0" />
                                 {lead.businessName} ({lead.city || "India"})
                               </p>
                             )}
                           </div>
 
                           {lead.requirementDescription && (
-                            <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg line-clamp-2">
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg line-clamp-2 leading-relaxed">
                               {lead.requirementDescription}
                             </p>
                           )}
 
-                          <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                            <span className="font-bold text-slate-800">
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <span className="font-extrabold text-slate-900 dark:text-white">
                               ₹{lead.estimatedValue ? lead.estimatedValue.toLocaleString("en-IN") : "0"}
                             </span>
-                            <span className="font-semibold text-rn-700 bg-rn-50 px-2 py-0.5 rounded">
+                            <span className="font-semibold text-rn-700 dark:text-rn-300 bg-rn-50 dark:bg-rn-950/60 px-2 py-0.5 rounded-md border border-rn-100 dark:border-rn-900/40">
                               👤 {lead.assignedEmployeeName || "Unassigned"}
                             </span>
                           </div>
@@ -316,111 +338,143 @@ export default function LeadsKanban() {
                           {stage.id !== "CONVERTED" && stage.id !== "LOST" && (
                             <button
                               onClick={() => {
-                                const currentIndex = PIPELINE_STAGES.findIndex((s) => s.id === stage.id);
+                                const currentIndex = PIPELINE_STAGES.findIndex(
+                                  (s) => s.id === stage.id
+                                );
                                 const nextStage = PIPELINE_STAGES[currentIndex + 1]?.id;
                                 if (nextStage) moveStage(lead._id, nextStage);
                               }}
-                              className="w-full mt-1 py-1 rounded bg-slate-100 hover:bg-rn-50 hover:text-rn-700 text-[11px] font-semibold text-slate-600 flex items-center justify-center gap-1 transition-colors"
+                              className="w-full mt-1 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rn-50 dark:hover:bg-rn-950/60 hover:text-rn-700 dark:hover:text-rn-300 text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5 transition-colors"
                             >
                               <span>Advance Stage</span>
                               <ArrowRight className="w-3 h-3" />
                             </button>
                           )}
                         </div>
-                      ))}
-
-                      {stageLeads.length === 0 && (
-                        <div className="text-center py-8 text-slate-400 text-xs font-medium">
-                          No leads in this stage
-                        </div>
-                      )}
-                    </>
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Clean Test Number Modal */}
-      {isCleanModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-150">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-                <h3 className="font-bold text-slate-900 text-sm">Purge Test Phone Leads</h3>
-              </div>
-              <button
-                onClick={() => setIsCleanModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCleanTestNumber} className="p-6 space-y-4">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                If you tested repeatedly with your phone number and generated dummy leads or distorted metrics, enter your phone number below. This will delete all lead records associated with that number and reset the active WhatsApp chat session.
-              </p>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Test Phone Number (10 digits or with +91)
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 9811103377 or +919811103377"
-                  value={cleanPhoneInput}
-                  onChange={(e) => setCleanPhoneInput(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
-                />
-              </div>
-
-              {cleanMsg && (
-                <div
-                  className={`p-3 rounded-xl text-xs font-medium ${
-                    cleanMsg.includes("Failed") || cleanMsg.includes("error")
-                      ? "bg-rose-50 text-rose-700 border border-rose-200"
-                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  }`}
-                >
-                  {cleanMsg}
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCleanModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={cleaning || !cleanPhoneInput.trim()}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
-                >
-                  {cleaning ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Purge Leads & Reset
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+              );
+            })}
           </div>
         </div>
+      ) : (
+        /* Table List View */
+        <div className="flex-1 p-6 overflow-y-auto">
+          <Card>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">
+                  <tr>
+                    <th className="p-4 px-5">Lead ID & Customer</th>
+                    <th className="p-4">Contact</th>
+                    <th className="p-4">Current Stage</th>
+                    <th className="p-4">Priority</th>
+                    <th className="p-4">Assigned Executive</th>
+                    <th className="p-4">Est. Value</th>
+                    <th className="p-4 text-right px-5">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                  {filteredLeads.map((lead) => {
+                    const currentStageObj =
+                      PIPELINE_STAGES.find((s) => s.id === lead.status) || PIPELINE_STAGES[0];
+
+                    return (
+                      <tr
+                        key={lead._id}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                      >
+                        <td className="p-4 px-5">
+                          <p className="font-bold text-slate-900 dark:text-white">
+                            {lead.customerName}
+                          </p>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {lead.leadNumber} • {lead.businessName || lead.city || "Direct Inquiry"}
+                          </span>
+                        </td>
+                        <td className="p-4 font-mono font-medium text-slate-700 dark:text-slate-300">
+                          <a
+                            href={`https://wa.me/${lead.phone?.replace(/[^0-9]/g, "")}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:text-emerald-600 flex items-center gap-1"
+                          >
+                            <Phone className="w-3 h-3 text-emerald-600" />
+                            {lead.phone}
+                          </a>
+                        </td>
+                        <td className="p-4">
+                          <Badge variant={currentStageObj.variant} size="xs">
+                            {currentStageObj.title}
+                          </Badge>
+                        </td>
+                        <td className="p-4">
+                          <Badge
+                            variant={
+                              lead.priority === "URGENT"
+                                ? "danger"
+                                : lead.priority === "HIGH"
+                                ? "warning"
+                                : "neutral"
+                            }
+                            size="xs"
+                          >
+                            {lead.priority}
+                          </Badge>
+                        </td>
+                        <td className="p-4 font-semibold text-slate-800 dark:text-slate-200">
+                          👤 {lead.assignedEmployeeName || "Unassigned"}
+                        </td>
+                        <td className="p-4 font-extrabold text-slate-900 dark:text-white">
+                          ₹{lead.estimatedValue ? lead.estimatedValue.toLocaleString("en-IN") : "0"}
+                        </td>
+                        <td className="p-4 px-5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {lead.status !== "CONVERTED" && lead.status !== "LOST" && (
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                onClick={() => {
+                                  const idx = PIPELINE_STAGES.findIndex((s) => s.id === lead.status);
+                                  const next = PIPELINE_STAGES[idx + 1]?.id;
+                                  if (next) moveStage(lead._id, next);
+                                }}
+                                icon={ArrowRight}
+                              >
+                                Advance
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              onClick={() =>
+                                handleDeleteLead(lead._id, lead.leadNumber, lead.customerName)
+                              }
+                              className="text-rose-500 hover:text-rose-700"
+                              title="Delete lead"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
       )}
+
+      {/* Shared Clean Test Number Modal */}
+      <CleanTestModal
+        isOpen={isCleanModalOpen}
+        onClose={() => setIsCleanModalOpen(false)}
+        onCleaned={fetchLeads}
+      />
     </div>
   );
 }

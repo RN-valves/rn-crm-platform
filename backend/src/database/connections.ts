@@ -10,6 +10,7 @@ export async function initDatabases(): Promise<{ crmConnection: Connection; ecom
     crmConnection = mongoose.createConnection(config.CRM_MONGODB_URI, {
       maxPoolSize: 20,
       serverSelectionTimeoutMS: 5000,
+      bufferCommands: false,
     });
 
     crmConnection.on("connected", () => {
@@ -25,6 +26,7 @@ export async function initDatabases(): Promise<{ crmConnection: Connection; ecom
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       readPreference: "secondaryPreferred",
+      bufferCommands: false,
     });
 
     ecommConnection.on("connected", () => {
