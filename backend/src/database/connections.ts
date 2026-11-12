@@ -2,11 +2,18 @@ import dns from "dns";
 import mongoose, { Connection } from "mongoose";
 import { config } from "../config/env.js";
 
-// Direct shard DNS accelerator: Bypasses Docker DNS latency/failures for MongoDB Atlas
+// Direct shard & microservice DNS accelerator: Bypasses Docker DNS latency/failures
 const ATLAS_HOST_MAP: Record<string, string> = {
+  // MongoDB Atlas Shards
   "ac-k85qtjy-shard-00-00.jbtr81i.mongodb.net": "159.41.242.133",
   "ac-k85qtjy-shard-00-01.jbtr81i.mongodb.net": "159.41.242.144",
   "ac-k85qtjy-shard-00-02.jbtr81i.mongodb.net": "159.41.242.157",
+  "rncluster.jbtr81i.mongodb.net": "159.41.242.133",
+
+  // Evolution API & Internal Microservices
+  "wa-api.rnvalves.com": "104.21.31.167",
+  "crm-api.rnvalves.com": "104.21.31.167",
+  "inbox.rnvalves.com": "104.21.31.167",
 };
 
 const originalLookup = dns.lookup;

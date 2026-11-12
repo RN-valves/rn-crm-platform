@@ -22,6 +22,9 @@ export interface EvolutionResponse {
   raw?: any;
 }
 
+export let lastEvolutionError: string | null = null;
+export let lastEvolutionSuccess: { number: string; messageId?: string; at: string } | null = null;
+
 export class EvolutionClient {
   private baseUrl: string;
   private apiKey: string;
@@ -51,7 +54,6 @@ export class EvolutionClient {
   async sendPresence(phone: string, presence: "composing" | "recording" | "paused" = "composing"): Promise<void> {
     const targetNumber = EvolutionClient.cleanPhoneNumber(phone);
     if (!this.apiKey) {
-      // In offline/dev test mode, log action
       console.log(`[EvolutionClient Mock] Presence '${presence}' -> ${targetNumber}`);
       return;
     }
@@ -81,7 +83,6 @@ export class EvolutionClient {
     const targetNumber = EvolutionClient.cleanPhoneNumber(params.number);
 
     if (!this.apiKey) {
-      // Mock / Offline Test Environment
       console.log(`[EvolutionClient Mock] Text -> ${targetNumber}: "${params.text.slice(0, 50)}..."`);
       return {
         success: true,
@@ -101,6 +102,9 @@ export class EvolutionClient {
     };
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -108,7 +112,9 @@ export class EvolutionClient {
           apikey: this.apiKey,
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data: any = await response.json();
 
@@ -116,12 +122,20 @@ export class EvolutionClient {
         throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
       }
 
+      lastEvolutionError = null;
+      lastEvolutionSuccess = {
+        number: targetNumber,
+        messageId: data?.key?.id || data?.messageId,
+        at: new Date().toISOString(),
+      };
+
       return {
         success: true,
         messageId: data?.key?.id || data?.messageId,
         raw: data,
       };
     } catch (error: any) {
+      lastEvolutionError = `${error.message} (target: ${targetNumber})`;
       console.error(`[EvolutionClient] sendTextMessage failed to ${targetNumber}:`, error.message);
       return {
         success: false,
@@ -131,18 +145,16 @@ export class EvolutionClient {
   }
 
   /**
-   * Send WhatsApp Media Message (Images, PDFs, Documents) via Evolution API v2.3.7
+   * Send WhatsApp Media Message via Evolution API v2.3.7
    */
   async sendMediaMessage(params: SendMediaMessageParams): Promise<EvolutionResponse> {
     const targetNumber = EvolutionClient.cleanPhoneNumber(params.number);
 
     if (!this.apiKey) {
-      console.log(
-        `[EvolutionClient Mock] Media (${params.mediaType}) -> ${targetNumber}: ${params.mediaUrl}`
-      );
+      console.log(`[EvolutionClient Mock] Media [${params.mediaType}] -> ${targetNumber}`);
       return {
         success: true,
-        messageId: `mock_media_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        messageId: `mock_media_${Date.now()}`,
       };
     }
 
@@ -152,11 +164,17 @@ export class EvolutionClient {
       mediatype: params.mediaType,
       media: params.mediaUrl,
       caption: params.caption || "",
-      fileName: params.fileName || (params.mediaType === "document" ? "RN_Document.pdf" : "image.jpg"),
-      delay: params.delayMs || 1200,
+      fileName: params.fileName,
+      options: {
+        delay: params.delayMs || 1200,
+        presence: "composing",
+      },
     };
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -164,7 +182,9 @@ export class EvolutionClient {
           apikey: this.apiKey,
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data: any = await response.json();
 
@@ -172,12 +192,20 @@ export class EvolutionClient {
         throw new Error(data?.message || data?.error || `HTTP ${response.status}`);
       }
 
+      lastEvolutionError = null;
+      lastEvolutionSuccess = {
+        number: targetNumber,
+        messageId: data?.key?.id || data?.messageId,
+        at: new Date().toISOString(),
+      };
+
       return {
         success: true,
         messageId: data?.key?.id || data?.messageId,
         raw: data,
       };
     } catch (error: any) {
+      lastEvolutionError = `${error.message} (media target: ${targetNumber})`;
       console.error(`[EvolutionClient] sendMediaMessage failed to ${targetNumber}:`, error.message);
       return {
         success: false,
