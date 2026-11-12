@@ -102,47 +102,49 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 });
 
 async function bootstrap() {
+  console.log("🚀 Starting RN Valves CRM & AI Automation Backend...");
+
+  // 1. Immediately start HTTP server so health checks and requests respond instantly
+  const server = app.listen(config.PORT, () => {
+    console.log(`✅ [Server] RN CRM Backend running on port ${config.PORT} (${config.NODE_ENV})`);
+  });
+
+  // 2. Initialize Database Connections (non-blocking)
+  initDatabases()
+    .then(async () => {
+      console.log("✅ [Database] CRM & eCommerce databases initialized.");
+      await seedSalesExecutivesIfEmpty().catch(() => {});
+    })
+    .catch((dbErr) => {
+      console.error("⚠️ [Database] Background initialization warning:", dbErr.message);
+    });
+
+  // 3. Start BullMQ Background Workers
   try {
-    console.log("🚀 Starting RN Valves CRM & AI Automation Backend...");
-
-    // Connect to databases
-    await initDatabases();
-    await seedSalesExecutivesIfEmpty();
-
-    // Start BullMQ Background Workers
     console.log("⚙️ Starting BullMQ Workers (Incoming, AI, Outgoing)...");
     setupIncomingMessageWorker();
     setupAiProcessingWorker();
     setupOutgoingMessageWorker();
     console.log("✅ [Workers] All BullMQ workers listening for WhatsApp messages.");
-
-    // Start Express server
-    const server = app.listen(config.PORT, () => {
-      console.log(`✅ [Server] RN CRM Backend running on port ${config.PORT} (${config.NODE_ENV})`);
-    });
-
-    // Graceful Shutdown
-    const shutdown = async (signal: string) => {
-      console.log(`\n🛑 Received ${signal}. Gracefully shutting down...`);
-      server.close(async () => {
-        await closeQueues();
-        process.exit(0);
-      });
-    };
-
-    process.on("SIGTERM", () => shutdown("SIGTERM"));
-    process.on("SIGINT", () => shutdown("SIGINT"));
-  } catch (error) {
-    console.error("❌ Fatal Error during bootstrap:", error);
-    if (config.NODE_ENV === "development") {
-      console.warn("⚠️ Continuing in offline/development mode without database connection.");
-      app.listen(config.PORT, () => {
-        console.log(`✅ [Server] RN CRM Backend running on port ${config.PORT} (offline fallback mode)`);
-      });
-    } else {
-      process.exit(1);
-    }
+  } catch (workerErr: any) {
+    console.warn("⚠️ [Workers] BullMQ workers start notice:", workerErr.message);
   }
+
+  // Graceful Shutdown
+  const shutdown = async (signal: string) => {
+    console.log(`\n🛑 Received ${signal}. Gracefully shutting down...`);
+    server.close(async () => {
+      await closeQueues().catch(() => {});
+      process.exit(0);
+    });
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
-bootstrap();
+bootstrap().catch((fatal) => {
+  console.error("❌ Fatal Bootstrap Error:", fatal);
+});
+
+export default app;
