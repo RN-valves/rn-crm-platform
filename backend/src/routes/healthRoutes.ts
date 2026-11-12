@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { getCrmConnection, getEcommConnection } from "../database/connections.js";
+import { getCrmConnection, getEcommConnection, lastCrmError, lastEcommError } from "../database/connections.js";
 
 const router = Router();
 
@@ -17,12 +17,22 @@ function getConnStatus(conn: any): string {
   }
 }
 
-router.get("/health", (_req: Request, res: Response) => {
+router.get("/health", async (_req: Request, res: Response) => {
   let crmDbStatus = "disconnected";
   let ecommDbStatus = "disconnected";
+  let counts: any = null;
 
   try {
-    crmDbStatus = getConnStatus(getCrmConnection());
+    const conn = getCrmConnection();
+    crmDbStatus = getConnStatus(conn);
+    if (conn.readyState === 1 && conn.db) {
+      const [messagesCount, contactsCount, leadsCount] = await Promise.all([
+        conn.db.collection("messages").countDocuments().catch(() => null),
+        conn.db.collection("contacts").countDocuments().catch(() => null),
+        conn.db.collection("leads").countDocuments().catch(() => null),
+      ]);
+      counts = { messagesCount, contactsCount, leadsCount };
+    }
   } catch {
     crmDbStatus = "uninitialized";
   }
@@ -41,6 +51,9 @@ router.get("/health", (_req: Request, res: Response) => {
     databases: {
       crmDb: crmDbStatus,
       ecommDb: ecommDbStatus,
+      lastCrmError,
+      lastEcommError,
+      counts,
     },
   });
 });
