@@ -10,10 +10,15 @@ export function setupIncomingMessageWorker(): Worker {
   const worker = new Worker(
     "incoming-messages",
     async (job: Job) => {
-      const { messageId, remoteJid, fromMe, pushName, message } = job.data;
+      const { messageId, remoteJid, rawJid, fromMe, pushName, message, rawPayload } = job.data;
 
-      // Extract phone number from remoteJid (e.g. 919876543210@s.whatsapp.net -> +919876543210)
-      const rawNumber = remoteJid.split("@")[0].replace(/\D/g, "");
+      // Extract real phone number: Handle WhatsApp Privacy LID (remoteJidAlt has actual phone number)
+      const altJid = rawPayload?.data?.key?.remoteJidAlt;
+      const effectiveJid = (altJid && altJid.includes("@s.whatsapp.net"))
+        ? altJid
+        : (remoteJid && remoteJid.includes("@s.whatsapp.net") ? remoteJid : altJid || remoteJid);
+
+      const rawNumber = String(effectiveJid || "").split("@")[0].replace(/\D/g, "");
       const normalizedPhone = rawNumber.startsWith("91") ? `+${rawNumber}` : `+91${rawNumber}`;
 
       // Extract text content and media type
@@ -115,13 +120,15 @@ export function setupIncomingMessageWorker(): Worker {
         "9315603920", // E-Commerce Executive / Website Support
         "9891201208", // Complaint & Service Desk
       ];
-      const isInternalStaff = staffPhonePatterns.some(num => normalizedPhone.includes(num)) ||
+      const isInternalStaff = staffPhonePatterns.some((num) => normalizedPhone.includes(num)) ||
         (contact && (contact.tags?.includes("Staff") || contact.tags?.includes("Colleague") || contact.tags?.includes("DoNotReply") || contact.businessType === "Staff"));
 
-      // Check on-the-fly Mute Commands (#mute / #stop / #ai off)
+      // Check on-the-fly Mute & Resume Commands
       const cleanLower = textContent.trim().toLowerCase();
       const isMuteCommand = ["#mute", "#stop", "#aioff", "#ai off", "#staff"].includes(cleanLower);
-      const isUnmuteCommand = ["#unmute", "#aion", "#ai on", "menu", "start", "#bot", "restart"].includes(cleanLower) && !isInternalStaff;
+      const isUnmuteCommand =
+        ["#unmute", "#aion", "#ai on", "menu", "start", "#bot", "restart", "hi", "hello", "heloo", "hii", "namaste", "reset", "#reset"].includes(cleanLower) &&
+        !isInternalStaff;
 
       let mode: "ai" | "human" = isInternalStaff ? "human" : "ai";
       try {
@@ -135,6 +142,7 @@ export function setupIncomingMessageWorker(): Worker {
             pauseReason: isInternalStaff ? "Internal Staff / Colleague exclusion" : "",
             lastCustomerMessageAt: new Date(),
           });
+          mode = control.mode;
         } else {
           control.lastCustomerMessageAt = new Date();
           if (chatwootConvId && !control.chatwootConversationId) {

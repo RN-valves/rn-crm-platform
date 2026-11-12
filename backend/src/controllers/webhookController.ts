@@ -53,11 +53,17 @@ export async function handleEvolutionWebhook(req: Request, res: Response): Promi
     if (!key) return;
 
     const messageId = key.id;
-    const remoteJid = key.remoteJid; // e.g., "919876543210@s.whatsapp.net"
+    const rawJid = key.remoteJid || "";
+    // Handle WhatsApp's new privacy LID addressingMode (prefer remoteJidAlt containing @s.whatsapp.net)
+    const remoteJid =
+      (key.remoteJidAlt && key.remoteJidAlt.includes("@s.whatsapp.net"))
+        ? key.remoteJidAlt
+        : rawJid;
+
     const fromMe = key.fromMe; // true if sent by our own bot or phone user
 
     // Skip status broadcasts and group messages
-    if (remoteJid.includes("@g.us") || remoteJid.includes("status@broadcast")) {
+    if (remoteJid.includes("@g.us") || remoteJid.includes("status@broadcast") || rawJid.includes("@g.us")) {
       return;
     }
 
@@ -69,7 +75,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response): Promi
       const isBotMsg = await redis.get(`bot:sent:${messageId}`);
       if (!isBotMsg) {
         // A real human on the mobile phone or WhatsApp Web sent this message!
-        // Automatically put this chat into HUMAN MODE so the bot NEVER replies to this colleague / staff / contact!
+        // Automatically put this chat into HUMAN MODE so the bot NEVER interrupts!
         const rawNumber = remoteJid.split("@")[0].replace(/\D/g, "");
         const normalizedPhone = rawNumber.startsWith("91") ? `+${rawNumber}` : `+91${rawNumber}`;
         console.log(`👤 [Webhook] Staff/Owner manually messaged ${normalizedPhone} from phone. Switching chat to HUMAN MODE (Bot muted).`);
@@ -106,6 +112,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response): Promi
       {
         messageId,
         remoteJid,
+        rawJid,
         fromMe,
         pushName: messageData.pushName || "",
         message: messageData.message,
