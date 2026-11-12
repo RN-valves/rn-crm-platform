@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { getLeadModel, LeadStatus } from "../models/Lead.js";
 import { getAuditLogModel } from "../models/AuditLog.js";
+import { getConversationStateModel } from "../models/ConversationState.js";
+import { getConversationControlModel } from "../models/ConversationControl.js";
 
 export async function getLeads(req: Request, res: Response): Promise<void> {
   try {
@@ -159,3 +161,87 @@ export async function createLead(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: err.message });
   }
 }
+
+/**
+ * DELETE /api/leads/:id
+ * Delete a specific lead from CRM (e.g. test lead)
+ */
+export async function deleteLead(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  try {
+    const Lead = getLeadModel();
+    const deleted = await Lead.findByIdAndDelete(id);
+    if (!deleted) {
+      res.status(404).json({ error: "Lead not found" });
+      return;
+    }
+    res.status(200).json({ success: true, message: "Lead deleted successfully", lead: deleted });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+/**
+ * POST /api/leads/clean-test-number
+ * Purge all test leads and reset conversation session for a specific phone number
+ */
+export async function cleanTestNumberLeads(req: Request, res: Response): Promise<void> {
+  const { phone } = req.body;
+  if (!phone || String(phone).trim().length < 6) {
+    res.status(400).json({ error: "A valid mobile number is required" });
+    return;
+  }
+
+  const cleanDigits = String(phone).replace(/\D/g, "");
+  const last10 = cleanDigits.slice(-10);
+  const phoneVariants = [
+    phone,
+    cleanDigits,
+    `+${cleanDigits}`,
+    cleanDigits.startsWith("91") ? `+${cleanDigits}` : `+91${cleanDigits}`,
+    last10,
+    `+91${last10}`,
+    `91${last10}`,
+  ];
+
+  try {
+    const Lead = getLeadModel();
+    const leadDeleteResult = await Lead.deleteMany({
+      $or: [
+        { phone: { $in: phoneVariants } },
+        { phone: new RegExp(last10, "i") },
+      ],
+    });
+
+    // Reset ConversationState so WhatsApp bot starts from scratch (Welcome / Language)
+    try {
+      const ConversationState = getConversationStateModel();
+      await ConversationState.deleteMany({
+        $or: [
+          { phone: { $in: phoneVariants } },
+          { phone: new RegExp(last10, "i") },
+        ],
+      });
+    } catch {}
+
+    // Reset ConversationControl back to AI mode
+    try {
+      const ConversationControl = getConversationControlModel();
+      await ConversationControl.deleteMany({
+        $or: [
+          { phone: { $in: phoneVariants } },
+          { phone: new RegExp(last10, "i") },
+        ],
+      });
+    } catch {}
+
+    res.status(200).json({
+      success: true,
+      message: `Cleaned ${leadDeleteResult.deletedCount} test lead(s) and reset WhatsApp conversation for ${phone}.`,
+      deletedCount: leadDeleteResult.deletedCount,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}
+

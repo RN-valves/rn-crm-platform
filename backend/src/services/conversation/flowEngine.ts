@@ -205,14 +205,27 @@ export class FlowEngine {
     }
 
     // 4c. Global Shortcuts (Hi / Reset, Main Menu, Change Language, Back)
-    const isReset = /\b(hi|hello|hey|namaste|namaskar|pranam|start|restart|reset|hlo|hii|helo)\b/i.test(cleanText) &&
+    const isExplicitReset = /^#(reset|restart|clear|fresh|clean)$/i.test(cleanText);
+    const isGreetingReset = /\b(hi|hello|hey|namaste|namaskar|pranam|start|restart|reset|hlo|hii|helo)\b/i.test(cleanText) &&
       cleanText.split(/\s+/).length <= 4;
 
-    if (isReset && stateDoc.state !== "LANGUAGE_SELECTION") {
+    if (isExplicitReset || (isGreetingReset && stateDoc.state !== "LANGUAGE_SELECTION")) {
       stateDoc.state = "LANGUAGE_SELECTION";
       stateDoc.formData = {};
+      stateDoc.language = "en";
       await stateDoc.save();
-      return this.renderLanguageSelection();
+
+      // Reset mode to AI if it was previously paused in human mode
+      try {
+        const ConversationControl = getConversationControlModel();
+        const cleanP = phone.replace(/\D/g, "");
+        await ConversationControl.updateMany(
+          { phone: { $in: [phone, cleanP, `+${cleanP}`] } },
+          { $set: { mode: "ai", pauseReason: "" } }
+        );
+      } catch {}
+
+      return this.renderLanguageSelection(isExplicitReset ? "🔄 *Testing Session Reset Successful!*" : "");
     }
 
     if (lower === "main menu" || lower === "menu" || lower === "home") {

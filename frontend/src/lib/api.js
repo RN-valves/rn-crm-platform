@@ -45,6 +45,9 @@ export const crmApi = {
   updateLeadStage: (id, status, comment) =>
     apiRequest(`/leads/${id}/stage`, { method: "PATCH", body: JSON.stringify({ status, comment }) }),
   createLead: (data) => apiRequest("/leads", { method: "POST", body: JSON.stringify(data) }),
+  deleteLead: (id) => apiRequest(`/leads/${id}`, { method: "DELETE" }),
+  cleanTestNumberLeads: (phone) =>
+    apiRequest("/leads/clean-test-number", { method: "POST", body: JSON.stringify({ phone }) }),
 
   // Conversations
   getConversations: (params = "") => apiRequest(`/conversations${params}`),
