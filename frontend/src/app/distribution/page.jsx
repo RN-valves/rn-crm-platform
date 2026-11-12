@@ -849,7 +849,7 @@ export default function LeadDistributionPage() {
                                 <span>WhatsApp</span>
                               </a>
                               <Link
-                                href={`/inbox?phone=${d.phone}`}
+                                href={`/inbox?phone=${encodeURIComponent(d.phone || "")}`}
                                 className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-lg text-[11px] flex items-center gap-1"
                               >
                                 <MessageSquare className="w-3 h-3" />
@@ -955,7 +955,7 @@ export default function LeadDistributionPage() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <Link
-                              href={`/inbox?phone=${h.phone}`}
+                              href={`/inbox?phone=${encodeURIComponent(h.phone || "")}`}
                               className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1 shadow-sm"
                             >
                               <span>Open Chat</span>

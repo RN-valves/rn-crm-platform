@@ -277,7 +277,7 @@ export default function ContactsDirectory() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Link
-                          href={`/inbox?phone=${c.phone}`}
+                          href={`/inbox?phone=${encodeURIComponent(c.phone || "")}`}
                           className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-rn-50 dark:hover:bg-rn-950/60 text-slate-700 dark:text-slate-200 hover:text-rn-600 font-bold rounded-lg text-[11px] transition-colors"
                         >
                           <MessageSquare className="w-3 h-3" />

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import { crmApi } from "../../lib/api";
 import Button from "../../components/ui/Button";
@@ -30,7 +31,10 @@ const QUICK_REPLIES = [
   "Could you please share your business name and city?",
 ];
 
-export default function WhatsAppInbox() {
+function InboxContent() {
+  const searchParams = useSearchParams();
+  const phoneParam = searchParams.get("phone");
+
   const [conversations, setConversations] = useState([]);
   const [selectedConv, setSelectedConv] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -47,9 +51,56 @@ export default function WhatsAppInbox() {
       const query = filterMode !== "ALL" ? `?mode=${filterMode}` : "";
       const res = await crmApi.getConversations(query);
       const list = res.conversations || [];
-      setConversations(list);
-      if (list.length > 0 && !selectedConv) {
-        setSelectedConv(list[0]);
+
+      // Check for target phone from URL query param
+      const cleanTarget = (phoneParam || "").replace(/\D/g, "").slice(-10);
+      let targetConv = null;
+      if (cleanTarget) {
+        targetConv = list.find(
+          (c) => (c.phone || "").replace(/\D/g, "").slice(-10) === cleanTarget
+        );
+      }
+
+      if (cleanTarget && !targetConv) {
+        // Synthesize conversation item for requested phone
+        const rawDigits = (phoneParam || "").replace(/\D/g, "");
+        const formattedPhone = rawDigits.startsWith("91") ? `+${rawDigits}` : `+91${rawDigits}`;
+
+        const newPlaceholder = {
+          _id: `temp_${Date.now()}`,
+          phone: formattedPhone,
+          customerName: formattedPhone,
+          businessName: "",
+          businessType: "Customer",
+          mode: "ai",
+          lastMessage: "Opening conversation...",
+          updatedAt: new Date().toISOString(),
+        };
+
+        try {
+          const contactRes = await crmApi.getContacts(`?search=${cleanTarget}`);
+          const matched = (contactRes.contacts || []).find(
+            (c) => (c.phone || "").replace(/\D/g, "").slice(-10) === cleanTarget
+          );
+          if (matched) {
+            newPlaceholder.customerName = matched.name || newPlaceholder.customerName;
+            newPlaceholder.businessName = matched.businessName || "";
+            newPlaceholder.businessType = matched.businessType || "Customer";
+            newPlaceholder.city = matched.city || "";
+          }
+        } catch (e) {
+          console.warn("Contact lookup notice:", e);
+        }
+
+        setConversations([newPlaceholder, ...list]);
+        setSelectedConv(newPlaceholder);
+      } else {
+        setConversations(list);
+        if (targetConv) {
+          setSelectedConv(targetConv);
+        } else if (list.length > 0 && !selectedConv) {
+          setSelectedConv(list[0]);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch conversations:", err);
@@ -70,13 +121,22 @@ export default function WhatsAppInbox() {
 
   useEffect(() => {
     fetchConversations();
-  }, [filterMode]);
+  }, [filterMode, phoneParam]);
 
   useEffect(() => {
     if (selectedConv) {
       fetchMessages(selectedConv);
     }
   }, [selectedConv]);
+
+  const handleSelectConv = (conv) => {
+    setSelectedConv(conv);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("phone", conv.phone);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
 
   // Send reply
   const handleSendReply = async (e) => {
@@ -199,7 +259,7 @@ export default function WhatsAppInbox() {
                 return (
                   <button
                     key={conv._id || conv.phone}
-                    onClick={() => setSelectedConv(conv)}
+                    onClick={() => handleSelectConv(conv)}
                     className={`w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all flex flex-col gap-1.5 ${
                       isSelected
                         ? "bg-rn-50/80 dark:bg-rn-950/40 border-l-4 border-rn-600"
@@ -487,5 +547,19 @@ export default function WhatsAppInbox() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function WhatsAppInbox() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-950 text-slate-400 text-xs">
+          Loading WhatsApp Inbox...
+        </div>
+      }
+    >
+      <InboxContent />
+    </Suspense>
   );
 }
