@@ -16,6 +16,8 @@ import conversationRoutes from "./routes/conversationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import followupRoutes from "./routes/followupRoutes.js";
 import systemRoutes from "./routes/systemRoutes.js";
+import salesExecutiveRoutes from "./routes/salesExecutiveRoutes.js";
+import { seedSalesExecutivesIfEmpty } from "./models/SalesExecutive.js";
 import { setupIncomingMessageWorker } from "./workers/incomingMessageWorker.js";
 import { setupAiProcessingWorker } from "./workers/aiProcessingWorker.js";
 import { setupOutgoingMessageWorker } from "./workers/outgoingMessageWorker.js";
@@ -83,6 +85,8 @@ app.use("/api/followups", followupRoutes);
 app.use("/followups", followupRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/system", systemRoutes);
+app.use("/api/sales-executives", salesExecutiveRoutes);
+app.use("/sales-executives", salesExecutiveRoutes);
 
 // Global Error Handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -100,6 +104,7 @@ async function bootstrap() {
 
     // Connect to databases
     await initDatabases();
+    await seedSalesExecutivesIfEmpty();
 
     // Start BullMQ Background Workers
     console.log("⚙️ Starting BullMQ Workers (Incoming, AI, Outgoing)...");

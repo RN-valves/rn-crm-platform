@@ -1,8 +1,12 @@
+import { getSalesExecutiveModel, INITIAL_SALES_EXECUTIVES } from "../../models/SalesExecutive.js";
+
 export interface SalesRep {
   name: string;
   mobile: string;
   area: string;
   state: string;
+  pinPrefixes?: string[];
+  _id?: string;
 }
 
 export class SalesRepDirectory {
@@ -12,6 +16,53 @@ export class SalesRepDirectory {
     area: "Central Support / Head Office",
     state: "Pan-India",
   };
+
+  private static cachedExecutives: SalesRep[] = [...INITIAL_SALES_EXECUTIVES];
+  private static lastCacheTime = 0;
+
+  /**
+   * Refresh in-memory executive list from MongoDB
+   */
+  static async refreshCache(): Promise<SalesRep[]> {
+    try {
+      const Model = getSalesExecutiveModel();
+      const docs = await Model.find({ isActive: true }).sort({ orderIndex: 1 }).lean();
+      if (docs && docs.length > 0) {
+        this.cachedExecutives = docs.map((d: any) => ({
+          _id: String(d._id),
+          name: d.name,
+          mobile: d.mobile,
+          area: d.area,
+          state: d.state,
+          pinPrefixes: d.pinPrefixes || [],
+        }));
+        this.lastCacheTime = Date.now();
+
+        const fallback = docs.find((d: any) => d.isDefaultFallback);
+        if (fallback) {
+          this.defaultRep = {
+            name: fallback.name,
+            mobile: fallback.mobile,
+            area: fallback.area || "Head Office",
+            state: fallback.state || "Pan-India",
+          };
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[SalesRepDirectory] Cache refresh notice: ${err.message}`);
+    }
+    return this.cachedExecutives;
+  }
+
+  /**
+   * Return all active sales executives
+   */
+  static async getAllExecutives(): Promise<SalesRep[]> {
+    if (Date.now() - this.lastCacheTime > 60000) {
+      await this.refreshCache();
+    }
+    return this.cachedExecutives;
+  }
 
   /**
    * Universal Fallback Rep (Amit Kumar Sir: +91 93151 60881)
@@ -31,87 +82,73 @@ export class SalesRepDirectory {
 
     const prefix2 = cleanPin.substring(0, 2);
 
-    // 1. ARPITA (+91 93155 96055): UP, BIHAR, DELHI NCR
-    // Delhi NCR (11), UP (20 to 28), Bihar (80, 81, 82, 84, 85)
+    // 1. Dynamic Check against database-configured executives
+    if (this.cachedExecutives && this.cachedExecutives.length > 0) {
+      const matched = this.cachedExecutives.find((exec) =>
+        exec.pinPrefixes && exec.pinPrefixes.includes(prefix2)
+      );
+      if (matched) {
+        return {
+          name: matched.name,
+          mobile: matched.mobile,
+          area: matched.area,
+          state: matched.state,
+        };
+      }
+    }
+
+    // 2. Built-in Territorial Fallback Mapping
+    // Delhi NCR (11), UP (20-28), Bihar (80-85) -> Arpita
     if (
       prefix2 === "11" ||
       ["20", "21", "22", "23", "24", "25", "26", "27", "28"].includes(prefix2) ||
       ["80", "81", "82", "84", "85"].includes(prefix2)
     ) {
-      const areaLabel =
-        prefix2 === "11"
-          ? "Delhi NCR"
-          : ["80", "81", "82", "84", "85"].includes(prefix2)
-          ? "Bihar Region"
-          : "Uttar Pradesh (UP)";
       return {
         name: "Arpita",
         mobile: "+91 93155 96055",
-        area: areaLabel,
+        area: prefix2 === "11" ? "Delhi NCR" : "UP / Bihar Region",
         state: "UP / Bihar / Delhi NCR",
       };
     }
 
-    // 2. AMIT KUMAR SIR (+91 93151 60881): HARYANA, GUJARAT, PUNJAB, ORISSA (ODISHA)
-    // Haryana (12, 13), Punjab & Chandigarh (14, 15, 16), Gujarat (36, 37, 38, 39), Odisha (75, 76, 77)
-    // Also covers northern union territories (17, 18, 19 HP / J&K)
+    // Haryana, Punjab, Gujarat, Odisha -> Amit Kumar Sir
     if (
-      ["12", "13", "14", "15", "16", "17", "18", "19"].includes(prefix2) ||
-      ["36", "37", "38", "39"].includes(prefix2) ||
-      ["75", "76", "77"].includes(prefix2)
+      ["12", "13", "14", "15", "16", "17", "18", "19", "36", "37", "38", "39", "75", "76", "77"].includes(prefix2)
     ) {
-      let areaLabel = "Haryana / Punjab Region";
-      if (["36", "37", "38", "39"].includes(prefix2)) areaLabel = "Gujarat Region";
-      else if (["75", "76", "77"].includes(prefix2)) areaLabel = "Odisha (Orissa) Region";
-
       return {
         name: "Amit Kumar Sir",
         mobile: "+91 93151 60881",
-        area: areaLabel,
+        area: "Haryana / Punjab / Gujarat Region",
         state: "Haryana / Gujarat / Punjab / Odisha",
       };
     }
 
-    // 3. GAURAV (+91 93155 93842): RAJASTHAN, MP, CHHATTISGARH
-    // Rajasthan (30 to 34), Madhya Pradesh (45 to 48), Chhattisgarh (49)
+    // Rajasthan, MP, Chhattisgarh -> Gaurav
     if (
-      ["30", "31", "32", "33", "34"].includes(prefix2) ||
-      ["45", "46", "47", "48"].includes(prefix2) ||
-      prefix2 === "49"
+      ["30", "31", "32", "33", "34", "45", "46", "47", "48", "49"].includes(prefix2)
     ) {
-      const areaLabel =
-        ["30", "31", "32", "33", "34"].includes(prefix2)
-          ? "Rajasthan Region"
-          : prefix2 === "49"
-          ? "Chhattisgarh Region"
-          : "Madhya Pradesh (MP)";
       return {
         name: "Gaurav",
         mobile: "+91 93155 93842",
-        area: areaLabel,
+        area: "Rajasthan / MP / Chhattisgarh Region",
         state: "Rajasthan / MP / Chhattisgarh",
       };
     }
 
-    // 4. VINOD (+91 96433 08980): MAHARASHTRA, KERALA, GOA
-    // Maharashtra & Goa (40 to 44), Kerala (67, 68, 69)
+    // Maharashtra, Kerala, Goa -> Vinod
     if (
-      ["40", "41", "42", "43", "44"].includes(prefix2) ||
-      ["67", "68", "69"].includes(prefix2)
+      ["40", "41", "42", "43", "44", "67", "68", "69"].includes(prefix2)
     ) {
-      const areaLabel = ["67", "68", "69"].includes(prefix2)
-        ? "Kerala Region"
-        : "Maharashtra & Goa Region";
       return {
         name: "Vinod",
         mobile: "+91 96433 08980",
-        area: areaLabel,
+        area: "Maharashtra & Kerala Region",
         state: "Maharashtra / Kerala / Goa",
       };
     }
 
-    // 5. KHUSI (+91 80765 55914): ANDHRA PRADESH & TELANGANA (HYDERABAD)
-    // Telangana (50), Andhra Pradesh (51, 52, 53)
+    // Telangana, Andhra Pradesh -> Khusi
     if (["50", "51", "52", "53"].includes(prefix2)) {
       return {
         name: "Khusi",
@@ -121,8 +158,7 @@ export class SalesRepDirectory {
       };
     }
 
-    // 6. PRADEEP (+91 98702 88812): KARNATAKA
-    // Karnataka (56 to 59)
+    // Karnataka -> Pradeep
     if (["56", "57", "58", "59"].includes(prefix2)) {
       return {
         name: "Pradeep",
@@ -132,28 +168,18 @@ export class SalesRepDirectory {
       };
     }
 
-    // 7. DANISH (+91 93156 00189): WEST BENGAL, ASSAM, TAMIL NADU, JHARKHAND
-    // Tamil Nadu (60 to 64), West Bengal (70 to 74), Assam & NE (78, 79), Jharkhand (83)
+    // West Bengal, Assam, Tamil Nadu, Jharkhand -> Danish
     if (
-      ["60", "61", "62", "63", "64"].includes(prefix2) ||
-      ["70", "71", "72", "73", "74"].includes(prefix2) ||
-      ["78", "79"].includes(prefix2) ||
-      prefix2 === "83"
+      ["60", "61", "62", "63", "64", "70", "71", "72", "73", "74", "78", "79", "83"].includes(prefix2)
     ) {
-      let areaLabel = "West Bengal & Eastern Region";
-      if (["60", "61", "62", "63", "64"].includes(prefix2)) areaLabel = "Tamil Nadu Region";
-      else if (["78", "79"].includes(prefix2)) areaLabel = "Assam & North-East";
-      else if (prefix2 === "83") areaLabel = "Jharkhand Region";
-
       return {
         name: "Danish",
         mobile: "+91 93156 00189",
-        area: areaLabel,
+        area: "WB / Tamil Nadu / Assam / Jharkhand",
         state: "WB / Assam / Tamil Nadu / Jharkhand",
       };
     }
 
-    // 8. Fallback to Amit Kumar Sir for unmapped territories
     return this.defaultRep;
   }
 }

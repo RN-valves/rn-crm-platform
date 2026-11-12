@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Header from "../components/Header";
+import SalesExecutiveModal from "../components/SalesExecutiveModal";
 import { crmApi } from "../lib/api";
 import {
   Users,
@@ -14,12 +15,14 @@ import {
   AlertTriangle,
   ArrowUpRight,
   ShieldCheck,
+  Settings,
 } from "lucide-react";
 
 export default function OverviewDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isExecModalOpen, setIsExecModalOpen] = useState(false);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -213,10 +216,19 @@ export default function OverviewDashboard() {
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-slate-900 text-base">Top Sales Executives</h3>
-                <span className="text-[11px] text-slate-400">Response & Conversion</span>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Top Sales Executives</h3>
+                  <span className="text-[11px] text-slate-400">Response & Conversion</span>
+                </div>
+                <button
+                  onClick={() => setIsExecModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-rn-700 bg-rn-50 hover:bg-rn-100 border border-rn-200 transition-colors shadow-sm"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  Manage Team
+                </button>
               </div>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
                 {agentPerformance.map((agent, i) => (
                   <div key={i} className="py-3 flex items-center justify-between">
                     <div>
@@ -246,6 +258,13 @@ export default function OverviewDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Sales Executive & Territory Manager Modal */}
+      <SalesExecutiveModal
+        isOpen={isExecModalOpen}
+        onClose={() => setIsExecModalOpen(false)}
+        onUpdated={fetchDashboardData}
+      />
     </div>
   );
 }

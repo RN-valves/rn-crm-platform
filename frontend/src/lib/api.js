@@ -66,4 +66,13 @@ export const crmApi = {
   // System
   getSystemHealth: () => apiRequest("/system/health"),
   getAuditLogs: () => apiRequest("/system/audit-logs"),
+
+  // Sales Executives & Territory Manager
+  getSalesExecutives: () => apiRequest("/sales-executives"),
+  createSalesExecutive: (data) =>
+    apiRequest("/sales-executives", { method: "POST", body: JSON.stringify(data) }),
+  updateSalesExecutive: (id, data) =>
+    apiRequest(`/sales-executives/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteSalesExecutive: (id) =>
+    apiRequest(`/sales-executives/${id}`, { method: "DELETE" }),
 };
