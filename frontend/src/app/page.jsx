@@ -91,6 +91,7 @@ export default function OverviewDashboard() {
         title="Executive Overview"
         subtitle="Live metrics from WhatsApp conversations, leads pipeline, and AI engine"
         onRefresh={fetchDashboardData}
+        loading={loading}
       />
 
       <main className="p-8 space-y-8 max-w-7xl mx-auto w-full">
@@ -142,15 +143,22 @@ export default function OverviewDashboard() {
               </div>
             </div>
             <div className="mt-4">
-              <p className="text-3xl font-extrabold text-slate-900">
-                {loading ? "..." : summary.totalContacts}
-              </p>
-              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                <span className="text-emerald-600 font-semibold flex items-center">
-                  <ArrowUpRight className="w-3.5 h-3.5" /> +12%
-                </span>
-                from last month
-              </p>
+              {loading ? (
+                <div className="space-y-2 py-1 animate-pulse">
+                  <div className="h-8 w-20 bg-slate-200 rounded-lg"></div>
+                  <div className="h-3 w-28 bg-slate-100 rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-3xl font-extrabold text-slate-900">{summary.totalContacts}</p>
+                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                    <span className="text-emerald-600 font-semibold flex items-center">
+                      <ArrowUpRight className="w-3.5 h-3.5" /> +12%
+                    </span>
+                    from last month
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -163,10 +171,17 @@ export default function OverviewDashboard() {
               </div>
             </div>
             <div className="mt-4">
-              <p className="text-3xl font-extrabold text-slate-900">
-                {loading ? "..." : summary.newLeadsToday}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">Total Pipeline: {summary.totalLeads} leads</p>
+              {loading ? (
+                <div className="space-y-2 py-1 animate-pulse">
+                  <div className="h-8 w-16 bg-slate-200 rounded-lg"></div>
+                  <div className="h-3 w-32 bg-slate-100 rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-3xl font-extrabold text-slate-900">{summary.newLeadsToday}</p>
+                  <p className="text-xs text-slate-500 mt-1">Total Pipeline: {summary.totalLeads} leads</p>
+                </>
+              )}
             </div>
           </div>
 
@@ -179,18 +194,25 @@ export default function OverviewDashboard() {
               </div>
             </div>
             <div className="mt-4">
-              <p className="text-3xl font-extrabold text-slate-900">
-                {loading ? "..." : summary.activeConversations}
-              </p>
-              <div className="flex items-center gap-3 mt-1 text-xs">
-                <span className="text-blue-600 font-medium flex items-center gap-1">
-                  <Bot className="w-3.5 h-3.5" /> {summary.aiConversations} AI
-                </span>
-                <span className="text-slate-400">|</span>
-                <span className="text-slate-700 font-medium flex items-center gap-1">
-                  <UserCheck className="w-3.5 h-3.5" /> {summary.humanConversations} Human
-                </span>
-              </div>
+              {loading ? (
+                <div className="space-y-2 py-1 animate-pulse">
+                  <div className="h-8 w-16 bg-slate-200 rounded-lg"></div>
+                  <div className="h-3 w-36 bg-slate-100 rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-3xl font-extrabold text-slate-900">{summary.activeConversations}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs">
+                    <span className="text-blue-600 font-medium flex items-center gap-1">
+                      <Bot className="w-3.5 h-3.5" /> {summary.aiConversations} AI
+                    </span>
+                    <span className="text-slate-400">|</span>
+                    <span className="text-slate-700 font-medium flex items-center gap-1">
+                      <UserCheck className="w-3.5 h-3.5" /> {summary.humanConversations} Human
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -203,18 +225,25 @@ export default function OverviewDashboard() {
               </div>
             </div>
             <div className="mt-4">
-              <p className="text-3xl font-extrabold text-slate-900">
-                {loading ? "..." : `${summary.conversionRate}%`}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                {summary.followupsOverdue > 0 ? (
-                  <span className="text-amber-600 font-semibold flex items-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5" /> {summary.followupsOverdue} Overdue Follow-ups
-                  </span>
-                ) : (
-                  "All follow-ups on schedule"
-                )}
-              </p>
+              {loading ? (
+                <div className="space-y-2 py-1 animate-pulse">
+                  <div className="h-8 w-16 bg-slate-200 rounded-lg"></div>
+                  <div className="h-3 w-36 bg-slate-100 rounded"></div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-3xl font-extrabold text-slate-900">{summary.conversionRate}%</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {summary.followupsOverdue > 0 ? (
+                      <span className="text-amber-600 font-semibold flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5" /> {summary.followupsOverdue} Overdue Follow-ups
+                      </span>
+                    ) : (
+                      "All follow-ups on schedule"
+                    )}
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -232,36 +261,52 @@ export default function OverviewDashboard() {
               </span>
             </div>
 
-            <div className="space-y-4">
-              {[
-                { stage: "NEW", label: "New Inbound Inquiries", color: "bg-blue-500" },
-                { stage: "CONTACTED", label: "Contacted by Sales", color: "bg-sky-500" },
-                { stage: "INTERESTED", label: "Product Interest Qualified", color: "bg-indigo-500" },
-                { stage: "QUOTATION_SENT", label: "Quotation & Pricing Sent", color: "bg-purple-500" },
-                { stage: "NEGOTIATION", label: "Wholesale Negotiation", color: "bg-amber-500" },
-                { stage: "CONVERTED", label: "Orders Won / Converted", color: "bg-emerald-500" },
-                { stage: "LOST", label: "Lost / Disqualified", color: "bg-rose-500" },
-              ].map((item) => {
-                const count = leadsByStage[item.stage] || 0;
-                const max = Math.max(...Object.values(leadsByStage), 1);
-                const percent = Math.round((count / max) * 100);
-
-                return (
-                  <div key={item.stage} className="space-y-1.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="font-semibold text-slate-700">{item.label}</span>
-                      <span className="font-bold text-slate-900">{count} leads</span>
+            {loading ? (
+              <div className="space-y-5 py-2">
+                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                  <div key={n} className="space-y-2 animate-pulse">
+                    <div className="flex justify-between items-center">
+                      <div className="h-3 w-36 bg-slate-200 rounded"></div>
+                      <div className="h-3 w-14 bg-slate-100 rounded"></div>
                     </div>
                     <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${item.color} rounded-full transition-all duration-500`}
-                        style={{ width: `${percent}%` }}
-                      ></div>
+                      <div className="h-full bg-slate-200 rounded-full w-1/4"></div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {[
+                  { stage: "NEW", label: "New Inbound Inquiries", color: "bg-blue-500" },
+                  { stage: "CONTACTED", label: "Contacted by Sales", color: "bg-sky-500" },
+                  { stage: "INTERESTED", label: "Product Interest Qualified", color: "bg-indigo-500" },
+                  { stage: "QUOTATION_SENT", label: "Quotation & Pricing Sent", color: "bg-purple-500" },
+                  { stage: "NEGOTIATION", label: "Wholesale Negotiation", color: "bg-amber-500" },
+                  { stage: "CONVERTED", label: "Orders Won / Converted", color: "bg-emerald-500" },
+                  { stage: "LOST", label: "Lost / Disqualified", color: "bg-rose-500" },
+                ].map((item) => {
+                  const count = leadsByStage[item.stage] || 0;
+                  const max = Math.max(...Object.values(leadsByStage), 1);
+                  const percent = Math.round((count / max) * 100);
+
+                  return (
+                    <div key={item.stage} className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-slate-700">{item.label}</span>
+                        <span className="font-bold text-slate-900">{count} leads</span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${item.color} rounded-full transition-all duration-500`}
+                          style={{ width: `${percent}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* 3. Sales Team Performance */}
@@ -280,22 +325,40 @@ export default function OverviewDashboard() {
                   Manage Team
                 </button>
               </div>
-              <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
-                {agentPerformance.map((agent, i) => (
-                  <div key={i} className="py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{agent.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {agent.leadsHandled} leads handled • Avg {agent.responseTimeAvg}
-                      </p>
+
+              {loading ? (
+                <div className="divide-y divide-slate-100">
+                  {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                    <div key={n} className="py-3 flex items-center justify-between animate-pulse">
+                      <div className="space-y-2">
+                        <div className="h-3.5 w-24 bg-slate-200 rounded"></div>
+                        <div className="h-2.5 w-36 bg-slate-100 rounded"></div>
+                      </div>
+                      <div className="space-y-1 text-right">
+                        <div className="h-4 w-6 bg-slate-200 rounded ml-auto"></div>
+                        <div className="h-2.5 w-8 bg-slate-100 rounded"></div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold text-emerald-600">{agent.converted}</span>
-                      <p className="text-[10px] text-slate-400">Won</p>
+                  ))}
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
+                  {agentPerformance.map((agent, i) => (
+                    <div key={i} className="py-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{agent.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {agent.leadsHandled} leads handled • Avg {agent.responseTimeAvg}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-emerald-600">{agent.converted}</span>
+                        <p className="text-[10px] text-slate-400">Won</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 mt-6">

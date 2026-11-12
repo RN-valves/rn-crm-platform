@@ -2,7 +2,7 @@
 
 import { Bell, Search, RefreshCw, Zap } from "lucide-react";
 
-export default function Header({ title, subtitle, onRefresh }) {
+export default function Header({ title, subtitle, onRefresh, loading }) {
   return (
     <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-10">
       <div>
@@ -11,13 +11,21 @@ export default function Header({ title, subtitle, onRefresh }) {
       </div>
 
       <div className="flex items-center gap-4">
+        {loading && (
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold animate-pulse shadow-sm">
+            <RefreshCw className="w-3 h-3 animate-spin text-blue-600" />
+            <span>Loading live data...</span>
+          </div>
+        )}
+
         {onRefresh && (
           <button
             onClick={onRefresh}
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+            disabled={loading}
+            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
             title="Refresh Data"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-rn-600" : ""}`} />
           </button>
         )}
 

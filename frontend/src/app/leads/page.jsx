@@ -116,6 +116,7 @@ export default function LeadsKanban() {
         title="Sales Pipeline"
         subtitle="Manage inbound WhatsApp leads across sales stages"
         onRefresh={fetchLeads}
+        loading={loading}
       />
 
       {/* Filter Bar */}
@@ -219,94 +220,121 @@ export default function LeadsKanban() {
 
                 {/* Stage Cards Stream */}
                 <div className="flex-1 p-3 overflow-y-auto space-y-3">
-                  {stageLeads.map((lead) => (
-                    <div
-                      key={lead._id}
-                      className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-mono font-bold text-slate-400">
-                            {lead.leadNumber}
-                          </span>
-                          <button
-                            onClick={() => handleDeleteLead(lead._id, lead.leadNumber, lead.customerName)}
-                            title="Delete this lead"
-                            className="text-slate-300 hover:text-rose-600 p-0.5 rounded transition-colors"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {(lead.requirementDescription?.includes("Repeat") || lead.isDuplicateResolved) && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
-                              🔄 Repeat
-                            </span>
-                          )}
-                          <span
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                              lead.priority === "URGENT"
-                                ? "bg-rose-100 text-rose-700"
-                                : lead.priority === "HIGH"
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {lead.priority}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs">{lead.customerName}</h4>
-                        <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5 font-mono font-medium">
-                          <Phone className="w-3 h-3 text-emerald-600" />
-                          {lead.phone}
-                        </p>
-                        {lead.businessName && (
-                          <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                            <Building className="w-3 h-3 text-slate-400" />
-                            {lead.businessName} ({lead.city || "India"})
-                          </p>
-                        )}
-                      </div>
-
-                      {lead.requirementDescription && (
-                        <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg line-clamp-2">
-                          {lead.requirementDescription}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                        <span className="font-bold text-slate-800">
-                          ₹{lead.estimatedValue ? lead.estimatedValue.toLocaleString("en-IN") : "0"}
-                        </span>
-                        <span className="font-semibold text-rn-700 bg-rn-50 px-2 py-0.5 rounded">
-                          👤 {lead.assignedEmployeeName || "Unassigned"}
-                        </span>
-                      </div>
-
-                      {/* Quick Advance Button */}
-                      {stage.id !== "CONVERTED" && stage.id !== "LOST" && (
-                        <button
-                          onClick={() => {
-                            const currentIndex = PIPELINE_STAGES.findIndex((s) => s.id === stage.id);
-                            const nextStage = PIPELINE_STAGES[currentIndex + 1]?.id;
-                            if (nextStage) moveStage(lead._id, nextStage);
-                          }}
-                          className="w-full mt-1 py-1 rounded bg-slate-100 hover:bg-rn-50 hover:text-rn-700 text-[11px] font-semibold text-slate-600 flex items-center justify-center gap-1 transition-colors"
+                  {loading ? (
+                    <div className="space-y-3">
+                      {[1, 2].map((s) => (
+                        <div
+                          key={s}
+                          className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm animate-pulse space-y-3"
                         >
-                          <span>Advance Stage</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
-                      )}
+                          <div className="flex justify-between items-center">
+                            <div className="h-3 w-16 bg-slate-200 rounded"></div>
+                            <div className="h-3 w-12 bg-slate-100 rounded"></div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="h-4 w-28 bg-slate-200 rounded"></div>
+                            <div className="h-3 w-20 bg-slate-100 rounded"></div>
+                          </div>
+                          <div className="h-6 w-full bg-slate-100 rounded-lg"></div>
+                          <div className="flex justify-between pt-1 border-t border-slate-100">
+                            <div className="h-3 w-12 bg-slate-200 rounded"></div>
+                            <div className="h-3 w-16 bg-slate-100 rounded"></div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <>
+                      {stageLeads.map((lead) => (
+                        <div
+                          key={lead._id}
+                          className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-mono font-bold text-slate-400">
+                                {lead.leadNumber}
+                              </span>
+                              <button
+                                onClick={() => handleDeleteLead(lead._id, lead.leadNumber, lead.customerName)}
+                                title="Delete this lead"
+                                className="text-slate-300 hover:text-rose-600 p-0.5 rounded transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {(lead.requirementDescription?.includes("Repeat") || lead.isDuplicateResolved) && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                                  🔄 Repeat
+                                </span>
+                              )}
+                              <span
+                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                  lead.priority === "URGENT"
+                                    ? "bg-rose-100 text-rose-700"
+                                    : lead.priority === "HIGH"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-slate-100 text-slate-600"
+                                }`}
+                              >
+                                {lead.priority}
+                              </span>
+                            </div>
+                          </div>
 
-                  {stageLeads.length === 0 && (
-                    <div className="text-center py-8 text-slate-400 text-xs font-medium">
-                      No leads in this stage
-                    </div>
+                          <div>
+                            <h4 className="font-bold text-slate-900 text-xs">{lead.customerName}</h4>
+                            <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5 font-mono font-medium">
+                              <Phone className="w-3 h-3 text-emerald-600" />
+                              {lead.phone}
+                            </p>
+                            {lead.businessName && (
+                              <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                <Building className="w-3 h-3 text-slate-400" />
+                                {lead.businessName} ({lead.city || "India"})
+                              </p>
+                            )}
+                          </div>
+
+                          {lead.requirementDescription && (
+                            <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg line-clamp-2">
+                              {lead.requirementDescription}
+                            </p>
+                          )}
+
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                            <span className="font-bold text-slate-800">
+                              ₹{lead.estimatedValue ? lead.estimatedValue.toLocaleString("en-IN") : "0"}
+                            </span>
+                            <span className="font-semibold text-rn-700 bg-rn-50 px-2 py-0.5 rounded">
+                              👤 {lead.assignedEmployeeName || "Unassigned"}
+                            </span>
+                          </div>
+
+                          {/* Quick Advance Button */}
+                          {stage.id !== "CONVERTED" && stage.id !== "LOST" && (
+                            <button
+                              onClick={() => {
+                                const currentIndex = PIPELINE_STAGES.findIndex((s) => s.id === stage.id);
+                                const nextStage = PIPELINE_STAGES[currentIndex + 1]?.id;
+                                if (nextStage) moveStage(lead._id, nextStage);
+                              }}
+                              className="w-full mt-1 py-1 rounded bg-slate-100 hover:bg-rn-50 hover:text-rn-700 text-[11px] font-semibold text-slate-600 flex items-center justify-center gap-1 transition-colors"
+                            >
+                              <span>Advance Stage</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+
+                      {stageLeads.length === 0 && (
+                        <div className="text-center py-8 text-slate-400 text-xs font-medium">
+                          No leads in this stage
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

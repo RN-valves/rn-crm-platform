@@ -45,6 +45,7 @@ export default function ContactsDirectory() {
         title="Contacts Directory"
         subtitle="Customer database, wholesale classifications & WhatsApp profiles"
         onRefresh={fetchContacts}
+        loading={loading}
       />
 
       <main className="p-8 space-y-6 max-w-7xl mx-auto w-full">
@@ -94,47 +95,82 @@ export default function ContactsDirectory() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredContacts.map((c) => (
-                  <tr key={c._id || c.phone} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900">{c.name}</div>
-                      {c.businessName && (
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                          <Building className="w-3 h-3 text-slate-400" />
-                          {c.businessName}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 font-mono text-slate-700">{c.phone}</td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-0.5 rounded-md font-semibold text-[10px] bg-slate-100 text-slate-700 border border-slate-200">
-                        {c.businessType || "Other"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {c.city ? `${c.city}${c.state ? `, ${c.state}` : ""}` : "India"}
-                    </td>
-                    <td className="px-6 py-4 font-bold text-slate-900">{c.totalEnquiriesCount || 1}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-1 flex-wrap">
-                        {(c.tags || []).map((t, i) => (
-                          <span key={i} className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[9px] font-medium">
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {c.isVerifiedDealer ? (
-                        <span className="text-emerald-600 flex items-center gap-1 font-semibold text-[11px]">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Verified
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-[11px]">Standard</span>
-                      )}
+                {loading ? (
+                  [1, 2, 3, 4, 5, 6].map((k) => (
+                    <tr key={k} className="animate-pulse">
+                      <td className="px-6 py-4">
+                        <div className="h-3.5 w-28 bg-slate-200 rounded"></div>
+                        <div className="h-2.5 w-20 bg-slate-100 rounded mt-1.5"></div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="h-3 w-24 bg-slate-200 rounded"></div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="h-5 w-16 bg-slate-100 rounded-md"></div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="h-3 w-20 bg-slate-100 rounded"></div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="h-3.5 w-6 bg-slate-200 rounded"></div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="h-4 w-12 bg-slate-100 rounded"></div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="h-3.5 w-14 bg-slate-100 rounded"></div>
+                      </td>
+                    </tr>
+                  ))
+                ) : filteredContacts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-xs">
+                      No contacts found matching your criteria.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredContacts.map((c) => (
+                    <tr key={c._id || c.phone} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-900">{c.name}</div>
+                        {c.businessName && (
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <Building className="w-3 h-3 text-slate-400" />
+                            {c.businessName}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 font-mono text-slate-700">{c.phone}</td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-0.5 rounded-md font-semibold text-[10px] bg-slate-100 text-slate-700 border border-slate-200">
+                          {c.businessType || "Other"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {c.city ? `${c.city}${c.state ? `, ${c.state}` : ""}` : "India"}
+                      </td>
+                      <td className="px-6 py-4 font-bold text-slate-900">{c.totalEnquiriesCount || 1}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-1 flex-wrap">
+                          {(c.tags || []).map((t, i) => (
+                            <span key={i} className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[9px] font-medium">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {c.isVerifiedDealer ? (
+                          <span className="text-emerald-600 flex items-center gap-1 font-semibold text-[11px]">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">Standard</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

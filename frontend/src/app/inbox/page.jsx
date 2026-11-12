@@ -122,6 +122,7 @@ export default function WhatsAppInbox() {
         title="WhatsApp Inbox"
         subtitle="Connected to Evolution API (RNchat) & Chatwoot Shared Inbox"
         onRefresh={fetchConversations}
+        loading={loading}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -157,62 +158,87 @@ export default function WhatsAppInbox() {
 
           {/* Conversations List */}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-            {conversations
-              .filter(
+            {loading ? (
+              [1, 2, 3, 4, 5, 6].map((k) => (
+                <div key={k} className="p-4 space-y-2.5 animate-pulse">
+                  <div className="flex justify-between items-center">
+                    <div className="h-3.5 w-28 bg-slate-200 rounded"></div>
+                    <div className="h-3 w-10 bg-slate-100 rounded"></div>
+                  </div>
+                  <div className="h-3 w-44 bg-slate-100 rounded"></div>
+                  <div className="flex justify-between items-center pt-1">
+                    <div className="h-2.5 w-20 bg-slate-100 rounded"></div>
+                    <div className="h-4 w-16 bg-slate-200 rounded-full"></div>
+                  </div>
+                </div>
+              ))
+            ) : conversations.filter(
                 (c) =>
                   !search ||
                   c.phone.toLowerCase().includes(search.toLowerCase()) ||
                   (c.customerName && c.customerName.toLowerCase().includes(search.toLowerCase()))
-              )
-              .map((conv) => {
-                const isSelected = selectedConv?.phone === conv.phone;
-                return (
-                  <button
-                    key={conv._id || conv.phone}
-                    onClick={() => setSelectedConv(conv)}
-                    className={`w-full text-left p-4 hover:bg-slate-50 transition-colors flex flex-col gap-1.5 ${
-                      isSelected ? "bg-rn-50/70 border-l-4 border-rn-600" : ""
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-slate-900 truncate">
-                          {conv.customerName || conv.phone}
-                        </span>
-                        {conv.businessName && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-                            {conv.businessName}
+              ).length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-xs">
+                No conversations found.
+              </div>
+            ) : (
+              conversations
+                .filter(
+                  (c) =>
+                    !search ||
+                    c.phone.toLowerCase().includes(search.toLowerCase()) ||
+                    (c.customerName && c.customerName.toLowerCase().includes(search.toLowerCase()))
+                )
+                .map((conv) => {
+                  const isSelected = selectedConv?.phone === conv.phone;
+                  return (
+                    <button
+                      key={conv._id || conv.phone}
+                      onClick={() => setSelectedConv(conv)}
+                      className={`w-full text-left p-4 hover:bg-slate-50 transition-colors flex flex-col gap-1.5 ${
+                        isSelected ? "bg-rn-50/70 border-l-4 border-rn-600" : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-900 truncate">
+                            {conv.customerName || conv.phone}
                           </span>
-                        )}
+                          {conv.businessName && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                              {conv.businessName}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-400">
+                          {conv.lastMessageAt || conv.updatedAt || conv.lastCustomerMessageAt
+                            ? new Date(conv.lastMessageAt || conv.updatedAt || conv.lastCustomerMessageAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : ""}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-slate-400">
-                        {conv.lastMessageAt || conv.updatedAt || conv.lastCustomerMessageAt
-                          ? new Date(conv.lastMessageAt || conv.updatedAt || conv.lastCustomerMessageAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : ""}
-                      </span>
-                    </div>
 
-                    <p className="text-xs text-slate-600 line-clamp-1">{conv.lastMessage || "Active chat"}</p>
+                      <p className="text-xs text-slate-600 line-clamp-1">{conv.lastMessage || "Active chat"}</p>
 
-                    <div className="flex items-center justify-between mt-1 text-[11px]">
-                      <span className="text-slate-400 font-mono text-[10px]">{conv.phone}</span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
-                          conv.mode === "ai"
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-emerald-100 text-emerald-700"
-                        }`}
-                      >
-                        {conv.mode === "ai" ? <Bot className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
-                        {conv.mode === "ai" ? "AI Replying" : "Human Agent"}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+                      <div className="flex items-center justify-between mt-1 text-[11px]">
+                        <span className="text-slate-400 font-mono text-[10px]">{conv.phone}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
+                            conv.mode === "ai"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {conv.mode === "ai" ? <Bot className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
+                          {conv.mode === "ai" ? "AI Replying" : "Human Agent"}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+            )}
           </div>
         </div>
 
