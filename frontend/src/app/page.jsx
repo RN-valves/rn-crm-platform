@@ -26,6 +26,9 @@ import {
   ChevronRight,
   Phone,
   Sparkles,
+  Calendar,
+  Filter,
+  CalendarDays,
 } from "lucide-react";
 
 export default function OverviewDashboard() {
@@ -35,11 +38,37 @@ export default function OverviewDashboard() {
   const [isExecModalOpen, setIsExecModalOpen] = useState(false);
   const [isCleanModalOpen, setIsCleanModalOpen] = useState(false);
 
-  const fetchDashboardData = async () => {
+  // Date Filter State
+  const [period, setPeriod] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+
+  const DATE_PRESETS = [
+    { id: "all", label: "All Time" },
+    { id: "today", label: "Today" },
+    { id: "yesterday", label: "Yesterday" },
+    { id: "7d", label: "Last 7 Days" },
+    { id: "30d", label: "Last 30 Days" },
+    { id: "this_month", label: "This Month" },
+    { id: "custom", label: "Custom Range" },
+  ];
+
+  const fetchDashboardData = async (overrideParams = null) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await crmApi.getDashboardStats();
+      const activePeriod = overrideParams?.period !== undefined ? overrideParams.period : period;
+      const activeStart = overrideParams?.startDate !== undefined ? overrideParams.startDate : startDate;
+      const activeEnd = overrideParams?.endDate !== undefined ? overrideParams.endDate : endDate;
+
+      const params = { period: activePeriod };
+      if (activePeriod === "custom" && activeStart) {
+        params.startDate = activeStart;
+        if (activeEnd) params.endDate = activeEnd;
+      }
+
+      const res = await crmApi.getDashboardStats(params);
       setData(res);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
@@ -50,8 +79,23 @@ export default function OverviewDashboard() {
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchDashboardData({ period: "all" });
   }, []);
+
+  const handlePeriodChange = (newPeriod) => {
+    setPeriod(newPeriod);
+    if (newPeriod === "custom") {
+      setShowCustomPicker(true);
+    } else {
+      setShowCustomPicker(false);
+      fetchDashboardData({ period: newPeriod });
+    }
+  };
+
+  const handleApplyCustom = () => {
+    if (!startDate) return;
+    fetchDashboardData({ period: "custom", startDate, endDate });
+  };
 
   const summary = data?.summary || {
     totalContacts: 0,
@@ -142,6 +186,100 @@ export default function OverviewDashboard() {
           </div>
         </div>
 
+        {/* Date Range Filter Bar */}
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Date Range Filter
+                </span>
+                <Badge variant="primary" size="xs">
+                  {data?.filter?.periodLabel || (DATE_PRESETS.find(p => p.id === period)?.label || "All Time")}
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Filter inquiries, sales stages, and executive distribution by timeline
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/90 dark:bg-slate-800/90 p-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+            {DATE_PRESETS.map((p) => {
+              const isActive = period === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => handlePeriodChange(p.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    isActive
+                      ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/80 dark:border-slate-700"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Custom Range Picker Drawer */}
+        {showCustomPicker && (
+          <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-white dark:from-slate-900 dark:via-slate-850 dark:to-slate-900 p-4 rounded-2xl border border-blue-200/70 dark:border-blue-900/40 shadow-sm flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                Select Custom Dates:
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 dark:text-slate-400">From</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 dark:text-slate-400">To</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleApplyCustom}
+                disabled={!startDate}
+                className="text-xs"
+              >
+                Apply Range
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                  handlePeriodChange("all");
+                }}
+                className="text-xs text-slate-500"
+              >
+                Reset
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Core KPI Metrics Grid (Primary Row) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Contacts */}
@@ -178,12 +316,12 @@ export default function OverviewDashboard() {
             </CardContent>
           </Card>
 
-          {/* New Leads Today */}
+          {/* New Leads in Period */}
           <Card hover>
             <CardContent className="p-5 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                 <span className="text-[11px] font-bold uppercase tracking-wider">
-                  New Leads Today
+                  {period === "all" ? "New Leads Today" : `Leads (${data?.filter?.periodLabel || "Selected"})`}
                 </span>
                 <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
                   <Kanban className="w-5 h-5" />
@@ -198,13 +336,24 @@ export default function OverviewDashboard() {
                 ) : (
                   <>
                     <p className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                      {summary.newLeadsToday}
+                      {period === "all" ? summary.newLeadsToday : summary.totalLeads}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Total Pipeline:{" "}
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">
-                        {summary.totalLeads} leads
-                      </span>
+                      {period === "all" ? (
+                        <>
+                          Total Pipeline:{" "}
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {summary.totalLeads} leads
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          Filtered in{" "}
+                          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                            {data?.filter?.periodLabel || period}
+                          </span>
+                        </>
+                      )}
                     </p>
                   </>
                 )}

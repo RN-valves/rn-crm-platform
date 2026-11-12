@@ -7,10 +7,57 @@ import { SalesRepDirectory } from "../services/conversation/salesRepDirectory.js
 import { getCrmConnection } from "../database/connections.js";
 import { INITIAL_SALES_EXECUTIVES } from "../models/SalesExecutive.js";
 
-export async function getDashboardStats(_req: Request, res: Response): Promise<void> {
+export async function getDashboardStats(req: Request, res: Response): Promise<void> {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const period = (req.query.period as string) || "all";
+    const customStart = req.query.startDate as string;
+    const customEnd = req.query.endDate as string;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+    let periodLabel = "All Time";
+
+    if (period === "today") {
+      startDate = new Date(today);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      periodLabel = "Today";
+    } else if (period === "yesterday") {
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1);
+      startDate = new Date(y);
+      endDate = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999);
+      periodLabel = "Yesterday";
+    } else if (period === "7d") {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      periodLabel = "Last 7 Days";
+    } else if (period === "30d") {
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      endDate = now;
+      periodLabel = "Last 30 Days";
+    } else if (period === "this_month") {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      endDate = now;
+      periodLabel = "This Month";
+    } else if (period === "custom" && customStart) {
+      startDate = new Date(customStart);
+      startDate.setHours(0, 0, 0, 0);
+      if (customEnd) {
+        endDate = new Date(customEnd);
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        endDate = new Date();
+      }
+      periodLabel = `${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`;
+    }
+
+    const leadDateFilter: any = {};
+    if (startDate && endDate) {
+      leadDateFilter.createdAt = { $gte: startDate, $lte: endDate };
+    }
 
     let isDbConnected = false;
     try {
@@ -21,12 +68,12 @@ export async function getDashboardStats(_req: Request, res: Response): Promise<v
     }
 
     // Default baseline values (used as fallback when database is connecting/offline)
-    let totalContacts = 88;
+    let totalContacts = 89;
     let totalLeads = 17;
-    let newLeadsToday = 2;
+    let newLeadsToday = 1;
     let convertedLeads = 1;
     let aiConversations = 62;
-    let humanConversations = 25;
+    let humanConversations = 26;
     let followupsPending = 18;
     let followupsOverdue = 0;
     let leadsByStage: Record<string, number> = {
@@ -50,21 +97,37 @@ export async function getDashboardStats(_req: Request, res: Response): Promise<v
       // 1. Contacts
       try {
         const Contact = getContactModel();
-        totalContacts = await Contact.countDocuments();
+        const contactDateFilter: any = {};
+        if (startDate && endDate) {
+          contactDateFilter.createdAt = { $gte: startDate, $lte: endDate };
+        }
+        totalContacts = await Contact.countDocuments(contactDateFilter);
       } catch (err) {
         console.warn("[Dashboard] Contacts count fallback:", err);
       }
 
-      // 2. Leads
+      // 2. Leads (with Date Filter)
       try {
         const Lead = getLeadModel();
-        totalLeads = await Lead.countDocuments();
+        totalLeads = await Lead.countDocuments(leadDateFilter);
         newLeadsToday = await Lead.countDocuments({ createdAt: { $gte: today } });
-        convertedLeads = await Lead.countDocuments({ status: "CONVERTED" });
+        convertedLeads = await Lead.countDocuments({
+          ...leadDateFilter,
+          status: { $in: ["CONVERTED", "WON", "Orders Won / Converted"] },
+        });
 
-        const stages = await Lead.aggregate([
-          { $group: { _id: "$status", count: { $sum: 1 } } },
-        ]);
+        // Initialize stage counts to 0
+        Object.keys(leadsByStage).forEach((k) => {
+          leadsByStage[k] = 0;
+        });
+
+        const stagePipeline: any[] = [];
+        if (Object.keys(leadDateFilter).length > 0) {
+          stagePipeline.push({ $match: leadDateFilter });
+        }
+        stagePipeline.push({ $group: { _id: "$status", count: { $sum: 1 } } });
+
+        const stages = await Lead.aggregate(stagePipeline);
         stages.forEach((s) => {
           if (s._id && leadsByStage[s._id] !== undefined) {
             leadsByStage[s._id] = s.count;
@@ -77,8 +140,12 @@ export async function getDashboardStats(_req: Request, res: Response): Promise<v
       // 3. Conversations (AI vs Human)
       try {
         const ConversationControl = getConversationControlModel();
-        aiConversations = await ConversationControl.countDocuments({ mode: "ai" });
-        humanConversations = await ConversationControl.countDocuments({ mode: "human" });
+        const convDateFilter: any = {};
+        if (startDate && endDate) {
+          convDateFilter.lastCustomerMessageAt = { $gte: startDate, $lte: endDate };
+        }
+        aiConversations = await ConversationControl.countDocuments({ ...convDateFilter, mode: "ai" });
+        humanConversations = await ConversationControl.countDocuments({ ...convDateFilter, mode: "human" });
       } catch (err) {
         console.warn("[Dashboard] Conversation count fallback:", err);
       }
@@ -86,9 +153,13 @@ export async function getDashboardStats(_req: Request, res: Response): Promise<v
       // 4. Follow-ups
       try {
         const Followup = getFollowupModel();
-        const now = new Date();
-        followupsPending = await Followup.countDocuments({ status: "PENDING" });
+        const followupDateFilter: any = {};
+        if (startDate && endDate) {
+          followupDateFilter.scheduledAt = { $gte: startDate, $lte: endDate };
+        }
+        followupsPending = await Followup.countDocuments({ ...followupDateFilter, status: "PENDING" });
         followupsOverdue = await Followup.countDocuments({
+          ...followupDateFilter,
           status: "PENDING",
           scheduledAt: { $lt: now },
         });
@@ -96,17 +167,20 @@ export async function getDashboardStats(_req: Request, res: Response): Promise<v
         console.warn("[Dashboard] Followup count fallback:", err);
       }
 
-      // 5. Dynamic Agent Performance
+      // 5. Dynamic Agent Performance (with Date Filter)
       try {
         const allExecs = await SalesRepDirectory.getAllExecutives();
         const Lead = getLeadModel();
 
+        const matchExec: any = {
+          assignedEmployeeName: { $exists: true, $ne: "", $nin: ["Unassigned", null] },
+        };
+        if (startDate && endDate) {
+          matchExec.createdAt = { $gte: startDate, $lte: endDate };
+        }
+
         const repStats = await Lead.aggregate([
-          {
-            $match: {
-              assignedEmployeeName: { $exists: true, $ne: "", $nin: ["Unassigned", null] },
-            },
-          },
+          { $match: matchExec },
           {
             $group: {
               _id: "$assignedEmployeeName",
@@ -158,6 +232,12 @@ export async function getDashboardStats(_req: Request, res: Response): Promise<v
         conversionRate,
         followupsPending,
         followupsOverdue,
+      },
+      filter: {
+        period,
+        periodLabel,
+        startDate: startDate ? startDate.toISOString() : null,
+        endDate: endDate ? endDate.toISOString() : null,
       },
       leadsByStage,
       agentPerformance,

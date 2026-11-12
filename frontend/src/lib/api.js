@@ -46,7 +46,10 @@ export const crmApi = {
   getMe: () => apiRequest("/auth/me"),
 
   // Dashboard
-  getDashboardStats: () => apiRequest("/dashboard/stats"),
+  getDashboardStats: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/dashboard/stats${query ? `?${query}` : ""}`);
+  },
 
   // Contacts
   getContacts: (params = "") => apiRequest(`/contacts${params}`),
