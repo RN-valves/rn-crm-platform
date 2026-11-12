@@ -1,5 +1,29 @@
+import dns from "dns";
 import mongoose, { Connection } from "mongoose";
 import { config } from "../config/env.js";
+
+// Direct shard DNS accelerator: Bypasses Docker DNS latency/failures for MongoDB Atlas
+const ATLAS_HOST_MAP: Record<string, string> = {
+  "ac-k85qtjy-shard-00-00.jbtr81i.mongodb.net": "159.41.242.133",
+  "ac-k85qtjy-shard-00-01.jbtr81i.mongodb.net": "159.41.242.144",
+  "ac-k85qtjy-shard-00-02.jbtr81i.mongodb.net": "159.41.242.157",
+};
+
+const originalLookup = dns.lookup;
+(dns as any).lookup = (hostname: string, options: any, callback: any) => {
+  if (typeof options === "function") {
+    callback = options;
+    options = {};
+  }
+  if (ATLAS_HOST_MAP[hostname]) {
+    const ip = ATLAS_HOST_MAP[hostname];
+    if (options && options.all) {
+      return callback(null, [{ address: ip, family: 4 }]);
+    }
+    return callback(null, ip, 4);
+  }
+  return originalLookup(hostname, options, callback);
+};
 
 let crmConnection: Connection;
 let ecommConnection: Connection;
@@ -61,7 +85,7 @@ export async function initDatabases(): Promise<{ crmConnection: Connection; ecom
         crmConnection.asPromise(),
         ecommConnection.asPromise(),
       ]);
-      console.log(`✅ [Database] Initial handshake finished. CRM: ${crmConnection.readyState}, ECOMM: ${ecommConnection.readyState}`);
+      console.log(`✅ [Database] Handshake finished. CRM: ${crmConnection.readyState}, ECOMM: ${ecommConnection.readyState}`);
     } catch (connErr: any) {
       console.warn("⚠️ [Database] Initial connection handshake notice:", connErr?.message || connErr);
     }
