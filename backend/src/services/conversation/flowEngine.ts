@@ -53,23 +53,34 @@ export class FlowEngine {
       customerType?: string;
       productCategory: string;
       leadNumber: string;
+      isRepeat?: boolean;
+      previousLeadNumber?: string;
     }
   ): Promise<void> {
     const effectiveRep = rep || SalesRepDirectory.getFallbackRep();
     const cleanRepPhone = (effectiveRep.mobile || "+91 93151 60881").replace(/\D/g, "");
     const customerPhone = leadDetails.customerPhone.replace(/\D/g, "");
 
-    const alertToRep =
-      `🚨 *नई डीलर लीड अलर्ट! (New WhatsApp Lead)*\n\n` +
+    const alertTitle = leadDetails.isRepeat
+      ? `🔄 *पुनः पूछताछ अलर्ट! (Repeat Enquiry - Existing Customer)*`
+      : `🚨 *नई डीलर लीड अलर्ट! (New WhatsApp Lead)*`;
+
+    let alertToRep =
+      `${alertTitle}\n\n` +
       `नमस्ते *${effectiveRep.name} ji*,\n` +
-      `आपके क्षेत्र (*${effectiveRep.area}*) से एक नई लीड दर्ज हुई है:\n\n` +
+      `आपके क्षेत्र (*${effectiveRep.area}*) से ग्राहक की पूछताछ दर्ज हुई है:\n\n` +
       `👤 *ग्राहक/फर्म:* ${leadDetails.customerName}\n` +
       `📞 *मोबाइल:* +${customerPhone}\n` +
       `📍 *पिन कोड:* ${leadDetails.pincode} (${effectiveRep.state})\n` +
       `🏷️ *प्रकार:* ${leadDetails.customerType || "Dealer"}\n` +
       `📦 *उत्पाद श्रेणी:* ${leadDetails.productCategory}\n` +
-      `🆔 *लीड आईडी:* ${leadDetails.leadNumber}\n\n` +
-      `⚡ कृपया तुरंत ग्राहक से संपर्क करके आवश्यक डील क्लोज करें!`;
+      `🆔 *लीड आईडी:* ${leadDetails.leadNumber}\n`;
+
+    if (leadDetails.isRepeat && leadDetails.previousLeadNumber) {
+      alertToRep += `ℹ️ *पूर्व संदर्भ:* यह ग्राहक पहले भी इन्क्वायरी कर चुका है (Previous Lead: ${leadDetails.previousLeadNumber})\n`;
+    }
+
+    alertToRep += `\n⚡ कृपया तुरंत ग्राहक से संपर्क करके आवश्यक डील क्लोज करें!`;
 
     // 1. Direct dispatch via Evolution API (Bypasses queue delays for instant delivery)
     if (cleanRepPhone && cleanRepPhone !== customerPhone) {
@@ -1040,24 +1051,46 @@ export class FlowEngine {
         const cleanLeadDigits = leadPhone.replace(/\D/g, "");
         const formattedLeadPhone = cleanLeadDigits.startsWith("91") ? `+${cleanLeadDigits}` : `+91${cleanLeadDigits}`;
 
+        // Check if this customer / phone number already has prior inquiries in CRM
+        let existingLead: any = null;
+        try {
+          existingLead = await Lead.findOne({
+            phone: { $in: [leadPhone, formattedLeadPhone, cleanLeadDigits, `+${cleanLeadDigits}`] },
+          }).sort({ createdAt: -1 });
+        } catch (findErr: any) {
+          console.warn(`[FlowEngine] Lead duplicate check notice: ${findErr.message}`);
+        }
+
+        const isRepeat = Boolean(existingLead);
+        const requirementDescription = isRepeat
+          ? `🔄 [Repeat Enquiry]: Interested in ${interestName}. (Previous Lead: ${existingLead?.leadNumber} - ${existingLead?.status || "OPEN"}). Pincode: ${session.formData.pincode}`
+          : `WhatsApp Lead: Interested in ${interestName}. Pincode: ${session.formData.pincode}`;
+
+        const internalNotes = isRepeat
+          ? [
+              `Repeat inquiry from existing customer (+${cleanLeadDigits}). Previous Lead ${existingLead?.leadNumber} (${existingLead?.status}) was assigned to ${existingLead?.assignedEmployeeName || rep.name}.`,
+              `New inquiry for ${interestName} assigned to ${rep.name} (${rep.mobile}) for ${rep.state} region via WhatsApp Bot.`,
+            ]
+          : [`Assigned to ${rep.name} (${rep.mobile}) for ${rep.state} region via WhatsApp Bot`];
+
         try {
           await Lead.create({
             leadNumber,
-            customerName: session.formData.name || customerName || "Customer",
+            customerName: session.formData.name || customerName || (existingLead ? existingLead.customerName : "Customer"),
             phone: formattedLeadPhone,
             businessType: session.customerType || "Dealer",
             city: rep.state,
             state: rep.state,
             productCategory: interestName,
             productInterest: [interestName],
-            requirementDescription: `WhatsApp Lead: Interested in ${interestName}. Pincode: ${session.formData.pincode}`,
+            requirementDescription,
             leadSource: "WhatsApp_Inbound",
             assignedEmployeeName: rep.name,
             status: "NEW",
-            priority: "HIGH",
-            internalNotes: [`Assigned to ${rep.name} (${rep.mobile}) for ${rep.state} region via WhatsApp Bot`],
+            priority: isRepeat ? "URGENT" : "HIGH",
+            internalNotes,
           });
-          console.log(`✅ [FlowEngine] Created Lead ${leadNumber} for ${session.formData.name} -> Assigned to ${rep.name}`);
+          console.log(`✅ [FlowEngine] Created Lead ${leadNumber} (${isRepeat ? "REPEAT" : "NEW"}) for ${session.formData.name} -> Assigned to ${rep.name}`);
         } catch (leadErr: any) {
           console.error(`❌ [FlowEngine] Failed to save lead: ${leadErr.message}`);
         }
@@ -1069,7 +1102,7 @@ export class FlowEngine {
             {
               $set: {
                 phone: formattedLeadPhone,
-                name: session.formData.name || customerName || "Customer",
+                name: session.formData.name || customerName || (existingLead ? existingLead.customerName : "Customer"),
                 businessName: session.formData.name || "",
                 businessType: session.customerType || "Dealer",
                 city: rep.state,
@@ -1097,6 +1130,8 @@ export class FlowEngine {
             customerType: session.customerType || "Dealer",
             productCategory: interestName,
             leadNumber,
+            isRepeat,
+            previousLeadNumber: existingLead?.leadNumber,
           });
         } catch (alertErr: any) {
           console.warn(`[FlowEngine] Rep notification warning: ${alertErr.message}`);
