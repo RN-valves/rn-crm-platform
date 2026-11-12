@@ -78,4 +78,9 @@ export const crmApi = {
     apiRequest(`/sales-executives/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteSalesExecutive: (id) =>
     apiRequest(`/sales-executives/${id}`, { method: "DELETE" }),
+
+  // Lead Distribution & Drop-off Intelligence
+  getDistributionAnalytics: () => apiRequest("/distribution/analytics"),
+  assignLeadToExecutive: (data) =>
+    apiRequest("/distribution/assign-lead", { method: "POST", body: JSON.stringify(data) }),
 };

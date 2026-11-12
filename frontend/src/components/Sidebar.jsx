@@ -12,12 +12,14 @@ import {
   Settings,
   ShieldCheck,
   PhoneCall,
+  GitFork,
 } from "lucide-react";
 
 const navigationItems = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
   { name: "WhatsApp Inbox", href: "/inbox", icon: MessageSquare, badge: "Live" },
   { name: "Sales Pipeline", href: "/leads", icon: Kanban },
+  { name: "Lead Distribution", href: "/distribution", icon: GitFork },
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Follow-ups", href: "/followups", icon: CalendarCheck },
   { name: "AI Automation", href: "/ai-settings", icon: Bot },
