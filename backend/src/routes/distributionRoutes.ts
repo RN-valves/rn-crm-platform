@@ -4,6 +4,7 @@ import {
   assignLead,
   reengageCustomer,
   reengageBulkCustomers,
+  resendRepAlert,
 } from "../controllers/distributionController.js";
 
 const router = Router();
@@ -14,6 +15,9 @@ router.get("/", getDistributionAnalytics);
 
 // POST /api/distribution/assign-lead
 router.post("/assign-lead", assignLead);
+
+// POST /api/distribution/resend-rep-alert
+router.post("/resend-rep-alert", resendRepAlert);
 
 // POST /api/distribution/reengage
 router.post("/reengage", reengageCustomer);

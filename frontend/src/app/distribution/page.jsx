@@ -52,6 +52,10 @@ export default function LeadDistributionPage() {
   const [reengageModalTarget, setReengageModalTarget] = useState(null);
   const [isReengageModalOpen, setIsReengageModalOpen] = useState(false);
 
+  // Live Rep Alert Resend State
+  const [resendingLeadId, setResendingLeadId] = useState(null);
+  const [resendStatusMsg, setResendStatusMsg] = useState("");
+
   const openReengageModal = (target) => {
     setReengageModalTarget(target);
     setIsReengageModalOpen(true);
@@ -60,6 +64,20 @@ export default function LeadDistributionPage() {
   const openManageModal = (target) => {
     setManageModalTarget(target);
     setIsManageModalOpen(true);
+  };
+
+  const handleResendRepAlert = async (lead) => {
+    setResendingLeadId(lead._id);
+    try {
+      const res = await crmApi.resendRepAlert({ leadId: lead._id, phone: lead.phone });
+      setResendStatusMsg(`Alert re-sent to ${lead.assignedEmployeeName}!`);
+      fetchData();
+      setTimeout(() => setResendStatusMsg(""), 4000);
+    } catch (err) {
+      alert(err?.response?.data?.error || err?.message || "Failed to resend alert");
+    } finally {
+      setResendingLeadId(null);
+    }
   };
 
   const fetchData = async () => {
@@ -601,6 +619,61 @@ export default function LeadDistributionPage() {
         {/* TAB 2: DETAILED LEADS LIST */}
         {activeTab === "leads" && (
           <div className="space-y-4">
+            {/* Live Delivery & Handover Tracking KPI Snapshot */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                    Rep WhatsApp Delivered
+                  </p>
+                  <p className="text-xl font-black text-emerald-900 dark:text-emerald-100 mt-0.5">
+                    {filteredLeads.filter((l) => l.repNotificationStatus !== "FAILED" && l.assignedEmployeeName && l.assignedEmployeeName !== "Unassigned").length} Leads
+                  </p>
+                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400 mt-0.5">
+                    Territory sales reps notified with customer data
+                  </p>
+                </div>
+                <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                    Customers Replied / Handled
+                  </p>
+                  <p className="text-xl font-black text-blue-900 dark:text-blue-100 mt-0.5">
+                    {filteredLeads.filter((l) => l.customerReplyStatus !== "AWAITING_REPLY").length} Inquiries
+                  </p>
+                  <p className="text-[11px] text-blue-700/80 dark:text-blue-400 mt-0.5">
+                    Catalogues & initial greetings delivered
+                  </p>
+                </div>
+                <MessageSquare className="w-6 h-6 text-blue-600 shrink-0" />
+              </div>
+
+              <div className="bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 rounded-xl p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                    Territory Routing Accuracy
+                  </p>
+                  <p className="text-xl font-black text-purple-900 dark:text-purple-100 mt-0.5">
+                    {summary.totalLeads > 0 ? Math.round((summary.totalAssignedLeads / summary.totalLeads) * 100) : 100}% Routed
+                  </p>
+                  <p className="text-[11px] text-purple-700/80 dark:text-purple-400 mt-0.5">
+                    Customers mapped to respective state reps
+                  </p>
+                </div>
+                <MapPin className="w-6 h-6 text-purple-600 shrink-0" />
+              </div>
+            </div>
+
+            {resendStatusMsg && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs rounded-xl flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span className="font-bold">{resendStatusMsg}</span>
+              </div>
+            )}
+
             {/* Filter Bar */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2 flex-wrap text-xs">
@@ -640,10 +713,12 @@ export default function LeadDistributionPage() {
                       <th className="px-6 py-4">Lead ID</th>
                       <th className="px-6 py-4">Customer / Firm</th>
                       <th className="px-6 py-4">Phone Number</th>
-                      <th className="px-6 py-4">Location & PIN</th>
+                      <th className="px-6 py-4">Territory Route & PIN</th>
                       <th className="px-6 py-4">Assigned Sales Executive</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4 text-right">Reassign Rep</th>
+                      <th className="px-6 py-4 text-center">Rep WhatsApp Alert</th>
+                      <th className="px-6 py-4 text-center">Customer Reply</th>
+                      <th className="px-6 py-4">Stage</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -660,10 +735,16 @@ export default function LeadDistributionPage() {
                             <div className="h-3 w-24 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="h-3 w-20 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
+                            <div className="h-3 w-28 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="h-4 w-20 bg-slate-100 dark:bg-slate-800/60 rounded mx-auto"></div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="h-4 w-16 bg-slate-100 dark:bg-slate-800/60 rounded mx-auto"></div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="h-4 w-16 bg-slate-100 dark:bg-slate-800/60 rounded"></div>
@@ -675,7 +756,7 @@ export default function LeadDistributionPage() {
                       ))
                     ) : filteredLeads.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-xs">
+                        <td colSpan={9} className="px-6 py-12 text-center text-slate-400 text-xs">
                           No leads matching this filter.
                         </td>
                       </tr>
@@ -683,6 +764,9 @@ export default function LeadDistributionPage() {
                       filteredLeads.map((lead) => {
                         const isUnassigned =
                           !lead.assignedEmployeeName || lead.assignedEmployeeName === "Unassigned";
+
+                        const isRepDelivered =
+                          !isUnassigned && lead.repNotificationStatus !== "FAILED";
 
                         return (
                           <tr
@@ -692,7 +776,10 @@ export default function LeadDistributionPage() {
                             }`}
                           >
                             <td className="px-6 py-4 font-mono font-bold text-slate-500">
-                              {lead.leadNumber}
+                              <div>{lead.leadNumber}</div>
+                              <div className="text-[10px] text-slate-400 font-normal">
+                                {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : ""}
+                              </div>
                             </td>
                             <td className="px-6 py-4">
                               <div className="font-bold text-slate-900 dark:text-white">
@@ -709,12 +796,17 @@ export default function LeadDistributionPage() {
                               {lead.phone}
                             </td>
                             <td className="px-6 py-4">
-                              <span className="font-medium text-slate-700 dark:text-slate-300">
+                              <div className="font-medium text-slate-800 dark:text-slate-200">
                                 {lead.city || lead.state || "India"}
-                              </span>
+                              </div>
                               {lead.pincode && (
-                                <p className="text-[10px] text-slate-400 font-mono">
+                                <p className="text-[10px] text-slate-500 font-mono">
                                   PIN: {lead.pincode}
+                                </p>
+                              )}
+                              {lead.routingReason && (
+                                <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1" title={lead.routingReason}>
+                                  {lead.routingReason}
                                 </p>
                               )}
                             </td>
@@ -724,8 +816,53 @@ export default function LeadDistributionPage() {
                                   ⚠️ Not Assigned
                                 </Badge>
                               ) : (
-                                <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rn-50 dark:bg-rn-950/60 text-rn-700 dark:text-rn-300 border border-rn-200 dark:border-rn-800">
-                                  👤 {lead.assignedEmployeeName}
+                                <div>
+                                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rn-50 dark:bg-rn-950/60 text-rn-700 dark:text-rn-300 border border-rn-200 dark:border-rn-800 inline-block">
+                                    👤 {lead.assignedEmployeeName}
+                                  </span>
+                                  {lead.repPhone && (
+                                    <p className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                                      {lead.repPhone}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {isUnassigned ? (
+                                <span className="text-[11px] text-slate-400 italic">Unassigned</span>
+                              ) : isRepDelivered ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Sent to Rep</span>
+                                </span>
+                              ) : (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                    Failed
+                                  </span>
+                                  <button
+                                    onClick={() => handleResendRepAlert(lead)}
+                                    disabled={resendingLeadId === lead._id}
+                                    className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-[10px] font-bold flex items-center gap-1 transition-colors"
+                                    title="Resend WhatsApp alert to sales executive"
+                                  >
+                                    <Send className="w-2.5 h-2.5" />
+                                    <span>{resendingLeadId === lead._id ? "..." : "Resend"}</span>
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {lead.customerReplyStatus === "AWAITING_REPLY" ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                  <span>Awaiting Reply</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                  <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                                  <span>Replied</span>
                                 </span>
                               )}
                             </td>
@@ -757,6 +894,7 @@ export default function LeadDistributionPage() {
                                     })
                                   }
                                   className="px-2.5 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold rounded-xl text-xs inline-flex items-center gap-1 shadow-sm transition-colors"
+                                  title="Reassign or Manage Sales Person"
                                 >
                                   <UserCog className="w-3.5 h-3.5" />
                                   <span>Manage</span>

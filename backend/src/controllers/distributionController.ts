@@ -8,6 +8,7 @@ import { getMessageModel } from "../models/Message.js";
 import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { getCrmConnection } from "../database/connections.js";
 import { isCorporateBotNumber } from "../services/botFilter.js";
+import { SalesRepDirectory } from "../services/conversation/salesRepDirectory.js";
 
 const STAFF_PHONE_PATTERNS = [
   "9315160881", // Amit Kumar Sir
@@ -180,6 +181,14 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         priority: l.priority,
         estimatedValue: l.estimatedValue,
         productCategory: l.productCategory,
+        pincode: l.pincode || "",
+        repNotificationStatus: l.repNotificationStatus || "DELIVERED",
+        repNotifiedAt: l.repNotifiedAt || l.createdAt,
+        repPhone: l.repPhone || b.executive.mobile || "",
+        customerReplyStatus: l.customerReplyStatus || "REPLIED",
+        lastReplyAt: l.lastReplyAt || l.createdAt,
+        intentTag: l.intentTag || l.productCategory || "Wholesale Dealership",
+        routingReason: l.routingReason || `PIN ${l.pincode || "Pan-India"} → Routed to ${b.executive.name}`,
         createdAt: l.createdAt,
       })),
     }));
@@ -267,6 +276,10 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
     const totalAssignedLeads = repDistribution.reduce((acc, r) => acc + r.leadsCount, 0);
     const totalUnassignedLeads = unassignedLeads.length;
 
+    const totalRepDelivered = leads.filter(
+      (l) => l.repNotificationStatus !== "FAILED" && l.assignedEmployeeName && l.assignedEmployeeName !== "Unassigned"
+    ).length;
+
     res.status(200).json({
       success: true,
       summary: {
@@ -276,6 +289,8 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         totalUnassignedLeads,
         totalHumanTakeovers: humanTakeovers.length,
         totalDroppedAtHi: droppedAtHi.length,
+        totalRepDelivered,
+        totalCustomerReplied: totalLeadsCount,
         leadCompletionRate:
           totalInquiries > 0 ? Math.round((totalLeadsCount / totalInquiries) * 100) : 0,
       },
@@ -293,6 +308,13 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         estimatedValue: l.estimatedValue,
         requirementDescription: l.requirementDescription,
         pincode: l.pincode,
+        repNotificationStatus: l.repNotificationStatus || "PENDING",
+        repNotifiedAt: l.repNotifiedAt,
+        repPhone: l.repPhone || "",
+        customerReplyStatus: l.customerReplyStatus || "REPLIED",
+        lastReplyAt: l.lastReplyAt || l.createdAt,
+        intentTag: l.intentTag || l.productCategory || "Wholesale Dealership",
+        routingReason: l.routingReason || "Unassigned - Pending Area PIN Match",
         createdAt: l.createdAt,
       })),
       humanTakeovers,
@@ -551,6 +573,17 @@ export async function assignLead(req: Request, res: Response): Promise<void> {
       }
     }
 
+    // 8. Update Lead with live tracking status
+    if (targetLead) {
+      targetLead.repNotificationStatus = agentNotified ? "DELIVERED" : (notifyAgent ? "FAILED" : "PENDING");
+      if (agentNotified) targetLead.repNotifiedAt = new Date();
+      targetLead.repPhone = executivePhone || targetLead.repPhone || "";
+      targetLead.customerReplyStatus = customerNotified ? "REPLIED" : "AWAITING_REPLY";
+      if (customerNotified) targetLead.lastReplyAt = new Date();
+      targetLead.routingReason = `Assigned by Admin → ${executiveName}`;
+      await targetLead.save();
+    }
+
     res.status(200).json({
       success: true,
       action: "assigned",
@@ -573,6 +606,77 @@ export async function assignLead(req: Request, res: Response): Promise<void> {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to process assignment" });
+  }
+}
+
+/**
+ * 1-Click Resend WhatsApp Alert to Sales Representative
+ */
+export async function resendRepAlert(req: Request, res: Response): Promise<void> {
+  try {
+    const { leadId, phone } = req.body;
+    const Lead = getLeadModel();
+    let lead: any = null;
+    if (leadId) lead = await Lead.findById(leadId);
+    if (!lead && phone) {
+      const p10 = normalizePhone(phone);
+      lead = await Lead.findOne({
+        phone: { $in: [phone, `+91${p10}`, `+${p10}`, p10] },
+      }).sort({ createdAt: -1 });
+    }
+
+    if (!lead) {
+      res.status(404).json({ error: "Lead not found" });
+      return;
+    }
+
+    const execName = lead.assignedEmployeeName;
+    if (!execName || execName === "Unassigned") {
+      res.status(400).json({ error: "Lead is unassigned. Please assign an executive first." });
+      return;
+    }
+
+    // Lookup executive mobile
+    const allExecs = await SalesRepDirectory.getAllExecutives();
+    const matched = allExecs.find((e) => normalizeRepName(e.name) === normalizeRepName(execName));
+    const repPhone = matched?.mobile || lead.assignedEmployeeId || "";
+    const cleanRepPhone = repPhone.replace(/\D/g, "");
+
+    if (!cleanRepPhone) {
+      res.status(400).json({ error: `No phone number configured for ${execName}` });
+      return;
+    }
+
+    const alertText =
+      `🔔 *[LEAD NOTIFICATION / RE-DISPATCH]*\n\n` +
+      `Namaste *${execName} ji*,\n` +
+      `Aapke territory se customer inquiry assign hui hai:\n\n` +
+      `👤 *Customer / Firm:* ${lead.customerName}\n` +
+      `📞 *Mobile:* ${lead.phone}\n` +
+      (lead.city ? `📍 *Location:* ${lead.city} ${lead.pincode ? `(PIN: ${lead.pincode})` : ""}\n` : "") +
+      `📦 *Requirement:* ${lead.productCategory || "Wholesale Dealership"}\n` +
+      `🆔 *Lead ID:* ${lead.leadNumber}\n\n` +
+      `⚡ *Kripya customer se turant WhatsApp ya call par sampark karke quotation dein!*`;
+
+    const formattedRepPhone = cleanRepPhone.startsWith("91") ? `+${cleanRepPhone}` : `+91${cleanRepPhone}`;
+    await evolutionClient.sendTextMessage({
+      number: formattedRepPhone,
+      text: alertText,
+    });
+
+    lead.repNotificationStatus = "DELIVERED";
+    lead.repNotifiedAt = new Date();
+    lead.repPhone = formattedRepPhone;
+    await lead.save();
+
+    res.status(200).json({
+      success: true,
+      message: `WhatsApp alert re-sent successfully to ${execName} (${formattedRepPhone})`,
+      lead,
+    });
+  } catch (err: any) {
+    console.error("[DistributionController] resendRepAlert error:", err);
+    res.status(500).json({ error: err.message || "Failed to resend alert to executive" });
   }
 }
 

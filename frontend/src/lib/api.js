@@ -99,6 +99,8 @@ export const crmApi = {
   getDistributionAnalytics: () => apiRequest("/distribution/analytics"),
   assignLeadToExecutive: (data) =>
     apiRequest("/distribution/assign-lead", { method: "POST", body: JSON.stringify(data) }),
+  resendRepAlert: (data) =>
+    apiRequest("/distribution/resend-rep-alert", { method: "POST", body: JSON.stringify(data) }),
   reengageCustomer: (data) =>
     apiRequest("/distribution/reengage", { method: "POST", body: JSON.stringify(data) }),
   reengageBulkCustomers: (data) =>

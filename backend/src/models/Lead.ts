@@ -42,6 +42,15 @@ export interface ILead extends Document {
   history: ILeadHistory[];
   chatwootConversationId?: string;
   isDuplicateResolved: boolean;
+  pincode?: string;
+  repNotificationStatus?: "DELIVERED" | "PENDING" | "FAILED";
+  repNotifiedAt?: Date;
+  repPhone?: string;
+  customerReplyStatus?: "REPLIED" | "AWAITING_REPLY";
+  lastCustomerMessageAt?: Date;
+  lastReplyAt?: Date;
+  intentTag?: string;
+  routingReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -95,6 +104,25 @@ const LeadSchema = new Schema<ILead>(
     ],
     chatwootConversationId: { type: String, default: "" },
     isDuplicateResolved: { type: Boolean, default: false },
+    pincode: { type: String, default: "", index: true },
+    repNotificationStatus: {
+      type: String,
+      enum: ["DELIVERED", "PENDING", "FAILED"],
+      default: "DELIVERED",
+      index: true,
+    },
+    repNotifiedAt: { type: Date, default: Date.now },
+    repPhone: { type: String, default: "" },
+    customerReplyStatus: {
+      type: String,
+      enum: ["REPLIED", "AWAITING_REPLY"],
+      default: "REPLIED",
+      index: true,
+    },
+    lastCustomerMessageAt: { type: Date, default: null },
+    lastReplyAt: { type: Date, default: Date.now },
+    intentTag: { type: String, default: "Wholesale Dealership" },
+    routingReason: { type: String, default: "" },
   },
   { timestamps: true }
 );
