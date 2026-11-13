@@ -418,7 +418,9 @@ export async function assignLead(req: Request, res: Response): Promise<void> {
     if (targetControl) {
       targetControl.assignedAgentName = executiveName;
       if (executivePhone) targetControl.assignedAgentId = executivePhone;
-      targetControl.assignedTeam = `Sales (${executiveName})`;
+      targetControl.assignedTeam = "Sales";
+      targetControl.mode = "human";
+      targetControl.pauseReason = `Assigned to ${executiveName}`;
       await targetControl.save();
     } else if (resolvedCustPhone) {
       try {
@@ -427,7 +429,7 @@ export async function assignLead(req: Request, res: Response): Promise<void> {
           mode: "human",
           assignedAgentName: executiveName,
           assignedAgentId: executivePhone || "",
-          assignedTeam: `Sales (${executiveName})`,
+          assignedTeam: "Sales",
           lastCustomerMessageAt: new Date(),
           pauseReason: `Manually assigned to ${executiveName}`,
         });

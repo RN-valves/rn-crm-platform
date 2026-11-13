@@ -35,7 +35,6 @@ const ConversationControlSchema = new Schema<IConversationControl>(
     assignedAgentName: { type: String, default: "" },
     assignedTeam: {
       type: String,
-      enum: ["Sales", "Support", "Dealers", "Management"],
       default: "Sales",
     },
     aiPausedUntil: { type: Date, default: null },
