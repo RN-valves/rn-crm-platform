@@ -204,13 +204,26 @@ export class ChatwootClient {
       if (!res.ok) return [];
 
       const data: any = await res.json();
-      const messages = (data?.payload || []).map((m: any) => ({
-        id: String(m.id),
-        sender: m.message_type === 0 ? "customer" : "bot",
-        content: m.content || "",
-        timestamp: m.created_at ? new Date(m.created_at * 1000).toISOString() : new Date().toISOString(),
-        type: m.attachments && m.attachments.length > 0 ? "media" : "text",
-      }));
+      const messages = (data?.payload || []).map((m: any) => {
+        let content = (m.content || "").trim();
+        if (!content) {
+          if (m.attachments && m.attachments.length > 0) {
+            const att = m.attachments[0];
+            content = `[Attachment: ${att.file_type || "file"}]`;
+          } else if (m.message_type === 0) {
+            content = "👋 [Incoming WhatsApp Message]";
+          } else {
+            content = "[Response sent]";
+          }
+        }
+        return {
+          id: String(m.id),
+          sender: m.message_type === 0 ? "customer" : "bot",
+          content,
+          timestamp: m.created_at ? new Date(m.created_at * 1000).toISOString() : new Date().toISOString(),
+          type: m.attachments && m.attachments.length > 0 ? "media" : "text",
+        };
+      });
       return messages;
     } catch (error: any) {
       console.warn("[ChatwootClient] Failed to fetch conversation messages:", error.message);

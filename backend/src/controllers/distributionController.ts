@@ -4,6 +4,8 @@ import { getContactModel } from "../models/Contact.js";
 import { getConversationControlModel } from "../models/ConversationControl.js";
 import { getConversationStateModel } from "../models/ConversationState.js";
 import { getSalesExecutiveModel, INITIAL_SALES_EXECUTIVES } from "../models/SalesExecutive.js";
+import { getMessageModel } from "../models/Message.js";
+import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { getCrmConnection } from "../database/connections.js";
 
 const STAFF_PHONE_PATTERNS = [
@@ -291,39 +293,241 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
 
 export async function assignLead(req: Request, res: Response): Promise<void> {
   try {
-    const { leadId, executiveName, executivePhone, executiveEmail } = req.body;
-    if (!leadId || !executiveName) {
-      res.status(400).json({ error: "leadId and executiveName are required" });
+    const {
+      leadId,
+      phone,
+      action = "assign",
+      executiveName,
+      executivePhone,
+      executiveEmail,
+      notifyAgent = true,
+      notifyCustomer = true,
+      customerName,
+      notes,
+    } = req.body;
+
+    const isUnassign = action === "unassign" || executiveName === "Unassigned" || !executiveName;
+
+    if (!leadId && !phone) {
+      res.status(400).json({ error: "Either leadId or phone must be provided" });
       return;
     }
 
     const Lead = getLeadModel();
-    const lead = await Lead.findById(leadId);
-    if (!lead) {
-      res.status(404).json({ error: "Lead not found" });
+    const ConversationControl = getConversationControlModel();
+    const Contact = getContactModel();
+    const Message = getMessageModel();
+
+    let targetLead: any = null;
+    let targetPhone = phone;
+
+    // 1. Locate Lead
+    if (leadId) {
+      targetLead = await Lead.findById(leadId);
+      if (targetLead && !targetPhone) {
+        targetPhone = targetLead.phone;
+      }
+    }
+
+    if (!targetLead && targetPhone) {
+      const p10 = normalizePhone(targetPhone);
+      targetLead = await Lead.findOne({
+        phone: { $regex: new RegExp(p10 + "$") },
+      });
+    }
+
+    // 2. Locate ConversationControl
+    let targetControl: any = null;
+    if (targetPhone) {
+      const p10 = normalizePhone(targetPhone);
+      targetControl = await ConversationControl.findOne({
+        phone: { $regex: new RegExp(p10 + "$") },
+      });
+    }
+
+    // 3. Locate Contact for customer name & city
+    let targetContact: any = null;
+    if (targetPhone) {
+      const p10 = normalizePhone(targetPhone);
+      targetContact = await Contact.findOne({
+        phone: { $regex: new RegExp(p10 + "$") },
+      });
+    }
+
+    const resolvedCustName = customerName || targetLead?.customerName || targetContact?.name || "Customer";
+    const resolvedCustPhone = targetPhone || targetLead?.phone || "";
+    const resolvedCity = targetLead?.city || targetContact?.city || "";
+    const resolvedBusiness = targetLead?.businessName || targetContact?.businessName || "";
+    const resolvedCategory = targetLead?.productCategory || "";
+
+    if (isUnassign) {
+      // ===== UNASSIGN FLOW =====
+      if (targetLead) {
+        const prevName = targetLead.assignedEmployeeName || "Unassigned";
+        targetLead.assignedEmployeeName = "Unassigned";
+        targetLead.assignedEmployeeId = "";
+        targetLead.history.push({
+          fromStatus: targetLead.status,
+          toStatus: targetLead.status,
+          updatedBy: (req as any).user?.name || "Admin",
+          timestamp: new Date(),
+          comment: `Unassigned agent (previously: ${prevName})`,
+        });
+        await targetLead.save();
+      }
+
+      if (targetControl) {
+        targetControl.assignedAgentName = "Unassigned Agent";
+        targetControl.assignedAgentId = "";
+        targetControl.assignedTeam = "Sales";
+        await targetControl.save();
+      }
+
+      res.status(200).json({
+        success: true,
+        action: "unassigned",
+        message: `Agent unassigned successfully for ${resolvedCustName} (${resolvedCustPhone})`,
+        lead: targetLead,
+        control: targetControl,
+      });
       return;
     }
 
-    const prevName = lead.assignedEmployeeName || "Unassigned";
-    lead.assignedEmployeeName = executiveName;
-    if (executivePhone) lead.assignedEmployeeId = executivePhone;
+    // ===== ASSIGN FLOW =====
+    if (!executiveName) {
+      res.status(400).json({ error: "executiveName is required for assignment" });
+      return;
+    }
 
-    lead.history.push({
-      fromStatus: lead.status,
-      toStatus: lead.status,
-      updatedBy: (req as any).user?.name || "Admin",
-      timestamp: new Date(),
-      comment: `Reassigned from ${prevName} to ${executiveName}`,
-    });
+    // 4. Update Lead if exists
+    if (targetLead) {
+      const prevName = targetLead.assignedEmployeeName || "Unassigned";
+      targetLead.assignedEmployeeName = executiveName;
+      if (executivePhone) targetLead.assignedEmployeeId = executivePhone;
+      targetLead.history.push({
+        fromStatus: targetLead.status,
+        toStatus: targetLead.status,
+        updatedBy: (req as any).user?.name || "Admin",
+        timestamp: new Date(),
+        comment: `Reassigned from ${prevName} to ${executiveName}`,
+      });
+      await targetLead.save();
+    }
 
-    await lead.save();
+    // 5. Update / Upsert ConversationControl
+    if (targetControl) {
+      targetControl.assignedAgentName = executiveName;
+      if (executivePhone) targetControl.assignedAgentId = executivePhone;
+      targetControl.assignedTeam = `Sales (${executiveName})`;
+      await targetControl.save();
+    } else if (resolvedCustPhone) {
+      try {
+        await ConversationControl.create({
+          phone: resolvedCustPhone,
+          mode: "human",
+          assignedAgentName: executiveName,
+          assignedAgentId: executivePhone || "",
+          assignedTeam: `Sales (${executiveName})`,
+          lastCustomerMessageAt: new Date(),
+          pauseReason: `Manually assigned to ${executiveName}`,
+        });
+      } catch (ccErr: any) {
+        console.warn("[assignLead] Control create notice:", ccErr.message);
+      }
+    }
+
+    // 6. WhatsApp Notification to Sales Person (Executive)
+    let agentNotified = false;
+    let agentNotifyError: string | null = null;
+    if (notifyAgent && executivePhone) {
+      try {
+        const cleanAgentPhone = executivePhone.replace(/\D/g, "");
+        const formattedAgentPhone = cleanAgentPhone.startsWith("91") ? `+${cleanAgentPhone}` : `+91${cleanAgentPhone}`;
+
+        const agentText = `🔔 *RN Valves & Faucets - New Lead Assigned!*\n\n` +
+          `A new customer inquiry has been assigned to you:\n` +
+          `👤 *Customer Name:* ${resolvedCustName}\n` +
+          `📱 *Customer Phone:* ${resolvedCustPhone}\n` +
+          (resolvedCity ? `📍 *City / Region:* ${resolvedCity}\n` : "") +
+          (resolvedBusiness ? `🏢 *Firm / Shop:* ${resolvedBusiness}\n` : "") +
+          (resolvedCategory ? `📦 *Interested Category:* ${resolvedCategory}\n` : "") +
+          (notes ? `📝 *Admin Note:* ${notes}\n` : "") +
+          `\n⏰ *Assigned Time:* ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}\n\n` +
+          `👉 *Action Required:* Please connect with the customer on WhatsApp or Call at earliest to discuss requirements & dealer margins.`;
+
+        await evolutionClient.sendTextMessage({
+          number: formattedAgentPhone,
+          text: agentText,
+        });
+        agentNotified = true;
+        console.log(`✅ [Notification] WhatsApp sent to sales executive ${executiveName} (${formattedAgentPhone})`);
+      } catch (err: any) {
+        agentNotifyError = err.message;
+        console.warn(`⚠️ [Notification] Failed to send WhatsApp to executive ${executiveName}:`, err.message);
+      }
+    }
+
+    // 7. WhatsApp Notification to Customer
+    let customerNotified = false;
+    let customerNotifyError: string | null = null;
+    if (notifyCustomer && resolvedCustPhone) {
+      try {
+        const cleanCustPhone = resolvedCustPhone.replace(/\D/g, "");
+        const formattedCustPhone = cleanCustPhone.startsWith("91") ? `+${cleanCustPhone}` : `+91${cleanCustPhone}`;
+
+        const customerText = `Namaste ${resolvedCustName && resolvedCustName !== "Customer" ? resolvedCustName : ""}! 🙏\n\n` +
+          `RN Valves & Faucets me aapki inquiry hamare Regional Sales Representative ko assign kar di gayi hai:\n\n` +
+          `👤 *Sales Manager:* ${executiveName}\n` +
+          (executivePhone ? `📞 *Direct WhatsApp / Call:* ${executivePhone}\n` : "") +
+          `\nHum aapse jaldi hi best dealer margins, wholesale pricing aur latest catalogues ke saath sampark karenge.\n\n` +
+          `Kisi bhi turant sahayata ke liye aap hamare sales executive se seedhe sampark kar sakte hain. ✨\n\n` +
+          `*RN Valves & Faucets Pvt. Ltd.*`;
+
+        await evolutionClient.sendTextMessage({
+          number: formattedCustPhone,
+          text: customerText,
+        });
+
+        // Also log this outgoing customer notification in MongoDB messages so it appears in CRM Inbox
+        try {
+          await Message.create({
+            phone: formattedCustPhone,
+            sender: "bot",
+            content: customerText,
+            mediaType: "text",
+            mediaUrl: "",
+          });
+        } catch {}
+
+        customerNotified = true;
+        console.log(`✅ [Notification] WhatsApp sent to customer ${resolvedCustName} (${formattedCustPhone})`);
+      } catch (err: any) {
+        customerNotifyError = err.message;
+        console.warn(`⚠️ [Notification] Failed to send WhatsApp to customer ${resolvedCustPhone}:`, err.message);
+      }
+    }
 
     res.status(200).json({
       success: true,
+      action: "assigned",
       message: `Lead successfully assigned to ${executiveName}`,
-      lead,
+      executive: {
+        name: executiveName,
+        phone: executivePhone,
+      },
+      customer: {
+        name: resolvedCustName,
+        phone: resolvedCustPhone,
+      },
+      notifications: {
+        agentNotified,
+        customerNotified,
+        agentNotifyError,
+        customerNotifyError,
+      },
+      lead: targetLead,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to assign lead" });
+    res.status(500).json({ error: err.message || "Failed to process assignment" });
   }
 }

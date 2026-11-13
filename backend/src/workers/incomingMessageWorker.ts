@@ -21,26 +21,72 @@ export function setupIncomingMessageWorker(): Worker {
       const rawNumber = String(effectiveJid || "").split("@")[0].replace(/\D/g, "");
       const normalizedPhone = rawNumber.startsWith("91") ? `+${rawNumber}` : `+91${rawNumber}`;
 
-      // Extract text content and media type
+      // Extract text content and media type (with deep unwrapping)
       let textContent = "";
       let mediaType: "text" | "image" | "document" | "audio" | "video" = "text";
       let mediaUrl = "";
 
-      if (message?.conversation) {
-        textContent = message.conversation;
-      } else if (message?.extendedTextMessage?.text) {
-        textContent = message.extendedTextMessage.text;
-      } else if (message?.imageMessage) {
-        textContent = message.imageMessage.caption || "[Image]";
+      let innerMsg = message;
+      let depth = 0;
+      while (depth < 5 && innerMsg) {
+        if (innerMsg.ephemeralMessage?.message) {
+          innerMsg = innerMsg.ephemeralMessage.message;
+        } else if (innerMsg.viewOnceMessage?.message) {
+          innerMsg = innerMsg.viewOnceMessage.message;
+        } else if (innerMsg.viewOnceMessageV2?.message) {
+          innerMsg = innerMsg.viewOnceMessageV2.message;
+        } else if (innerMsg.documentWithCaptionMessage?.message) {
+          innerMsg = innerMsg.documentWithCaptionMessage.message;
+        } else if (innerMsg.editedMessage?.message?.protocolMessage?.editedMessage) {
+          innerMsg = innerMsg.editedMessage.message.protocolMessage.editedMessage;
+        } else {
+          break;
+        }
+        depth++;
+      }
+
+      if (innerMsg?.conversation) {
+        textContent = innerMsg.conversation;
+      } else if (innerMsg?.extendedTextMessage?.text) {
+        textContent = innerMsg.extendedTextMessage.text;
+      } else if (innerMsg?.imageMessage) {
+        textContent = innerMsg.imageMessage.caption || "[Photo / Image]";
         mediaType = "image";
-        mediaUrl = message.imageMessage.url || "";
-      } else if (message?.documentMessage) {
-        textContent = message.documentMessage.fileName || "[Document]";
+        mediaUrl = innerMsg.imageMessage.url || "";
+      } else if (innerMsg?.documentMessage) {
+        textContent = innerMsg.documentMessage.fileName || innerMsg.documentMessage.caption || "[Document]";
         mediaType = "document";
-        mediaUrl = message.documentMessage.url || "";
-      } else if (message?.audioMessage) {
-        textContent = "[Voice Note]";
+        mediaUrl = innerMsg.documentMessage.url || "";
+      } else if (innerMsg?.audioMessage) {
+        textContent = "[Voice Note / Audio]";
         mediaType = "audio";
+        mediaUrl = innerMsg.audioMessage.url || "";
+      } else if (innerMsg?.videoMessage) {
+        textContent = innerMsg.videoMessage.caption || "[Video]";
+        mediaType = "video";
+        mediaUrl = innerMsg.videoMessage.url || "";
+      } else if (innerMsg?.buttonsResponseMessage?.selectedDisplayText) {
+        textContent = innerMsg.buttonsResponseMessage.selectedDisplayText;
+      } else if (innerMsg?.buttonsResponseMessage?.selectedButtonId) {
+        textContent = innerMsg.buttonsResponseMessage.selectedButtonId;
+      } else if (innerMsg?.listResponseMessage?.title) {
+        textContent = innerMsg.listResponseMessage.title;
+      } else if (innerMsg?.listResponseMessage?.singleSelectReply?.selectedRowId) {
+        textContent = innerMsg.listResponseMessage.singleSelectReply.selectedRowId;
+      } else if (innerMsg?.templateButtonReplyMessage?.selectedId) {
+        textContent = innerMsg.templateButtonReplyMessage.selectedId;
+      } else if (innerMsg?.interactiveResponseMessage?.body?.text) {
+        textContent = innerMsg.interactiveResponseMessage.body.text;
+      } else if (innerMsg?.contactMessage?.displayName) {
+        textContent = `[Contact: ${innerMsg.contactMessage.displayName}]`;
+      } else if (innerMsg?.locationMessage) {
+        textContent = innerMsg.locationMessage.name ? `[Location: ${innerMsg.locationMessage.name}]` : "[Location]";
+      } else if (innerMsg?.stickerMessage) {
+        textContent = "[Sticker]";
+      }
+
+      if (!textContent.trim()) {
+        textContent = "👋 [Incoming WhatsApp Message]";
       }
 
       console.log(

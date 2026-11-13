@@ -121,14 +121,30 @@ export async function getConversationMessages(req: Request, res: Response): Prom
 
       if (messages && messages.length > 0) {
         res.status(200).json({
-          messages: messages.map((m) => ({
-            id: String(m._id),
-            sender: m.sender,
-            content: m.content,
-            mediaUrl: m.mediaUrl,
-            timestamp: m.createdAt,
-            type: m.mediaUrl ? "media" : "text",
-          })),
+          messages: messages.map((m) => {
+            let content = (m.content || "").trim();
+            if (!content) {
+              if (m.mediaType === "image" || m.mediaUrl) {
+                content = "[Photo / Attachment]";
+              } else if (m.mediaType === "audio") {
+                content = "[Voice Note]";
+              } else if (m.mediaType === "document") {
+                content = "[Document / Catalog]";
+              } else if (m.sender === "customer") {
+                content = "👋 [Incoming WhatsApp Message]";
+              } else {
+                content = "[Response sent]";
+              }
+            }
+            return {
+              id: String(m._id),
+              sender: m.sender,
+              content,
+              mediaUrl: m.mediaUrl,
+              timestamp: m.createdAt,
+              type: m.mediaUrl ? "media" : "text",
+            };
+          }),
         });
         return;
       }
