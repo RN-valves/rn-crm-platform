@@ -399,7 +399,7 @@ export async function assignLead(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // 4. Update Lead if exists
+    // 4. Update or Create Lead
     if (targetLead) {
       const prevName = targetLead.assignedEmployeeName || "Unassigned";
       targetLead.assignedEmployeeName = executiveName;
@@ -412,6 +412,35 @@ export async function assignLead(req: Request, res: Response): Promise<void> {
         comment: `Reassigned from ${prevName} to ${executiveName}`,
       });
       await targetLead.save();
+    } else if (resolvedCustPhone) {
+      // Customer was an unformed WhatsApp inquiry / human takeover -> create formal Lead record
+      const randomSuffix = Math.floor(10000 + Math.random() * 90000);
+      const leadNumber = `RNL-${randomSuffix}`;
+
+      targetLead = await Lead.create({
+        leadNumber,
+        customerName: resolvedCustName,
+        phone: resolvedCustPhone,
+        businessName: resolvedBusiness || "",
+        businessType: "Other",
+        city: resolvedCity || "India",
+        productCategory: resolvedCategory || "General Inquiry",
+        productInterest: [],
+        leadSource: "WhatsApp_Inbound",
+        assignedEmployeeName: executiveName,
+        assignedEmployeeId: executivePhone || "",
+        status: "NEW",
+        priority: "HIGH",
+        history: [
+          {
+            fromStatus: "NEW",
+            toStatus: "NEW",
+            updatedBy: (req as any).user?.name || "Admin",
+            timestamp: new Date(),
+            comment: `Lead created & assigned to ${executiveName} via CRM Management`,
+          },
+        ],
+      });
     }
 
     // 5. Update / Upsert ConversationControl
