@@ -882,6 +882,26 @@ export default function LeadDistributionPage() {
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() =>
+                                  openManageModal({
+                                    phone: d.phone,
+                                    customerName:
+                                      d.name && d.name !== "Incomplete Visitor" && d.name !== "WhatsApp Customer"
+                                        ? d.name
+                                        : "Customer",
+                                    currentAgentName: "Unassigned Agent",
+                                    city: d.city || "",
+                                    businessName: d.businessName || "",
+                                    reason: d.dropOffStage || "Dropped at greeting",
+                                  })
+                                }
+                                className="px-2.5 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold rounded-xl text-xs inline-flex items-center gap-1 shadow-sm transition-colors"
+                                title="Directly assign to Sales Person"
+                              >
+                                <UserCog className="w-3.5 h-3.5" />
+                                <span>Manage</span>
+                              </button>
+                              <button
+                                onClick={() =>
                                   openReengageModal({
                                     phone: d.phone,
                                     name: d.name,
