@@ -68,24 +68,24 @@ likh kar reply karein. Hamare Sales Executive turant aapko assist karenge! ðŸš¿â
     setError(null);
     try {
       if (isBulk) {
-        const res = await crmApi.post("/distribution/reengage-bulk", {
+        const res = await crmApi.reengageBulkCustomers({
           phones: target.phones || [],
           customMessage: customMessage.trim(),
         });
         setSuccessInfo({
           type: "bulk",
-          message: res.data?.message || "Bulk re-engagement greetings delivered successfully!",
-          sentCount: res.data?.sentCount || 0,
+          message: res?.message || "Bulk re-engagement greetings delivered successfully!",
+          sentCount: res?.sentCount || 0,
         });
       } else {
-        const res = await crmApi.post("/distribution/reengage", {
+        const res = await crmApi.reengageCustomer({
           phone: target.phone,
           name: target.name,
           customMessage: customMessage.trim(),
         });
         setSuccessInfo({
           type: "single",
-          message: res.data?.message || `Greeting delivered to ${target.phone}!`,
+          message: res?.message || `Greeting delivered to ${target.phone}!`,
           phone: target.phone,
         });
       }
@@ -93,7 +93,7 @@ likh kar reply karein. Hamare Sales Executive turant aapko assist karenge! ðŸš¿â
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error("Reengage error:", err);
-      setError(err.response?.data?.error || err.message || "Failed to send greeting");
+      setError(err?.response?.data?.error || err?.message || "Failed to send greeting");
     } finally {
       setLoading(false);
     }

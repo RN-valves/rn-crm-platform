@@ -99,4 +99,15 @@ export const crmApi = {
   getDistributionAnalytics: () => apiRequest("/distribution/analytics"),
   assignLeadToExecutive: (data) =>
     apiRequest("/distribution/assign-lead", { method: "POST", body: JSON.stringify(data) }),
+  reengageCustomer: (data) =>
+    apiRequest("/distribution/reengage", { method: "POST", body: JSON.stringify(data) }),
+  reengageBulkCustomers: (data) =>
+    apiRequest("/distribution/reengage-bulk", { method: "POST", body: JSON.stringify(data) }),
+
+  // Generic HTTP helpers
+  get: (endpoint) => apiRequest(endpoint),
+  post: (endpoint, body) => apiRequest(endpoint, { method: "POST", body: JSON.stringify(body) }),
+  put: (endpoint, body) => apiRequest(endpoint, { method: "PUT", body: JSON.stringify(body) }),
+  patch: (endpoint, body) => apiRequest(endpoint, { method: "PATCH", body: JSON.stringify(body) }),
+  delete: (endpoint) => apiRequest(endpoint, { method: "DELETE" }),
 };
