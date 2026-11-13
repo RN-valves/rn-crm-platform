@@ -7,6 +7,7 @@ import { getSalesExecutiveModel, INITIAL_SALES_EXECUTIVES } from "../models/Sale
 import { getMessageModel } from "../models/Message.js";
 import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { getCrmConnection } from "../database/connections.js";
+import { isCorporateBotNumber } from "../services/botFilter.js";
 
 const STAFF_PHONE_PATTERNS = [
   "9315160881", // Amit Kumar Sir
@@ -59,28 +60,36 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       executives = INITIAL_SALES_EXECUTIVES;
     }
 
-    // 2. Fetch all Leads
+    // 2. Fetch all Leads (excluding corporate bots)
     let leads: any[] = [];
     try {
-      leads = await Lead.find({}).sort({ createdAt: -1 }).lean();
+      leads = (await Lead.find({}).sort({ createdAt: -1 }).lean()).filter(
+        (l) => !isCorporateBotNumber(l.phone)
+      );
     } catch {}
 
-    // 3. Fetch all Contacts
+    // 3. Fetch all Contacts (excluding corporate bots)
     let contacts: any[] = [];
     try {
-      contacts = await Contact.find({}).sort({ lastContactedAt: -1 }).lean();
+      contacts = (await Contact.find({}).sort({ lastContactedAt: -1 }).lean()).filter(
+        (c) => !isCorporateBotNumber(c.phone)
+      );
     } catch {}
 
-    // 4. Fetch Human Conversations
+    // 4. Fetch Human Conversations (excluding corporate bots)
     let humanControls: any[] = [];
     try {
-      humanControls = await ConversationControl.find({ mode: "human" }).sort({ updatedAt: -1 }).lean();
+      humanControls = (await ConversationControl.find({ mode: "human" }).sort({ updatedAt: -1 }).lean()).filter(
+        (hc) => !isCorporateBotNumber(hc.phone)
+      );
     } catch {}
 
-    // 5. Fetch Active Sessions
+    // 5. Fetch Active Sessions (excluding corporate bots)
     let sessions: any[] = [];
     try {
-      sessions = await ConversationState.find({}).lean();
+      sessions = (await ConversationState.find({}).lean()).filter(
+        (s) => !isCorporateBotNumber(s.phone)
+      );
     } catch {}
     const sessionMap = new Map<string, any>();
     for (const s of sessions) {
@@ -204,6 +213,8 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
     for (const c of contacts) {
       const p10 = normalizePhone(c.phone);
       if (!p10) continue;
+      // Skip corporate bots
+      if (isCorporateBotNumber(p10)) continue;
       // Skip if lead was completed
       if (leadPhoneSet.has(p10)) continue;
       // Skip if converted to human takeover

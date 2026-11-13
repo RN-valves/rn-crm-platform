@@ -5,6 +5,7 @@ import { getContactModel } from "../models/Contact.js";
 import { getConversationControlModel } from "../models/ConversationControl.js";
 import { getMessageModel } from "../models/Message.js";
 import { chatwootClient } from "../services/chatwoot/chatwootClient.js";
+import { isCorporateBot } from "../services/botFilter.js";
 
 export function setupIncomingMessageWorker(): Worker {
   const worker = new Worker(
@@ -92,6 +93,12 @@ export function setupIncomingMessageWorker(): Worker {
       console.log(
         `📨 [Incoming Worker] Job ${job.id}: ${normalizedPhone} (${pushName || "Customer"}) [${mediaType}]: "${textContent}"`
       );
+
+      // Corporate Bot / Automated Service Filter (Jio, SBI, Banks, RBI, OTPs)
+      if (isCorporateBot(normalizedPhone, textContent)) {
+        console.log(`🤖 [Incoming Worker] Skipped corporate bot message from ${normalizedPhone}`);
+        return { status: "ignored_corporate_bot" };
+      }
 
       // 1. Sync or Create Contact in CRM DB (if DB available)
       let contact: any = null;

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { getContactModel } from "../models/Contact.js";
+import { getCorporateBotMongoFilter } from "../services/botFilter.js";
 
 export async function getContacts(req: Request, res: Response): Promise<void> {
   try {
@@ -8,7 +9,7 @@ export async function getContacts(req: Request, res: Response): Promise<void> {
     const search = (req.query.search as string) || "";
     const businessType = (req.query.businessType as string) || "";
 
-    const query: any = {};
+    const query: any = { ...getCorporateBotMongoFilter() };
     if (search) {
       const regex = new RegExp(search.trim(), "i");
       query.$or = [{ name: regex }, { phone: regex }, { city: regex }, { businessName: regex }];

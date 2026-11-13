@@ -9,6 +9,7 @@ import { ProductRepository } from "../../repositories/ProductRepository.js";
 import { outgoingMessagesQueue } from "../../queues/queueManager.js";
 import { evolutionClient } from "../evolution/evolutionClient.js";
 import { chatwootClient } from "../chatwoot/chatwootClient.js";
+import { isCorporateBot } from "../botFilter.js";
 
 export interface FlowResponse {
   replyText: string;
@@ -135,6 +136,12 @@ export class FlowEngine {
   static async processMessage(phone: string, text: string, customerName?: string): Promise<FlowResponse> {
     const cleanText = text.trim();
     const lower = cleanText.toLowerCase();
+
+    // 0. Corporate & Enterprise Bot Filter (Jio, SBI, Banks, RBI, OTPs)
+    if (isCorporateBot(phone, cleanText)) {
+      console.log(`🤖 [FlowEngine] Ignored corporate bot message from ${phone}`);
+      return { replyText: "", ignoreMessage: true };
+    }
 
     // 1. Spam & OTP Filter
     if (this.isSpamOrFiltered(cleanText, phone)) {

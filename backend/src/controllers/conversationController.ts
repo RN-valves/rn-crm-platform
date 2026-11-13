@@ -6,13 +6,14 @@ import { getLeadModel } from "../models/Lead.js";
 import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { chatwootClient } from "../services/chatwoot/chatwootClient.js";
 import { getAuditLogModel } from "../models/AuditLog.js";
+import { getCorporateBotMongoFilter } from "../services/botFilter.js";
 
 export async function getConversations(req: Request, res: Response): Promise<void> {
   try {
     const mode = req.query.mode as string;
     const search = req.query.search as string;
 
-    const query: any = {};
+    const query: any = { ...getCorporateBotMongoFilter() };
     if (mode && mode !== "ALL") query.mode = mode;
     if (search) {
       const regex = new RegExp(search.trim(), "i");

@@ -6,6 +6,7 @@ import { getFollowupModel } from "../models/Followup.js";
 import { SalesRepDirectory } from "../services/conversation/salesRepDirectory.js";
 import { getCrmConnection } from "../database/connections.js";
 import { INITIAL_SALES_EXECUTIVES } from "../models/SalesExecutive.js";
+import { getCorporateBotMongoFilter } from "../services/botFilter.js";
 
 export async function getDashboardStats(req: Request, res: Response): Promise<void> {
   try {
@@ -97,7 +98,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       // 1. Contacts
       try {
         const Contact = getContactModel();
-        const contactDateFilter: any = {};
+        const contactDateFilter: any = { ...getCorporateBotMongoFilter() };
         if (startDate && endDate) {
           contactDateFilter.createdAt = { $gte: startDate, $lte: endDate };
         }
@@ -140,7 +141,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       // 3. Conversations (AI vs Human)
       try {
         const ConversationControl = getConversationControlModel();
-        const convDateFilter: any = {};
+        const convDateFilter: any = { ...getCorporateBotMongoFilter() };
         if (startDate && endDate) {
           convDateFilter.lastCustomerMessageAt = { $gte: startDate, $lte: endDate };
         }

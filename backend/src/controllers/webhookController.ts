@@ -5,6 +5,7 @@ import { getMessageModel } from "../models/Message.js";
 import { FlowEngine } from "../services/conversation/flowEngine.js";
 import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { chatwootClient } from "../services/chatwoot/chatwootClient.js";
+import { isCorporateBot } from "../services/botFilter.js";
 import { config } from "../config/env.js";
 
 // In-memory deduplication cache (prevents duplicate processing if webhook retries)
@@ -99,6 +100,12 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
   }
 
   console.log(`📨 [Direct Pipeline] Received from ${normalizedPhone} (${pushName}): "${textContent}"`);
+
+  // 2b. Corporate Bot / Automated Service Filter (Jio, SBI, Banks, RBI, OTPs)
+  if (isCorporateBot(normalizedPhone, textContent)) {
+    console.log(`🤖 [Bot Filter] Blocked corporate bot / service message from ${normalizedPhone}. No auto-reply sent.`);
+    return;
+  }
 
   // 3. Save incoming customer message to CRM DB
   try {
