@@ -212,8 +212,12 @@ export class FlowEngine {
     }
 
     // 4c. Global Shortcuts (Hi / Reset, Main Menu, Change Language, Back)
+    const has6DigitPin = /\b([1-9][0-9]{5})\b/.test(cleanText);
     const isExplicitReset = /^#(reset|restart|clear|fresh|clean)$/i.test(cleanText);
-    const isGreetingReset = /\b(hi|hello|hey|namaste|namaskar|pranam|start|restart|reset|hlo|hii|helo)\b/i.test(cleanText) &&
+    const isGreetingReset =
+      !has6DigitPin &&
+      stateDoc.state !== "RE_ENGAGE_AWAITING_PIN_NAME" &&
+      /\b(hi|hello|hey|namaste|namaskar|pranam|start|restart|reset|hlo|hii|helo)\b/i.test(cleanText) &&
       cleanText.split(/\s+/).length <= 4;
 
     if (isExplicitReset || (isGreetingReset && stateDoc.state !== "LANGUAGE_SELECTION")) {
@@ -424,10 +428,22 @@ export class FlowEngine {
 
     switch (currentState) {
       // ----------------------------------------------------
+      // RE-ENGAGEMENT AWAITING PIN & NAME (Recovery Flow)
+      // ----------------------------------------------------
+      case "RE_ENGAGE_AWAITING_PIN_NAME": {
+        return await this.handleReEngageReply(session, text, customerName);
+      }
+
+      // ----------------------------------------------------
       // STATE 1: LANGUAGE SELECTION
       // ----------------------------------------------------
       case "START":
       case "LANGUAGE_SELECTION": {
+        // If customer directly provided a 6-digit PIN code in initial greeting
+        if (/\b([1-9][0-9]{5})\b/.test(text)) {
+          return await this.handleReEngageReply(session, text, customerName);
+        }
+
         const langMap: Record<string, "en" | "hi" | "te" | "ta" | "pa" | "ur"> = {
           "1": "en",
           english: "en",
@@ -1923,6 +1939,171 @@ export class FlowEngine {
     }
 
     return { replyText: msg };
+  }
+
+  /**
+   * Handle Customer Reply to Re-engagement Greeting (asking for Name & PIN)
+   */
+  private static async handleReEngageReply(
+    session: IConversationState,
+    text: string,
+    customerName?: string
+  ): Promise<FlowResponse> {
+    const pinMatch = text.match(/\b([1-9][0-9]{5})\b/);
+    const cleanPin = pinMatch ? pinMatch[1] : "";
+
+    // Extract name if provided (everything except the 6 digit pin)
+    let potentialName = text.replace(/\b[1-9][0-9]{5}\b/g, "").replace(/\b[6-9][0-9]{9}\b/g, "");
+    potentialName = potentialName.replace(/(?:my\s*name\s*is|naam|name|firm|shop|shubh|dukan|store|pin|pincode|code)[:\s\-*]+/gi, " ").trim();
+    potentialName = potentialName.replace(/[*_~`]/g, "").trim();
+
+    let finalName = "";
+    if (potentialName.length >= 2 && !/^(hi|hello|namaste|hlo|ok|yes|no|ha|ji)$/i.test(potentialName)) {
+      finalName = FlowEngine.sanitizeAndExtractName(potentialName);
+    }
+    if (!finalName && session.formData?.name) {
+      finalName = session.formData.name;
+    }
+    if (!finalName && customerName && customerName !== "Customer" && customerName !== "WhatsApp User") {
+      finalName = FlowEngine.sanitizeAndExtractName(customerName);
+    }
+
+    if (finalName) {
+      session.formData.name = finalName;
+    }
+
+    // If PIN code is NOT found yet
+    if (!cleanPin) {
+      return {
+        replyText: `Namaste ${finalName ? `*${finalName}*! ` : ""}🙏\n\nAapko aapke Area ke Regional Sales Manager se connect karne aur wholesale rates paane ke liye, kripya apna *6-Digit Area PIN Code* (e.g. *110006* ya *141001*) bhejein:`,
+      };
+    }
+
+    // PIN code found!
+    session.formData.pincode = cleanPin;
+    const finalCustomerName = finalName || "Customer";
+    const rep = SalesRepDirectory.getRepByPin(cleanPin);
+    session.formData.assignedAgent = rep;
+    session.state = "COMPLETED";
+
+    const phoneDigits = session.phone.replace(/\D/g, "");
+    const formattedPhone = phoneDigits.startsWith("91") ? `+${phoneDigits}` : `+91${phoneDigits}`;
+    const p10 = phoneDigits.slice(-10);
+
+    // 1. Create or Update formal Lead
+    const Lead = getLeadModel();
+    const leadNumber = `RNL-${Math.floor(10000 + Math.random() * 90000)}`;
+    try {
+      await Lead.findOneAndUpdate(
+        { phone: { $in: [session.phone, formattedPhone, p10] } },
+        {
+          $setOnInsert: {
+            leadNumber,
+            customerName: finalCustomerName,
+            phone: p10,
+            businessType: session.customerType || "Dealer",
+            city: rep.area || rep.state,
+            state: rep.state,
+            pincode: cleanPin,
+            productCategory: "All Categories",
+            productInterest: ["All Categories"],
+            requirementDescription: `WhatsApp Re-Engaged Inbound Lead (PIN: ${cleanPin})`,
+            leadSource: "WhatsApp_ReEngage",
+            assignedEmployeeName: rep.name,
+            status: "NEW",
+            priority: "HIGH",
+          },
+          $set: {
+            assignedEmployeeName: rep.name,
+            pincode: cleanPin,
+            city: rep.area || rep.state,
+            state: rep.state,
+          },
+        },
+        { upsert: true, new: true }
+      );
+      console.log(`✅ [FlowEngine] Re-engage Lead Created/Updated: ${finalCustomerName} -> ${rep.name} (${cleanPin})`);
+    } catch (err: any) {
+      console.error(`❌ [FlowEngine] Failed to save re-engaged lead: ${err.message}`);
+    }
+
+    // 2. Upsert Contact
+    try {
+      const Contact = getContactModel();
+      await Contact.findOneAndUpdate(
+        { phone: { $in: [session.phone, formattedPhone, p10] } },
+        {
+          $set: {
+            phone: formattedPhone,
+            name: finalCustomerName,
+            city: rep.area || rep.state,
+            state: rep.state,
+            pincode: cleanPin,
+            lastContactedAt: new Date(),
+          },
+          $setOnInsert: {
+            isVerifiedDealer: false,
+            tags: ["WhatsApp_ReEngaged", "Dealer"],
+          },
+        },
+        { upsert: true }
+      );
+    } catch {}
+
+    // 3. Update ConversationControl
+    try {
+      const ConversationControl = getConversationControlModel();
+      await ConversationControl.findOneAndUpdate(
+        { phone: { $in: [session.phone, formattedPhone, p10] } },
+        {
+          $set: {
+            assignedAgentName: rep.name,
+            assignedTeam: "Sales",
+            mode: "ai",
+          },
+        },
+        { upsert: true }
+      );
+    } catch {}
+
+    // 4. Send Instant WhatsApp alert to Sales Rep & Admin
+    try {
+      await FlowEngine.dispatchRepWhatsAppAlert(rep, {
+        customerName: finalCustomerName,
+        customerPhone: p10,
+        pincode: cleanPin,
+        customerType: session.customerType || "Dealer",
+        productCategory: "All Categories",
+        leadNumber,
+        isRepeat: false,
+      });
+    } catch (alertErr: any) {
+      console.warn(`[FlowEngine] Rep notification warning: ${alertErr.message}`);
+    }
+
+    // 5. Send Confirmation to Customer with Catalogues
+    const customerMsg =
+      `🎉 *धन्यवाद ${finalCustomerName}!* आपकी जानकारी प्राप्त हो गई है।\n\n` +
+      `📋 *विवरण:*\n` +
+      `• नाम: *${finalCustomerName}*\n` +
+      `• पिन कोड: *${cleanPin}* (${rep.state})\n\n` +
+      `👤 *आपके एरिया सेल्स मैनेजर (Designated Sales Manager):*\n` +
+      `• नाम: *${rep.name}*\n` +
+      `• संपर्क: *${rep.mobile}*\n` +
+      `• क्षेत्र: ${rep.area} (${rep.state})\n\n` +
+      `हमारे सेल्स मैनेजर *${rep.name}* शीघ्र ही आपसे विशेष डीलर प्राइज लिस्ट और कैटलॉग के साथ संपर्क करेंगे।\n\n` +
+      `नीचे हमारा कम्प्लीट प्रोडक्ट कैटलॉग संलग्न है। 🚿✨\n\n` +
+      `1. 👤 Talk to Sales Team\n` +
+      `2. 📄 View Other Catalogues\n` +
+      `3. 🏠 Main Menu`;
+
+    return {
+      replyText: customerMsg,
+      mediaUrl: "https://rnvalves.com/uploads/aboutus/rn-catalogue-price-list-compressedpdf5kvoaov0mh23c3e2iedvrd0qhliikm.pdf",
+      mediaType: "document",
+      mediaFileName: "RN_Valves_Complete_Catalogue_PriceList.pdf",
+      mediaCaption: "RN Valves & Faucets - Complete Product Catalogue & Price List",
+    };
   }
 
   /**

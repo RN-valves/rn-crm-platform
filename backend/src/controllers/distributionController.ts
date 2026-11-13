@@ -227,6 +227,8 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       if (activeSession) {
         if (activeSession.state === "LANGUAGE_SELECTION") {
           dropOffStage = "Dropped at Language Selection Menu (Sent Hi)";
+        } else if (activeSession.state === "RE_ENGAGE_AWAITING_PIN_NAME") {
+          dropOffStage = "Re-engagement Greet Sent (Awaiting Name & PIN)";
         } else if (activeSession.state === "REQUIREMENT_TYPE") {
           dropOffStage = "Selected Language, dropped at Requirement Type";
         } else if (activeSession.state === "FORM_NAME") {
@@ -571,5 +573,180 @@ export async function assignLead(req: Request, res: Response): Promise<void> {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to process assignment" });
+  }
+}
+
+/**
+ * Send Re-engagement Greeting asking for PIN & Name to Incomplete Visitor
+ */
+export async function reengageCustomer(req: Request, res: Response): Promise<void> {
+  try {
+    const { phone, name, customMessage } = req.body;
+    if (!phone) {
+      res.status(400).json({ error: "Customer phone is required" });
+      return;
+    }
+
+    if (isCorporateBotNumber(phone)) {
+      res.status(400).json({ error: "Cannot re-engage corporate automated bot numbers" });
+      return;
+    }
+
+    const cleanDigits = phone.replace(/\D/g, "");
+    const formattedPhone = cleanDigits.startsWith("91") ? `+${cleanDigits}` : `+91${cleanDigits}`;
+    const p10 = cleanDigits.slice(-10);
+
+    const displayName = name && name !== "WhatsApp Customer" && name !== "Incomplete Visitor" ? name : "";
+
+    const defaultGreeting =
+      `Namaste ${displayName ? `${displayName} ji! ` : ""}🙏 Welcome to *RN Valves & Faucets*.\n\n` +
+      `Hum dekh rahe hain ki aapki WhatsApp enquiry adhuri rah gayi thi.\n\n` +
+      `Aapko aapke Area ke Regional Sales Manager se connect karne aur special wholesale prices/catalogues paane ke liye, kripya apna:\n\n` +
+      `1️⃣ *Shubh Naam ya Firm ka Naam*\n` +
+      `2️⃣ *6-Digit Area PIN Code* (e.g. 110006 ya 141001)\n\n` +
+      `likh kar reply karein. Hamare Sales Executive turant aapko assist karenge! 🚿✨`;
+
+    const textToSend = customMessage && customMessage.trim() ? customMessage.trim() : defaultGreeting;
+
+    // 1. Send WhatsApp via Evolution API
+    const sendResult = await evolutionClient.sendTextMessage({
+      number: formattedPhone,
+      text: textToSend,
+    });
+
+    // 2. Save outgoing message in MongoDB
+    try {
+      const Message = getMessageModel();
+      await Message.create({
+        phone: formattedPhone,
+        sender: "bot",
+        content: textToSend,
+        mediaType: "text",
+        mediaUrl: "",
+      });
+    } catch {}
+
+    // 3. Set ConversationState to RE_ENGAGE_AWAITING_PIN_NAME
+    try {
+      const ConversationState = getConversationStateModel();
+      await ConversationState.findOneAndUpdate(
+        { phone: { $in: [phone, formattedPhone, p10] } },
+        {
+          $set: {
+            state: "RE_ENGAGE_AWAITING_PIN_NAME",
+            lastMessageTimestamp: Date.now(),
+            formData: { name: displayName },
+          },
+        },
+        { upsert: true, new: true }
+      );
+    } catch {}
+
+    // 4. Update ConversationControl
+    try {
+      const ConversationControl = getConversationControlModel();
+      await ConversationControl.findOneAndUpdate(
+        { phone: { $in: [phone, formattedPhone, p10] } },
+        {
+          $set: {
+            mode: "ai",
+            lastAgentMessageAt: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+    } catch {}
+
+    res.status(200).json({
+      success: true,
+      message: `Re-engagement greeting sent to ${formattedPhone}`,
+      phone: formattedPhone,
+      sendResult,
+    });
+  } catch (err: any) {
+    console.error("[DistributionController] reengageCustomer error:", err);
+    res.status(500).json({ error: err.message || "Failed to send re-engagement message" });
+  }
+}
+
+/**
+ * Send Bulk Re-engagement Greetings to All Dropped-off Inquiries
+ */
+export async function reengageBulkCustomers(req: Request, res: Response): Promise<void> {
+  try {
+    const { phones, customMessage } = req.body;
+    if (!Array.isArray(phones) || phones.length === 0) {
+      res.status(400).json({ error: "Phones array is required" });
+      return;
+    }
+
+    let sentCount = 0;
+    let failedCount = 0;
+    const errors: string[] = [];
+
+    const defaultGreeting =
+      `Namaste! 🙏 Welcome to *RN Valves & Faucets*.\n\n` +
+      `Hum dekh rahe hain ki aapki WhatsApp enquiry adhuri rah gayi thi.\n\n` +
+      `Aapko aapke Area ke Regional Sales Manager se connect karne aur special wholesale prices/catalogues paane ke liye, kripya apna:\n\n` +
+      `1️⃣ *Shubh Naam ya Firm ka Naam*\n` +
+      `2️⃣ *6-Digit Area PIN Code* (e.g. 110006 ya 141001)\n\n` +
+      `likh kar reply karein. Hamare Sales Executive turant aapko assist karenge! 🚿✨`;
+
+    const textToSend = customMessage && customMessage.trim() ? customMessage.trim() : defaultGreeting;
+
+    const Message = getMessageModel();
+    const ConversationState = getConversationStateModel();
+
+    for (const phone of phones) {
+      if (isCorporateBotNumber(phone)) continue;
+      try {
+        const cleanDigits = phone.replace(/\D/g, "");
+        const formattedPhone = cleanDigits.startsWith("91") ? `+${cleanDigits}` : `+91${cleanDigits}`;
+        const p10 = cleanDigits.slice(-10);
+
+        await evolutionClient.sendTextMessage({
+          number: formattedPhone,
+          text: textToSend,
+        });
+
+        try {
+          await Message.create({
+            phone: formattedPhone,
+            sender: "bot",
+            content: textToSend,
+            mediaType: "text",
+            mediaUrl: "",
+          });
+        } catch {}
+
+        try {
+          await ConversationState.findOneAndUpdate(
+            { phone: { $in: [phone, formattedPhone, p10] } },
+            {
+              $set: {
+                state: "RE_ENGAGE_AWAITING_PIN_NAME",
+                lastMessageTimestamp: Date.now(),
+              },
+            },
+            { upsert: true }
+          );
+        } catch {}
+
+        sentCount++;
+      } catch (err: any) {
+        failedCount++;
+        errors.push(`${phone}: ${err.message}`);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Bulk re-engagement processed: ${sentCount} sent, ${failedCount} failed`,
+      sentCount,
+      failedCount,
+      errors: errors.slice(0, 5),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to process bulk re-engagement" });
   }
 }
