@@ -98,23 +98,23 @@ export class SalesRepDirectory {
     }
 
     // 2. Built-in Territorial Fallback Mapping
-    // Delhi NCR (11), UP (20-28), Bihar (80-85) -> Arpita
+    // Delhi NCR (11), UP (20-28), Bihar (80-85), Jharkhand (83) -> Arpita
     if (
       prefix2 === "11" ||
       ["20", "21", "22", "23", "24", "25", "26", "27", "28"].includes(prefix2) ||
-      ["80", "81", "82", "84", "85"].includes(prefix2)
+      ["80", "81", "82", "83", "84", "85"].includes(prefix2)
     ) {
       return {
         name: "Arpita",
         mobile: "+91 93155 96055",
-        area: prefix2 === "11" ? "Delhi NCR" : "UP / Bihar Region",
-        state: "UP / Bihar / Delhi NCR",
+        area: prefix2 === "11" ? "Delhi NCR" : "UP / Bihar / Jharkhand Region",
+        state: "UP / Bihar / Delhi NCR / Jharkhand",
       };
     }
 
     // Haryana, Punjab, Gujarat, Odisha -> Amit Kumar Sir
     if (
-      ["12", "13", "14", "15", "16", "17", "18", "19", "36", "37", "38", "39", "75", "76", "77"].includes(prefix2)
+      ["12", "13", "14", "15", "16", "17", "36", "37", "38", "39", "75", "76", "77"].includes(prefix2)
     ) {
       return {
         name: "Amit Kumar Sir",
@@ -168,15 +168,15 @@ export class SalesRepDirectory {
       };
     }
 
-    // West Bengal, Assam, Tamil Nadu, Jharkhand -> Danish
+    // West Bengal, Assam, Tamil Nadu, Jammu & Kashmir -> Danish
     if (
-      ["60", "61", "62", "63", "64", "70", "71", "72", "73", "74", "78", "79", "83"].includes(prefix2)
+      ["18", "19", "60", "61", "62", "63", "64", "70", "71", "72", "73", "74", "78", "79"].includes(prefix2)
     ) {
       return {
         name: "Danish",
         mobile: "+91 93156 00189",
-        area: "WB / Tamil Nadu / Assam / Jharkhand",
-        state: "WB / Assam / Tamil Nadu / Jharkhand",
+        area: "WB / Tamil Nadu / Assam / Jammu & Kashmir",
+        state: "WB / Assam / Tamil Nadu / Jammu & Kashmir",
       };
     }
 
