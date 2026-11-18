@@ -161,24 +161,29 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
   const isInternalStaff = staffPhonePatterns.some((p) => normalizedPhone.includes(p));
 
   const cleanLower = textContent.trim().toLowerCase();
+  const isWebsiteGreeting =
+    /\b(visitor from your website|from your website|chat with you|website visitor)\b/i.test(textContent);
   const isMuteCommand = ["#mute", "#stop", "#aioff", "#ai off", "#staff"].includes(cleanLower);
   const isUnmuteCommand =
-    [
-      "#unmute",
-      "#aion",
-      "#ai on",
-      "menu",
-      "start",
-      "#bot",
-      "restart",
-      "hi",
-      "hello",
-      "heloo",
-      "hii",
-      "namaste",
-      "reset",
-      "#reset",
-    ].includes(cleanLower) && !isInternalStaff;
+    (
+      [
+        "#unmute",
+        "#aion",
+        "#ai on",
+        "menu",
+        "start",
+        "#bot",
+        "restart",
+        "hi",
+        "hello",
+        "heloo",
+        "hii",
+        "namaste",
+        "reset",
+        "#reset",
+      ].includes(cleanLower) ||
+      isWebsiteGreeting
+    ) && !isInternalStaff;
 
   let isHumanMode = false;
   try {

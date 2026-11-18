@@ -214,13 +214,17 @@ export class FlowEngine {
     // 4c. Global Shortcuts (Hi / Reset, Main Menu, Change Language, Back)
     const has6DigitPin = /\b([1-9][0-9]{5})\b/.test(cleanText);
     const isExplicitReset = /^#(reset|restart|clear|fresh|clean)$/i.test(cleanText);
+    const isWebsiteGreeting = /\b(visitor from your website|from your website|chat with you|website visitor)\b/i.test(cleanText);
     const isGreetingReset =
       !has6DigitPin &&
       stateDoc.state !== "RE_ENGAGE_AWAITING_PIN_NAME" &&
-      /\b(hi|hello|hey|namaste|namaskar|pranam|start|restart|reset|hlo|hii|helo)\b/i.test(cleanText) &&
-      cleanText.split(/\s+/).length <= 4;
+      (
+        isWebsiteGreeting ||
+        (/\b(hi|hello|hey|namaste|namaskar|pranam|start|restart|reset|hlo|hii|helo)\b/i.test(cleanText) &&
+         (cleanText.split(/\s+/).length <= 10 || isWebsiteGreeting))
+      );
 
-    if (isExplicitReset || (isGreetingReset && stateDoc.state !== "LANGUAGE_SELECTION")) {
+    if (isExplicitReset || (isGreetingReset && stateDoc.state !== "LANGUAGE_SELECTION") || (isWebsiteGreeting && stateDoc.state === "LANGUAGE_SELECTION")) {
       stateDoc.state = "LANGUAGE_SELECTION";
       stateDoc.formData = {};
       stateDoc.language = "en";
@@ -236,7 +240,12 @@ export class FlowEngine {
         );
       } catch {}
 
-      return this.renderLanguageSelection(isExplicitReset ? "🔄 *Testing Session Reset Successful!*" : "");
+      const welcomePrefix = isWebsiteGreeting
+        ? "Namaste! 🙏✨ Welcome to *RN Valves & Faucets*.\nThank you for visiting our website (rnvalves.com)."
+        : isExplicitReset
+        ? "🔄 *Testing Session Reset Successful!*"
+        : "";
+      return this.renderLanguageSelection(welcomePrefix);
     }
 
     if (lower === "main menu" || lower === "menu" || lower === "home") {
@@ -471,11 +480,16 @@ export class FlowEngine {
         const chosenLang = langMap[cleanChoice] || langMap[leadingDigit || ""] || (/2|hindi/i.test(norm) ? "hi" : /1|english/i.test(norm) ? "en" : null);
 
         if (!chosenLang) {
-          if (norm.length > 2 && !/^[1-6]$/.test(cleanChoice)) {
+          // If customer explicitly asks for human agent or complaint, offer care/takeover
+          if (/\b(agent|human|talk|call|insaan|help)\b/i.test(norm)) {
             session.state = "HUMAN_TAKEOVER_PROMPT";
             return this.renderHumanTakeoverPrompt(session.language);
           }
-          return this.renderLanguageSelection("Please select a valid option (1-6).");
+          const isWebsite = /\b(visitor from your website|from your website|chat with you|website visitor)\b/i.test(text);
+          const promptPrefix = isWebsite
+            ? "Namaste! 🙏✨ Welcome to *RN Valves & Faucets*.\nThank you for visiting our website.\n\nPlease select your preferred language:"
+            : "Please select a valid language option (1-6):";
+          return this.renderLanguageSelection(promptPrefix);
         }
 
         session.language = chosenLang;
@@ -1489,6 +1503,7 @@ export class FlowEngine {
               `✅ *ह्यूमन टेकओवर एक्टिव (Human Takeover Activated)*\n\n` +
               `आपको हमारे लाइव कस्टमर सपोर्ट / सेल्स प्रतिनिधि से कनेक्ट कर दिया गया है।\n\n` +
               `👨‍💼 हमारे प्रतिनिधि अतिशीघ्र इसी चैट पर आपसे सीधे बात करेंगे।\n\n` +
+              `📍 *त्वरित सहायता के लिए:* कृपया अपना *शुभ नाम* और *6-अंकों का एरिया पिन कोड* (PIN Code) भेजें ताकि आपके एरिया सेल्स मैनेजर तुरंत आपसे संपर्क कर सकें।\n\n` +
               `☎️ *तत्काल सहायता के लिए कॉल करें:* 1800 12340 0400 (टोल-फ्री) या +91 93151 60881\n\n` +
               `(बॉट को दोबारा चालू करने के लिए कभी भी *#aion* या *Menu* लिखें)`;
           } else {
@@ -1496,6 +1511,7 @@ export class FlowEngine {
               `✅ *Human Takeover Activated*\n\n` +
               `You have been connected directly with our Live Support / Sales Team.\n\n` +
               `👨‍💼 Our representative will reply to you on this chat shortly.\n\n` +
+              `📍 *For faster assistance:* Please reply with your *Full Name* and *6-Digit Area PIN Code* so our Regional Sales Manager can assist you immediately.\n\n` +
               `☎️ *For immediate assistance, call:* 1800 12340 0400 (Toll-Free) or +91 93151 60881\n\n` +
               `(To restart the AI bot anytime, simply type *#aion* or *Menu*)`;
           }
