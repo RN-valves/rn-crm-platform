@@ -192,9 +192,9 @@ function SidebarInner() {
   };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-900 border-r border-slate-200/85 dark:border-slate-800/80 text-slate-700 dark:text-slate-300 transition-colors">
-      {/* Brand Header — Official Logo Only */}
-      <div className="py-4 px-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-center relative">
+    <div className="flex flex-col h-full max-h-screen overflow-hidden bg-white dark:bg-slate-900 border-r border-slate-200/85 dark:border-slate-800/80 text-slate-700 dark:text-slate-300 transition-colors">
+      {/* Brand Header — Pinned at Top */}
+      <div className="shrink-0 py-3.5 px-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-center relative">
         <Link
           href={homeHref}
           className="inline-flex items-center justify-center dark:bg-white dark:rounded-2xl dark:px-5 dark:py-2 hover:opacity-95 transition-opacity"
@@ -202,7 +202,7 @@ function SidebarInner() {
           <img
             src="/rn-logo.png"
             alt="RN Valves & Faucets"
-            className="h-14 w-auto object-contain select-none"
+            className="h-13 max-h-[52px] w-auto object-contain select-none"
           />
         </Link>
         {/* Mobile close button */}
@@ -215,8 +215,8 @@ function SidebarInner() {
         </button>
       </div>
 
-      {/* Navigation Links */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      {/* Scrollable Navigation Menu */}
+      <nav className="flex-1 min-h-0 px-3 py-3 space-y-1 overflow-y-auto overscroll-contain">
         {isSales ? (
           salesNavigationItems.map((item) => renderNavLink(item))
         ) : (
@@ -298,31 +298,33 @@ function SidebarInner() {
             {topAdminItemsAfterDist.map((item) => renderNavLink(item))}
           </>
         )}
+
+        {/* WhatsApp Engine Info inside scrollable area */}
+        <div className="pt-2">
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60">
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  RNchat Active
+                </span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 font-mono">
+                v2.3.7
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+              Evolution API connected via Baileys.
+            </p>
+          </div>
+        </div>
       </nav>
 
-      {/* WhatsApp Engine Info */}
-      <div className="p-3 mx-3 mb-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              RNchat Active
-            </span>
-          </div>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 font-mono">
-            v2.3.7
-          </span>
-        </div>
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-          Evolution API connected via Baileys.
-        </p>
-      </div>
-
-      {/* User Session Footer & Actions */}
-      <div className="p-3 border-t border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/90">
+      {/* User Session Footer & Actions — Pinned at Bottom */}
+      <div className="shrink-0 p-3 border-t border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/90">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2.5 overflow-hidden">
             <div className="w-8 h-8 rounded-xl bg-[#DCEBFF] dark:bg-rn-600/25 border border-[#B8D7FA] dark:border-rn-500/40 flex items-center justify-center font-bold text-xs text-[#0c7db5] dark:text-rn-300 shrink-0">
@@ -386,8 +388,8 @@ function SidebarInner() {
 
   return (
     <>
-      {/* Desktop Sidebar (lg and above) */}
-      <aside className="hidden lg:flex w-[270px] flex-col flex-shrink-0 min-h-screen">
+      {/* Desktop Sidebar (lg and above) — Fixed 100vh with Independent Scroll */}
+      <aside className="hidden lg:flex w-[270px] flex-col flex-shrink-0 h-screen sticky top-0 overflow-hidden">
         {sidebarContent}
       </aside>
 
@@ -400,7 +402,7 @@ function SidebarInner() {
             onClick={closeMobile}
           />
           {/* Drawer */}
-          <div className="relative flex-1 flex flex-col max-w-xs w-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+          <div className="relative flex-1 flex flex-col max-w-xs w-full h-full max-h-screen overflow-hidden shadow-2xl z-10 animate-in slide-in-from-left duration-200">
             {sidebarContent}
           </div>
         </div>
@@ -411,7 +413,7 @@ function SidebarInner() {
 
 export default function Sidebar() {
   return (
-    <Suspense fallback={<aside className="hidden lg:flex w-[270px] flex-shrink-0 min-h-screen bg-white dark:bg-slate-900 border-r border-slate-200/85 dark:border-slate-800/80" />}>
+    <Suspense fallback={<aside className="hidden lg:flex w-[270px] flex-shrink-0 h-screen sticky top-0 bg-white dark:bg-slate-900 border-r border-slate-200/85 dark:border-slate-800/80" />}>
       <SidebarInner />
     </Suspense>
   );
