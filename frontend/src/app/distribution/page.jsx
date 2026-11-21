@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import { crmApi } from "../../lib/api";
 import { Card, CardContent } from "../../components/ui/Card";
@@ -45,14 +46,33 @@ import ManageAssignmentModal from "../../components/ManageAssignmentModal";
 import ReengageModal from "../../components/ReengageModal";
 import LeadFollowupModal from "../../components/LeadFollowupModal";
 
-export default function LeadDistributionPage() {
+const VALID_DIST_TABS = ["executives", "leads", "dropped", "human", "reports", "rep_portal"];
+
+function LeadDistributionInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("executives"); // "executives", "leads", "dropped", "human", "reports", "rep_portal"
+  const [activeTab, setActiveTab] = useState(
+    tabFromUrl && VALID_DIST_TABS.includes(tabFromUrl) ? tabFromUrl : "executives"
+  );
   const [selectedRepFilter, setSelectedRepFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [reassigningId, setReassigningId] = useState(null);
   const [reassignMsg, setReassignMsg] = useState("");
+
+  // Sync activeTab when sidebar submenu link changes ?tab=
+  useEffect(() => {
+    const next = tabFromUrl && VALID_DIST_TABS.includes(tabFromUrl) ? tabFromUrl : "executives";
+    setActiveTab(next);
+  }, [tabFromUrl]);
+
+  const switchTab = (nextTab) => {
+    setActiveTab(nextTab);
+    router.replace(`/distribution?tab=${nextTab}`, { scroll: false });
+  };
 
   // Manage Assignment Modal State
   const [manageModalTarget, setManageModalTarget] = useState(null);
@@ -137,6 +157,23 @@ export default function LeadDistributionPage() {
     try {
       const res = await crmApi.getDistributionAnalytics();
       setData(res);
+      if (typeof window !== "undefined" && res) {
+        const execList = res.executives || [];
+        const unassigned = res.unassignedLeads || [];
+        const totalLeadsCount =
+          unassigned.length +
+          execList.reduce((sum, ex) => sum + ((ex.leads || []).length || 0), 0);
+        window.dispatchEvent(
+          new CustomEvent("rn-distribution-counts", {
+            detail: {
+              executives: execList.length,
+              leads: totalLeadsCount || res.summary?.totalLeads || 0,
+              dropped: (res.droppedAtHi || []).length,
+              human: (res.humanTakeovers || []).length,
+            },
+          })
+        );
+      }
     } catch (err) {
       console.error("Failed to fetch distribution analytics:", err);
     } finally {
@@ -445,7 +482,7 @@ export default function LeadDistributionPage() {
                 : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
             }`}
             onClick={() => {
-              setActiveTab("leads");
+              switchTab("leads");
               setSelectedRepFilter("UNASSIGNED");
             }}
           >
@@ -473,7 +510,7 @@ export default function LeadDistributionPage() {
           <Card
             hover
             className="cursor-pointer"
-            onClick={() => setActiveTab("dropped")}
+            onClick={() => switchTab("dropped")}
           >
             <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
@@ -499,7 +536,7 @@ export default function LeadDistributionPage() {
           <Card
             hover
             className="cursor-pointer"
-            onClick={() => setActiveTab("human")}
+            onClick={() => switchTab("human")}
           >
             <CardContent className="p-4 flex flex-col justify-between h-full">
               <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
@@ -522,143 +559,72 @@ export default function LeadDistributionPage() {
           </Card>
         </div>
 
-        {/* 2. Interactive Navigation Dropdown & Search */}
-        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <label htmlFor="distribution-view-select" className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">
-                View:
-              </label>
-              <div className="relative flex-1 sm:w-72">
-                <select
-                  id="distribution-view-select"
-                  value={activeTab}
-                  onChange={(e) => setActiveTab(e.target.value)}
-                  className="w-full appearance-none pl-9 pr-9 py-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white font-bold text-xs rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-rn-500 transition-all"
+        {/* 2. Clean Minimalist Section Switcher & Search Toolbar */}
+        <div className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200/85 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Clean Segmented Sub-View Pills (Synchronized with Left Sidebar Dropdown) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+            {[
+              { id: "executives", label: "Sales Executives", count: executives.length, icon: Users },
+              { id: "leads", label: "All Pipeline Leads", count: allLeads.length, icon: Kanban },
+              { id: "dropped", label: 'Dropped at "Hi"', count: droppedAtHi.length, icon: PhoneMissed },
+              { id: "human", label: "Human Takeovers", count: humanTakeovers.length, icon: Bot },
+              { id: "reports", label: "Reports & Excel", count: allLeads.length, icon: FileSpreadsheet },
+              { id: "rep_portal", label: "Sales Rep Portal", count: null, icon: UserCheck },
+            ].map((tabItem) => {
+              const Icon = tabItem.icon;
+              const isSelected = activeTab === tabItem.id;
+              return (
+                <button
+                  key={tabItem.id}
+                  type="button"
+                  onClick={() => switchTab(tabItem.id)}
+                  className={`relative flex items-center gap-2 px-3 py-2 rounded-xl text-xs whitespace-nowrap transition-all ${
+                    isSelected
+                      ? "bg-[#DCEBFF] dark:bg-rn-900/60 text-slate-900 dark:text-white font-semibold"
+                      : "text-slate-600 dark:text-slate-400 font-medium hover:bg-slate-100/90 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                  }`}
                 >
-                  <option value="executives">
-                    Sales Executives ({executives.length})
-                  </option>
-                  <option value="leads">
-                    All Pipeline Leads ({allLeads.length}){summary.totalUnassignedLeads > 0 ? ` - ${summary.totalUnassignedLeads} Unassigned` : ""}
-                  </option>
-                  <option value="dropped">
-                    Dropped at "Hi" ({droppedAtHi.length})
-                  </option>
-                  <option value="human">
-                    Human Takeovers ({humanTakeovers.length})
-                  </option>
-                  <option value="reports">
-                    Reports & Excel ({allLeads.length})
-                  </option>
-                  <option value="rep_portal">
-                    Sales Rep Portal
-                  </option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-rn-600 dark:text-rn-400">
-                  {activeTab === "executives" && <Users className="w-4 h-4" />}
-                  {activeTab === "leads" && <Kanban className="w-4 h-4" />}
-                  {activeTab === "dropped" && <PhoneMissed className="w-4 h-4 text-amber-600" />}
-                  {activeTab === "human" && <Bot className="w-4 h-4 text-purple-600" />}
-                  {activeTab === "reports" && <FileSpreadsheet className="w-4 h-4 text-emerald-600" />}
-                  {activeTab === "rep_portal" && <UserCheck className="w-4 h-4 text-blue-600" />}
-                </div>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
-                  <ChevronDown className="w-4 h-4" />
-                </div>
-              </div>
-            </div>
+                  <Icon
+                    className={`w-3.5 h-3.5 shrink-0 ${
+                      isSelected ? "text-[#1091d0] dark:text-rn-400" : "text-slate-400"
+                    }`}
+                  />
+                  <span>{tabItem.label}</span>
+                  {tabItem.count !== null && (
+                    <span
+                      className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
+                        isSelected
+                          ? "bg-[#C2DBFA] dark:bg-rn-800 text-slate-800 dark:text-rn-100"
+                          : "bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                      }`}
+                    >
+                      {tabItem.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-            {/* Quick-switch chips for desktop convenience */}
-            <div className="hidden xl:flex items-center gap-1 pl-2 border-l border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setActiveTab("executives")}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
-                  activeTab === "executives"
-                    ? "bg-rn-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-              >
-                Executives ({executives.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("leads")}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
-                  activeTab === "leads"
-                    ? "bg-rn-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-              >
-                Pipeline ({allLeads.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("dropped")}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
-                  activeTab === "dropped"
-                    ? "bg-amber-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-              >
-                Dropped ({droppedAtHi.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("human")}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
-                  activeTab === "human"
-                    ? "bg-purple-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-              >
-                Human ({humanTakeovers.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("reports")}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
-                  activeTab === "reports"
-                    ? "bg-emerald-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-              >
-                Reports
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("rep_portal")}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
-                  activeTab === "rep_portal"
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-              >
-                Rep Portal
-              </button>
+          {/* Right Controls: Search + Standalone Rep Portal Link */}
+          <div className="flex items-center gap-2.5 w-full lg:w-auto">
+            <div className="flex-1 lg:w-60">
+              <Input
+                type="text"
+                placeholder="Search phone, rep, city..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                icon={Search}
+              />
             </div>
-
-            {/* Direct Link to Standalone Rep Portal */}
             <Link
               href="/rep-portal"
               target="_blank"
-              className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50"
+              className="text-xs font-semibold text-[#1091d0] dark:text-rn-300 hover:bg-[#EDF5FF] dark:hover:bg-slate-800 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#F4F9FF] dark:bg-slate-800/70 border border-[#D3E7FC] dark:border-slate-700 shrink-0 transition-colors"
             >
-              <span>Full Rep Portal</span>
-              <ExternalLink className="w-3 h-3" />
+              <span>Rep Portal</span>
+              <ExternalLink className="w-3.5 h-3.5" />
             </Link>
-          </div>
-
-          {/* Search Box */}
-          <div className="w-full md:w-64">
-            <Input
-              type="text"
-              placeholder="Search phone, rep, city..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              icon={Search}
-            />
           </div>
         </div>
 
@@ -789,7 +755,7 @@ export default function LeadDistributionPage() {
                                 variant="outline"
                                 size="xs"
                                 onClick={() => {
-                                  setActiveTab("leads");
+                                  switchTab("leads");
                                   setSelectedRepFilter(ex.name);
                                 }}
                               >
@@ -840,7 +806,7 @@ export default function LeadDistributionPage() {
                                 variant="danger"
                                 size="xs"
                                 onClick={() => {
-                                  setActiveTab("leads");
+                                  switchTab("leads");
                                   setSelectedRepFilter("UNASSIGNED");
                                 }}
                               >
@@ -2101,5 +2067,19 @@ export default function LeadDistributionPage() {
         />
       </main>
     </div>
+  );
+}
+
+export default function LeadDistributionPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-500">
+          Loading Lead Distribution...
+        </div>
+      }
+    >
+      <LeadDistributionInner />
+    </Suspense>
   );
 }
