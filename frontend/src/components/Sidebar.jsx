@@ -65,32 +65,22 @@ export default function Sidebar() {
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800/80 text-slate-300">
-      {/* Brand Header */}
-      <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800/80">
-        <Link href={homeHref} className="flex items-center gap-3 group">
-          <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-lg shadow-black/30 group-hover:scale-105 transition-transform shrink-0">
-            <img
-              src="/rn-icon.png"
-              alt="RN Valves & Faucets"
-              className="w-full h-full object-contain select-none"
-            />
-          </div>
-          <div>
-            <h1 className="font-extrabold text-white tracking-wider text-sm flex items-center gap-1.5">
-              RN VALVES
-              <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-rn-500/20 text-rn-300 border border-rn-400/30">
-                PRO
-              </span>
-            </h1>
-            <p className="text-[10px] text-slate-400 font-medium tracking-wider">
-              {isSales ? "SALES REP PORTAL" : "CRM & AI AUTOMATION"}
-            </p>
-          </div>
+      {/* Brand Header — Official Logo Only */}
+      <div className="py-3.5 px-5 border-b border-slate-800/80 flex items-center justify-center relative">
+        <Link
+          href={homeHref}
+          className="w-full bg-white rounded-2xl py-2.5 px-4 flex items-center justify-center shadow-md hover:opacity-95 transition-opacity"
+        >
+          <img
+            src="/rn-logo.png"
+            alt="RN Valves & Faucets"
+            className="h-14 w-auto object-contain select-none"
+          />
         </Link>
         {/* Mobile close button */}
         <button
           onClick={closeMobile}
-          className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+          className="lg:hidden absolute right-3 top-3 p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
           aria-label="Close sidebar"
         >
           <X className="w-5 h-5" />
