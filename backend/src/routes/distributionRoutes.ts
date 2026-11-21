@@ -9,32 +9,23 @@ import {
   repLogin,
   getMyLeads,
 } from "../controllers/distributionController.js";
+import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
 
 const router = Router();
 
-// GET /api/distribution/analytics
-router.get("/analytics", getDistributionAnalytics);
-router.get("/", getDistributionAnalytics);
-
-// POST /api/distribution/rep-login (Sales Rep PIN authentication)
+// Public / Rep PIN Login (Authentication Endpoint)
 router.post("/rep-login", repLogin);
 
-// GET /api/distribution/my-leads (Isolated leads for authenticated Sales Rep)
-router.get("/my-leads", getMyLeads);
+// Sales Rep Isolated Portal (Requires Authentication - accessible by SALES and ADMIN)
+router.get("/my-leads", requireAuth, getMyLeads);
+router.post("/update-followup", requireAuth, updateLeadFollowup);
 
-// POST /api/distribution/assign-lead
-router.post("/assign-lead", assignLead);
-
-// POST /api/distribution/resend-rep-alert
-router.post("/resend-rep-alert", resendRepAlert);
-
-// POST /api/distribution/reengage
-router.post("/reengage", reengageCustomer);
-
-// POST /api/distribution/reengage-bulk
-router.post("/reengage-bulk", reengageBulkCustomers);
-
-// POST /api/distribution/update-followup
-router.post("/update-followup", updateLeadFollowup);
+// Company-wide Distribution Analytics & Management (Strictly ADMIN only)
+router.get("/analytics", requireAuth, requireRole(["ADMIN"]), getDistributionAnalytics);
+router.get("/", requireAuth, requireRole(["ADMIN"]), getDistributionAnalytics);
+router.post("/assign-lead", requireAuth, requireRole(["ADMIN"]), assignLead);
+router.post("/resend-rep-alert", requireAuth, requireRole(["ADMIN"]), resendRepAlert);
+router.post("/reengage", requireAuth, requireRole(["ADMIN"]), reengageCustomer);
+router.post("/reengage-bulk", requireAuth, requireRole(["ADMIN"]), reengageBulkCustomers);
 
 export default router;

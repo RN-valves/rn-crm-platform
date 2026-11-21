@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { getContacts, getContactById, updateContact } from "../controllers/contactController.js";
-import { requireAuth } from "../middlewares/authMiddleware.js";
+import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
 
 const router = Router();
 
-router.get("/", requireAuth, getContacts);
-router.get("/:id", requireAuth, getContactById);
-router.put("/:id", requireAuth, updateContact);
+// Contacts directory is restricted to ADMIN
+router.use(requireAuth, requireRole(["ADMIN"]));
+
+router.get("/", getContacts);
+router.get("/:id", getContactById);
+router.put("/:id", updateContact);
 
 export default router;

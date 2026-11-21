@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 import { config } from "../config/env.js";
 import { getLeadModel } from "../models/Lead.js";
 import { getContactModel } from "../models/Contact.js";
@@ -932,6 +933,30 @@ export async function updateLeadFollowup(req: Request, res: Response): Promise<v
       return;
     }
 
+    // Security check: SALES role can ONLY update their own assigned leads
+    if (req.user && req.user.role === "SALES") {
+      const userRep = normalizeRepName(req.user.repName || req.user.name || "");
+      const leadRep = normalizeRepName(targetLead.assignedEmployeeName || "");
+      const userMobile = normalizePhone(req.user.repMobile || req.user.phone || "");
+      const leadMobile = normalizePhone(targetLead.assignedEmployeeId || targetLead.repPhone || "");
+
+      const isOwner =
+        (userRep && leadRep && (
+          userRep.toLowerCase() === leadRep.toLowerCase() ||
+          leadRep.toLowerCase().includes(userRep.toLowerCase()) ||
+          userRep.toLowerCase().includes(leadRep.toLowerCase())
+        )) ||
+        (userMobile && leadMobile && userMobile === leadMobile);
+
+      if (!isOwner) {
+        res.status(403).json({
+          success: false,
+          error: "Forbidden: You are not authorized to update another sales executive's lead.",
+        });
+        return;
+      }
+    }
+
     const fromStatus = targetLead.status;
     if (status) {
       targetLead.status = status;
@@ -1009,31 +1034,52 @@ export async function repLogin(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const expectedPin = String(matchedExec.pin || "1234").trim();
     const providedPin = String(pin).trim();
+    let pinMatch = false;
+    if (matchedExec.pinHash) {
+      pinMatch = await bcrypt.compare(providedPin, matchedExec.pinHash);
+    }
+    if (!pinMatch && matchedExec.pin && String(matchedExec.pin).trim() === providedPin) {
+      pinMatch = true;
+      matchedExec.pinHash = await bcrypt.hash(providedPin, 10);
+      await matchedExec.save?.().catch?.(() => {});
+    }
 
-    if (expectedPin !== providedPin) {
+    if (!pinMatch) {
       res.status(401).json({ error: "Galat 4-digit PIN! Kripya sahi PIN enter karein (Default: 1234)." });
       return;
     }
 
     // Generate authenticated rep token
-    const token = jwt.sign(
-      {
-        id: String(matchedExec._id || matchedExec.name),
-        repName: matchedExec.name,
-        repMobile: matchedExec.mobile,
-        role: "Sales_Agent",
-        department: "Sales",
-      },
-      config.JWT_SECRET,
-      { expiresIn: "30d" }
-    );
+    const repPayload = {
+      id: String(matchedExec._id || matchedExec.name),
+      name: matchedExec.name,
+      repName: matchedExec.name,
+      repMobile: matchedExec.mobile,
+      phone: matchedExec.mobile,
+      role: "SALES" as const,
+      department: "Sales",
+      state: matchedExec.state,
+    };
+
+    const token = jwt.sign(repPayload, config.JWT_SECRET, { expiresIn: "30d" });
+
+    // Set HttpOnly cookie
+    const isProduction = config.NODE_ENV === "production";
+    res.cookie("rn_crm_token", token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "strict" : "lax",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
 
     res.status(200).json({
       success: true,
       message: `Welcome ${matchedExec.name}! Authentication successful.`,
       token,
+      redirectTo: "/rep-portal",
+      user: repPayload,
       rep: {
         id: matchedExec._id,
         name: matchedExec.name,
@@ -1053,23 +1099,25 @@ export async function repLogin(req: Request, res: Response): Promise<void> {
  */
 export async function getMyLeads(req: Request, res: Response): Promise<void> {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      res.status(401).json({ error: "Unauthorized: Missing authentication token" });
+    // Session identity derived strictly from authenticated user
+    const currentUser = req.user;
+    if (!currentUser) {
+      res.status(401).json({ error: "Unauthorized: Missing authentication session" });
       return;
     }
 
-    const token = authHeader.split(" ")[1];
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, config.JWT_SECRET);
-    } catch {
-      res.status(401).json({ error: "Session expired or invalid token. Please log in again." });
-      return;
-    }
+    let repName = "";
+    let repMobile = "";
 
-    const repName = decoded.repName;
-    const repMobile = decoded.repMobile;
+    if (currentUser.role === "SALES") {
+      // SALES users can ONLY ever see their own leads - ignore any query overrides
+      repName = currentUser.repName || currentUser.name || "";
+      repMobile = currentUser.repMobile || currentUser.phone || "";
+    } else if (currentUser.role === "ADMIN") {
+      // ADMIN users can view any rep's portal via query param, or default to all
+      repName = (req.query.repName as string) || currentUser.repName || currentUser.name || "";
+      repMobile = (req.query.mobile as string) || currentUser.repMobile || currentUser.phone || "";
+    }
 
     if (!repName && !repMobile) {
       res.status(403).json({ error: "Invalid sales executive session" });

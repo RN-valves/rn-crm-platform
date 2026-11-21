@@ -1,4 +1,5 @@
 import { Schema, Document, Model } from "mongoose";
+import bcrypt from "bcryptjs";
 import { getCrmConnection } from "../database/connections.js";
 
 export interface ISalesExecutive extends Document {
@@ -8,6 +9,8 @@ export interface ISalesExecutive extends Document {
   state: string;
   pinPrefixes: string[]; // e.g. ["11", "20", "21"]
   pin?: string; // 4-digit security PIN for rep portal access
+  pinHash?: string; // Bcrypt hashed PIN
+  role: "ADMIN" | "SALES";
   isActive: boolean;
   isDefaultFallback: boolean;
   orderIndex: number;
@@ -23,6 +26,8 @@ const SalesExecutiveSchema = new Schema<ISalesExecutive>(
     state: { type: String, required: true, trim: true },
     pinPrefixes: { type: [String], default: [] },
     pin: { type: String, default: "1234", trim: true },
+    pinHash: { type: String, default: "" },
+    role: { type: String, enum: ["ADMIN", "SALES"], default: "SALES" },
     isActive: { type: Boolean, default: true },
     isDefaultFallback: { type: Boolean, default: false },
     orderIndex: { type: Number, default: 0 },
@@ -124,10 +129,43 @@ export async function seedSalesExecutivesIfEmpty(): Promise<void> {
   try {
     const Model = getSalesExecutiveModel();
     const count = await Model.countDocuments();
+    const defaultPinHash = await bcrypt.hash("1234", 10);
+
     if (count === 0) {
       console.log("🌱 [Seed] Seeding 7 RN Valves Sales Executives into database...");
-      await Model.insertMany(INITIAL_SALES_EXECUTIVES);
+      const initialWithHash = INITIAL_SALES_EXECUTIVES.map((exec) => ({
+        ...exec,
+        role: "SALES",
+        pin: "1234",
+        pinHash: defaultPinHash,
+        isActive: true,
+      }));
+      await Model.insertMany(initialWithHash);
       console.log("✅ [Seed] Successfully seeded Sales Executives.");
+    } else {
+      // Migrate existing records: ensure role is SALES and pinHash exists
+      const unhashed = await Model.find({
+        $or: [
+          { role: { $exists: false } },
+          { role: null },
+          { pinHash: { $exists: false } },
+          { pinHash: "" },
+          { pinHash: null },
+        ],
+      });
+
+      for (const exec of unhashed) {
+        const pinToHash = exec.pin || "1234";
+        const hash = await bcrypt.hash(pinToHash, 10);
+        exec.role = "SALES";
+        exec.pin = pinToHash;
+        exec.pinHash = hash;
+        if (exec.isActive === undefined) exec.isActive = true;
+        await exec.save();
+      }
+      if (unhashed.length > 0) {
+        console.log(`✅ [Seed] Migrated ${unhashed.length} Sales Executives with hashed security PINs and SALES role.`);
+      }
     }
   } catch (err: any) {
     console.warn(`[Seed] Sales Executives seed notice: ${err.message}`);

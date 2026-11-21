@@ -7,6 +7,14 @@ export async function getFollowups(req: Request, res: Response): Promise<void> {
     const query: any = {};
     if (status !== "ALL") query.status = status;
 
+    // Filter followups for sales reps
+    if (req.user?.role === "SALES") {
+      const repName = req.user.repName || req.user.name;
+      if (repName) {
+        query.assignedName = new RegExp(repName, "i");
+      }
+    }
+
     try {
       const Followup = getFollowupModel();
       const followups = await Followup.find(query).sort({ scheduledAt: 1 }).lean();

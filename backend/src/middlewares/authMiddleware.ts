@@ -5,9 +5,13 @@ import { config } from "../config/env.js";
 export interface AuthenticatedUser {
   id: string;
   name: string;
-  email: string;
-  role: "Admin" | "Manager" | "Sales_Agent" | "Support_Agent";
-  department: string;
+  email?: string;
+  phone?: string;
+  role: "ADMIN" | "SALES";
+  department?: string;
+  repId?: string;
+  repName?: string;
+  repMobile?: string;
 }
 
 declare global {
@@ -18,44 +22,92 @@ declare global {
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+/**
+ * Extract JWT from Authorization header ("Bearer <token>") or HttpOnly cookie ("rn_crm_token")
+ */
+function extractToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ") || authHeader.split(" ")[1] === "null" || authHeader.split(" ")[1] === "undefined") {
-    // If request comes from the official CRM frontend (crm.rnvalves.com) or dev, provide Executive Admin session
-    const origin = (req.headers.origin || req.headers.referer || "") as string;
-    if (config.NODE_ENV === "development" || origin.includes("crm.rnvalves.com") || origin.includes("localhost")) {
-      req.user = {
-        id: "usr_admin_default_01",
-        name: "Admin Executive",
-        email: "admin@rnvalves.com",
-        role: "Admin",
-        department: "Management",
-      };
-      return next();
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const parts = authHeader.split(" ");
+    if (parts[1] && parts[1] !== "null" && parts[1] !== "undefined") {
+      return parts[1];
     }
-    res.status(401).json({ error: "Unauthorized: Missing authentication token" });
+  }
+
+  if (req.cookies && req.cookies.rn_crm_token) {
+    const cookieToken = req.cookies.rn_crm_token;
+    if (cookieToken && cookieToken !== "null" && cookieToken !== "undefined") {
+      return cookieToken;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Enforce strict authentication. No bypasses for origin, localhost, or env.
+ */
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const token = extractToken(req);
+
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      error: "Unauthorized: Missing or invalid authentication token",
+    });
     return;
   }
 
-  const token = authHeader.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, config.JWT_SECRET) as AuthenticatedUser;
-    req.user = decoded;
+    const decoded = jwt.verify(token, config.JWT_SECRET) as any;
+    
+    // Normalize legacy roles if present
+    let normalizedRole: "ADMIN" | "SALES" = "SALES";
+    if (decoded.role === "ADMIN" || decoded.role === "Admin" || decoded.role === "Manager") {
+      normalizedRole = "ADMIN";
+    } else {
+      normalizedRole = "SALES";
+    }
+
+    req.user = {
+      id: decoded.id || decoded._id,
+      name: decoded.name || "",
+      email: decoded.email || "",
+      phone: decoded.phone || "",
+      role: normalizedRole,
+      department: decoded.department || (normalizedRole === "ADMIN" ? "Management" : "Sales"),
+      repId: decoded.repId || decoded.id,
+      repName: decoded.repName || decoded.name,
+      repMobile: decoded.repMobile || decoded.phone,
+    };
+
     next();
   } catch (err: any) {
-    res.status(401).json({ error: "Unauthorized: Invalid or expired token" });
+    res.status(401).json({
+      success: false,
+      error: "Unauthorized: Invalid or expired session token",
+    });
   }
 }
 
-export function requireRole(allowedRoles: Array<"Admin" | "Manager" | "Sales_Agent" | "Support_Agent">) {
-  return (req: Request, res: Response, next: NextFunction) => {
+/**
+ * Enforce role-based access control (ADMIN vs SALES)
+ */
+export function requireRole(allowedRoles: Array<"ADMIN" | "SALES">) {
+  return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({
+        success: false,
+        error: "Unauthorized: Authentication required",
+      });
       return;
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      res.status(403).json({ error: "Forbidden: Insufficient privileges" });
+      res.status(403).json({
+        success: false,
+        error: "Forbidden: You do not have permission to access this resource",
+      });
       return;
     }
 

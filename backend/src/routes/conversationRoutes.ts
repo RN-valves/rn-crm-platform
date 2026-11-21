@@ -5,13 +5,16 @@ import {
   sendConversationReply,
   toggleConversationMode,
 } from "../controllers/conversationController.js";
-import { requireAuth } from "../middlewares/authMiddleware.js";
+import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
 
 const router = Router();
 
-router.get("/", requireAuth, getConversations);
-router.get("/:id/messages", requireAuth, getConversationMessages);
-router.post("/reply", requireAuth, sendConversationReply);
-router.patch("/mode", requireAuth, toggleConversationMode);
+// Full WhatsApp Inbox & Live Takeover is restricted to ADMIN
+router.use(requireAuth, requireRole(["ADMIN"]));
+
+router.get("/", getConversations);
+router.get("/:id/messages", getConversationMessages);
+router.post("/reply", sendConversationReply);
+router.patch("/mode", toggleConversationMode);
 
 export default router;

@@ -86,7 +86,11 @@ function RepPortalContent() {
   const fetchMyLeads = async (tokenOverride = null) => {
     try {
       setLoading(true);
-      const token = tokenOverride || (typeof window !== "undefined" ? localStorage.getItem("rn_rep_token") : null);
+      const token =
+        tokenOverride ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("rn_rep_token") || localStorage.getItem("rn_crm_token")
+          : null);
       if (!token) {
         setRepProfile(null);
         setRawLeads([]);
@@ -164,6 +168,7 @@ function RepPortalContent() {
       const res = await crmApi.repLogin(payload);
       if (res && res.success && res.token) {
         localStorage.setItem("rn_rep_token", res.token);
+        localStorage.setItem("rn_crm_token", res.token);
         localStorage.setItem("rn_sales_rep_auth", res.rep.name);
         setRepProfile(res.rep);
         setLoginPinInput("");
@@ -183,7 +188,9 @@ function RepPortalContent() {
   const handleLogout = () => {
     try {
       localStorage.removeItem("rn_rep_token");
+      localStorage.removeItem("rn_crm_token");
       localStorage.removeItem("rn_sales_rep_auth");
+      localStorage.removeItem("rn_user");
     } catch {}
     setRepProfile(null);
     setRepSummary(null);
@@ -191,6 +198,7 @@ function RepPortalContent() {
     setSelectedExecForLogin(null);
     setLoginPinInput("");
     setLoginError("");
+    window.location.href = "/login";
   };
 
   // Filtered Leads

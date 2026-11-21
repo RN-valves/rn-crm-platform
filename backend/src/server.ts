@@ -2,6 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
+import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { config } from "./config/env.js";
 import { initDatabases } from "./database/connections.js";
@@ -19,6 +20,7 @@ import systemRoutes from "./routes/systemRoutes.js";
 import salesExecutiveRoutes from "./routes/salesExecutiveRoutes.js";
 import distributionRoutes from "./routes/distributionRoutes.js";
 import { seedSalesExecutivesIfEmpty } from "./models/SalesExecutive.js";
+import { seedAdminUserIfEmpty } from "./models/User.js";
 import { setupIncomingMessageWorker } from "./workers/incomingMessageWorker.js";
 import { setupAiProcessingWorker } from "./workers/aiProcessingWorker.js";
 import { setupOutgoingMessageWorker } from "./workers/outgoingMessageWorker.js";
@@ -38,6 +40,7 @@ app.use(
 );
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(cookieParser());
 app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev"));
 
 // 1. Global Rate Limiter: 120 requests per minute per IP
@@ -114,6 +117,7 @@ async function bootstrap() {
     .then(async () => {
       console.log("✅ [Database] CRM & eCommerce databases initialized.");
       await seedSalesExecutivesIfEmpty().catch(() => {});
+      await seedAdminUserIfEmpty().catch(() => {});
     })
     .catch((dbErr) => {
       console.error("⚠️ [Database] Background initialization warning:", dbErr.message);

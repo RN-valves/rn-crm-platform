@@ -19,6 +19,28 @@ export async function getLeads(req: Request, res: Response): Promise<void> {
       query.$or = [{ customerName: regex }, { phone: regex }, { businessName: regex }, { city: regex }];
     }
 
+    // Role-based security: SALES role can ONLY view their assigned leads
+    if (req.user?.role === "SALES") {
+      const repName = req.user.repName || req.user.name || "";
+      const repMobile = req.user.repMobile || req.user.phone || "";
+      const cleanPhone = repMobile.replace(/\D/g, "").slice(-10);
+
+      const repQueries: any[] = [
+        { assignedEmployeeName: new RegExp(repName, "i") },
+      ];
+      if (cleanPhone) {
+        repQueries.push({ repPhone: new RegExp(cleanPhone) });
+      }
+
+      if (query.$or) {
+        const searchOr = query.$or;
+        delete query.$or;
+        query.$and = [{ $or: searchOr }, { $or: repQueries }];
+      } else {
+        query.$or = repQueries;
+      }
+    }
+
     try {
       const Lead = getLeadModel();
       const leads = await Lead.find(query).sort({ updatedAt: -1 }).lean();
@@ -105,6 +127,23 @@ export async function updateLeadStage(req: Request, res: Response): Promise<void
     if (!existing) {
       res.status(404).json({ error: "Lead not found" });
       return;
+    }
+
+    // Role-based security: SALES role can ONLY modify their own leads
+    if (req.user?.role === "SALES") {
+      const repName = (req.user.repName || req.user.name || "").toLowerCase().trim();
+      const repPhone = (req.user.repMobile || req.user.phone || "").replace(/\D/g, "").slice(-10);
+      const leadRep = (existing.assignedEmployeeName || "").toLowerCase().trim();
+      const leadRepPhone = (existing.repPhone || (existing as any).assignedEmployeePhone || "").replace(/\D/g, "").slice(-10);
+
+      const isOwner =
+        (repName && leadRep && (leadRep.includes(repName) || repName.includes(leadRep))) ||
+        (repPhone && leadRepPhone && repPhone === leadRepPhone);
+
+      if (!isOwner) {
+        res.status(403).json({ error: "Forbidden: You are not authorized to update another executive's lead" });
+        return;
+      }
     }
 
     const fromStatus = existing.status;

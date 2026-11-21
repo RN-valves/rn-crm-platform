@@ -16,12 +16,15 @@ import {
   Sun,
   Moon,
   ShieldCheck,
+  LogOut,
+  User,
 } from "lucide-react";
 import { useNav } from "../context/NavContext";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 
-const navigationItems = [
-  { name: "Overview", href: "/", icon: LayoutDashboard },
+const adminNavigationItems = [
+  { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "WhatsApp Inbox", href: "/inbox", icon: MessageSquare, badge: "Live" },
   { name: "Sales Pipeline", href: "/leads", icon: Kanban },
   { name: "Lead Distribution", href: "/distribution", icon: GitFork },
@@ -32,16 +35,39 @@ const navigationItems = [
   { name: "Integrations & Health", href: "/settings", icon: Settings },
 ];
 
+const salesNavigationItems = [
+  { name: "My Assigned Leads", href: "/rep-portal", icon: UserCheck, badge: "My Leads" },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { mobileOpen, closeMobile } = useNav();
   const { theme, toggleTheme } = useTheme();
+  const { user, role, logout } = useAuth();
+
+  // Do not render sidebar on login page
+  if (pathname === "/login") {
+    return null;
+  }
+
+  const isSales = role === "SALES";
+  const navigationItems = isSales ? salesNavigationItems : adminNavigationItems;
+  const homeHref = isSales ? "/rep-portal" : "/dashboard";
+
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "RN";
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800/80 text-slate-300">
       {/* Brand Header */}
       <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800/80">
-        <Link href="/" className="flex items-center gap-3 group">
+        <Link href={homeHref} className="flex items-center gap-3 group">
           <div className="w-9 h-9 rounded-xl bg-rn-600 flex items-center justify-center font-black text-white text-base shadow-lg shadow-rn-600/30 group-hover:scale-105 transition-transform">
             RN
           </div>
@@ -53,7 +79,7 @@ export default function Sidebar() {
               </span>
             </h1>
             <p className="text-[10px] text-slate-400 font-medium tracking-wider">
-              CRM & AI AUTOMATION
+              {isSales ? "SALES REP PORTAL" : "CRM & AI AUTOMATION"}
             </p>
           </div>
         </Link>
@@ -69,11 +95,20 @@ export default function Sidebar() {
 
       {/* Navigation Links */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-          Core Modules
+        <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+          <span>{isSales ? "Sales Workspace" : "Core Modules"}</span>
+          <span
+            className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold ${
+              isSales
+                ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+            }`}
+          >
+            {role || "USER"}
+          </span>
         </div>
         {navigationItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || (item.href === "/dashboard" && pathname === "/");
           const Icon = item.icon;
 
           return (
@@ -83,7 +118,9 @@ export default function Sidebar() {
               onClick={closeMobile}
               className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 ${
                 isActive
-                  ? "bg-rn-600 text-white shadow-md shadow-rn-600/25"
+                  ? isSales
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/25"
+                    : "bg-rn-600 text-white shadow-md shadow-rn-600/25"
                   : "text-slate-400 hover:text-white hover:bg-slate-800/70"
               }`}
             >
@@ -96,7 +133,13 @@ export default function Sidebar() {
                 <span>{item.name}</span>
               </div>
               {item.badge && (
-                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md">
+                <span
+                  className={`px-1.5 py-0.5 text-[10px] font-bold rounded-md ${
+                    isSales
+                      ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  }`}
+                >
                   {item.badge}
                 </span>
               )}
@@ -124,28 +167,59 @@ export default function Sidebar() {
         </p>
       </div>
 
-      {/* User Session Footer & Theme Switcher */}
-      <div className="p-3.5 border-t border-slate-800/80 flex items-center justify-between bg-slate-900/90">
-        <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="w-8 h-8 rounded-xl bg-rn-600/25 border border-rn-500/40 flex items-center justify-center text-rn-300 font-bold text-xs shrink-0">
-            AD
-          </div>
-          <div className="overflow-hidden">
-            <p className="text-xs font-semibold text-white truncate">Admin Executive</p>
-            <p className="text-[10px] text-slate-400 truncate">admin@rnvalves.com</p>
+      {/* User Session Footer & Actions */}
+      <div className="p-3 border-t border-slate-800/80 bg-slate-900/90">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div
+              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                isSales
+                  ? "bg-blue-600/25 border border-blue-500/40 text-blue-300"
+                  : "bg-rn-600/25 border border-rn-500/40 text-rn-300"
+              }`}
+            >
+              {initials}
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-xs font-semibold text-white truncate">
+                {user?.name || (isSales ? "Sales Executive" : "Admin")}
+              </p>
+              <p className="text-[10px] text-slate-400 truncate">
+                {user?.email || user?.phone || user?.repMobile || (isSales ? "Sales Team" : "admin@rnvalves.com")}
+              </p>
+            </div>
           </div>
         </div>
-        <button
-          onClick={toggleTheme}
-          className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors shrink-0"
-          title={`Switch to ${theme === "dark" ? "Light" : "Dark"} mode`}
-        >
-          {theme === "dark" ? (
-            <Sun className="w-4 h-4 text-amber-400" />
-          ) : (
-            <Moon className="w-4 h-4 text-slate-300" />
-          )}
-        </button>
+
+        {/* Action Buttons: Theme Toggle & Logout */}
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60">
+          <button
+            onClick={toggleTheme}
+            className="flex-1 py-1.5 px-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors text-[11px] font-semibold flex items-center justify-center gap-1.5"
+            title={`Switch to ${theme === "dark" ? "Light" : "Dark"} mode`}
+          >
+            {theme === "dark" ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span>Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-slate-300" />
+                <span>Dark</span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={logout}
+            className="flex-1 py-1.5 px-2 text-red-400 hover:text-red-300 rounded-lg hover:bg-red-950/40 border border-red-500/20 transition-colors text-[11px] font-semibold flex items-center justify-center gap-1.5"
+            title="Sign out of RN Valves CRM"
+          >
+            <LogOut className="w-3.5 h-3.5 text-red-400" />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </div>
     </div>
   );

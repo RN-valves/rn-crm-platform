@@ -5,8 +5,12 @@ import {
   updateSalesExecutive,
   deleteSalesExecutive,
 } from "../controllers/salesExecutiveController.js";
+import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
 
 const router = Router();
+
+// Sales Executive Management is strictly restricted to ADMIN
+router.use(requireAuth, requireRole(["ADMIN"]));
 
 router.get("/", getSalesExecutives);
 router.post("/", createSalesExecutive);

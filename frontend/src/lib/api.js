@@ -14,7 +14,7 @@ export async function apiRequest(endpoint, options = {}) {
       : null);
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+  const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 seconds timeout
 
   const headers = {
     "Content-Type": "application/json",
@@ -26,11 +26,37 @@ export async function apiRequest(endpoint, options = {}) {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
+      credentials: options.credentials || "include",
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
 
     const data = await response.json().catch(() => ({}));
+
+    if (response.status === 401) {
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        localStorage.removeItem("rn_crm_token");
+        localStorage.removeItem("rn_rep_token");
+        localStorage.removeItem("rn_user");
+        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+      }
+      throw new Error(data?.error || "Unauthorized session. Please login.");
+    }
+
+    if (response.status === 403) {
+      if (typeof window !== "undefined") {
+        const userStr = localStorage.getItem("rn_user");
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            if (user.role === "SALES" && window.location.pathname !== "/rep-portal") {
+              window.location.href = "/rep-portal";
+            }
+          } catch {}
+        }
+      }
+      throw new Error(data?.error || "Forbidden: You do not have permission to perform this action.");
+    }
 
     if (!response.ok) {
       throw new Error(data?.error || data?.message || `HTTP ${response.status}`);
@@ -40,7 +66,7 @@ export async function apiRequest(endpoint, options = {}) {
   } catch (err) {
     clearTimeout(timeoutId);
     if (err.name === "AbortError") {
-      throw new Error("API request timed out (10s). The backend server may be reconnecting.");
+      throw new Error("API request timed out (12s). The backend server may be reconnecting.");
     }
     throw err;
   }
@@ -48,7 +74,9 @@ export async function apiRequest(endpoint, options = {}) {
 
 export const crmApi = {
   // Auth
-  login: (credentials) => apiRequest("/auth/login", { method: "POST", body: JSON.stringify(credentials) }),
+  login: (credentials) =>
+    apiRequest("/auth/login", { method: "POST", body: JSON.stringify(credentials) }),
+  logout: () => apiRequest("/auth/logout", { method: "POST" }),
   getMe: () => apiRequest("/auth/me"),
 
   // Dashboard
