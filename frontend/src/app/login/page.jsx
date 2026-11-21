@@ -73,12 +73,12 @@ function LoginForm() {
     try {
       const result = await login(cleanIdentifier, cleanSecret);
       if (result && result.redirectTo) {
-        // Redirect will happen inside AuthContext or here
-        if (redirectParam && !redirectParam.includes("login") && result.user.role === "ADMIN") {
-          router.push(redirectParam);
-        } else {
-          router.push(result.redirectTo);
-        }
+        const dest =
+          redirectParam && !redirectParam.includes("login") && result.user.role === "ADMIN"
+            ? redirectParam
+            : result.redirectTo;
+        window.location.href = dest;
+        return;
       }
     } catch (err) {
       setError(err.message || "Invalid credentials. Please verify and try again.");

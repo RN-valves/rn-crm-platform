@@ -108,12 +108,21 @@ export function AuthProvider({ children }) {
           if (normalizedRole === "SALES") {
             localStorage.setItem("rn_rep_token", data.token);
           }
+          // Set client cookie on crm.rnvalves.com so Next.js middleware reads it
+          try {
+            const isHttps = window.location.protocol === "https:";
+            const isProd = window.location.hostname.includes("rnvalves.com");
+            const domainPart = isProd ? "; domain=.rnvalves.com" : "";
+            const securePart = isHttps ? "; Secure" : "";
+            const maxAge = 7 * 24 * 60 * 60; // 7 days
+            document.cookie = `rn_crm_token=${data.token}; path=/${domainPart}; max-age=${maxAge}; SameSite=Lax${securePart}`;
+            document.cookie = `rn_crm_token=${data.token}; path=/; max-age=${maxAge}; SameSite=Lax${securePart}`;
+          } catch {}
         }
         localStorage.setItem("rn_user", JSON.stringify(resolvedUser));
       }
 
       const destination = normalizedRole === "ADMIN" ? "/dashboard" : "/rep-portal";
-      router.push(destination);
       return { success: true, user: resolvedUser, redirectTo: destination };
     } finally {
       setIsLoading(false);
@@ -131,12 +140,18 @@ export function AuthProvider({ children }) {
     } finally {
       setUser(null);
       if (typeof window !== "undefined") {
+        try {
+          const isProd = window.location.hostname.includes("rnvalves.com");
+          const domainPart = isProd ? "; domain=.rnvalves.com" : "";
+          document.cookie = `rn_crm_token=; path=/${domainPart}; max-age=0`;
+          document.cookie = `rn_crm_token=; path=/; max-age=0`;
+        } catch {}
         localStorage.removeItem("rn_crm_token");
         localStorage.removeItem("rn_rep_token");
         localStorage.removeItem("rn_user");
       }
       setIsLoading(false);
-      router.push("/login");
+      window.location.href = "/login";
     }
   };
 

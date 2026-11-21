@@ -1064,15 +1064,19 @@ export async function repLogin(req: Request, res: Response): Promise<void> {
 
     const token = jwt.sign(repPayload, config.JWT_SECRET, { expiresIn: "30d" });
 
-    // Set HttpOnly cookie
+    // Set cookie with cross-subdomain compatibility (.rnvalves.com)
     const isProduction = config.NODE_ENV === "production";
-    res.cookie("rn_crm_token", token, {
+    const cookieOptions: any = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? "strict" : "lax",
+      sameSite: (isProduction ? "none" : "lax") as any,
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: "/",
-    });
+    };
+    if (isProduction) {
+      cookieOptions.domain = ".rnvalves.com";
+    }
+    res.cookie("rn_crm_token", token, cookieOptions);
 
     res.status(200).json({
       success: true,

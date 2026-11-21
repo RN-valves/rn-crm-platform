@@ -155,15 +155,19 @@ export async function login(req: Request, res: Response): Promise<void> {
       expiresIn: config.JWT_EXPIRES_IN as any,
     });
 
-    // Set secure HttpOnly cookie
+    // Set secure cookie with cross-subdomain compatibility (.rnvalves.com)
     const isProduction = config.NODE_ENV === "production";
-    res.cookie("rn_crm_token", token, {
+    const cookieOptions: any = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? "strict" : "lax",
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
-    });
+    };
+    if (isProduction) {
+      cookieOptions.domain = ".rnvalves.com";
+    }
+    res.cookie("rn_crm_token", token, cookieOptions);
 
     res.status(200).json({
       success: true,
@@ -182,12 +186,17 @@ export async function login(req: Request, res: Response): Promise<void> {
 
 export async function logout(req: Request, res: Response): Promise<void> {
   const isProduction = config.NODE_ENV === "production";
-  res.clearCookie("rn_crm_token", {
+  const cookieOptions: any = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? "strict" : "lax",
+    sameSite: isProduction ? "none" : "lax",
     path: "/",
-  });
+  };
+  if (isProduction) {
+    cookieOptions.domain = ".rnvalves.com";
+  }
+  res.clearCookie("rn_crm_token", cookieOptions);
+  res.clearCookie("rn_crm_token", { path: "/" });
   res.status(200).json({
     success: true,
     message: "Logged out successfully.",
