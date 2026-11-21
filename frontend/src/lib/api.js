@@ -1,17 +1,34 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window !== "undefined" && window.location.hostname.includes("rnvalves.com")
-    ? "https://crm-api.rnvalves.com/api"
-    : "http://localhost:5000/api");
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/+$/, "");
+const API_BASE_URL = rawApiUrl
+  ? rawApiUrl.endsWith("/api")
+    ? rawApiUrl
+    : `${rawApiUrl}/api`
+  : typeof window !== "undefined" && window.location.hostname.includes("rnvalves.com")
+  ? "https://crm-api.rnvalves.com/api"
+  : "http://localhost:5000/api";
 
 export async function apiRequest(endpoint, options = {}) {
-  const token =
+  let token =
     options?.token ||
     (typeof window !== "undefined"
-      ? (endpoint.includes("/my-leads")
-          ? localStorage.getItem("rn_rep_token") || localStorage.getItem("rn_crm_token")
-          : localStorage.getItem("rn_crm_token") || localStorage.getItem("rn_rep_token"))
+      ? endpoint.includes("/my-leads")
+        ? localStorage.getItem("rn_rep_token") || localStorage.getItem("rn_crm_token")
+        : localStorage.getItem("rn_crm_token") || localStorage.getItem("rn_rep_token")
       : null);
+
+  // If browser storage has no token yet (e.g. fresh tab with HttpOnly cookie), pull from first-party session
+  if (!token && typeof window !== "undefined" && !endpoint.startsWith("/auth/login")) {
+    try {
+      const sRes = await fetch("/api/session", { credentials: "same-origin", cache: "no-store" });
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        if (sData?.token) {
+          token = sData.token;
+          localStorage.setItem("rn_crm_token", token);
+        }
+      }
+    } catch {}
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 seconds timeout
@@ -34,11 +51,17 @@ export async function apiRequest(endpoint, options = {}) {
     const data = await response.json().catch(() => ({}));
 
     if (response.status === 401) {
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      if (
+        typeof window !== "undefined" &&
+        !window.location.pathname.startsWith("/login") &&
+        !endpoint.startsWith("/auth/login") &&
+        !endpoint.startsWith("/distribution/rep-login")
+      ) {
         localStorage.removeItem("rn_crm_token");
         localStorage.removeItem("rn_rep_token");
         localStorage.removeItem("rn_user");
-        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+        await fetch("/api/session", { method: "DELETE", credentials: "same-origin" }).catch(() => {});
+        window.location.replace(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
       }
       throw new Error(data?.error || "Unauthorized session. Please login.");
     }

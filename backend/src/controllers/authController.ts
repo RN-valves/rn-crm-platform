@@ -155,12 +155,12 @@ export async function login(req: Request, res: Response): Promise<void> {
       expiresIn: config.JWT_EXPIRES_IN as any,
     });
 
-    // Set secure cookie with cross-subdomain compatibility (.rnvalves.com)
+    // Set secure SameSite=Lax cookie across .rnvalves.com (same-site, never blocked by 3P cookie blockers)
     const isProduction = config.NODE_ENV === "production";
     const cookieOptions: any = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     };
@@ -189,7 +189,7 @@ export async function logout(req: Request, res: Response): Promise<void> {
   const cookieOptions: any = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
+    sameSite: "lax",
     path: "/",
   };
   if (isProduction) {

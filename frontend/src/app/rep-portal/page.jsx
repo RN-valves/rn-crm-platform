@@ -10,6 +10,7 @@ import Badge from "../../components/ui/Badge";
 import Input from "../../components/ui/Input";
 import Pagination from "../../components/ui/Pagination";
 import LeadFollowupModal from "../../components/LeadFollowupModal";
+import { useAuth } from "../../context/AuthContext";
 import {
   UserCheck,
   Users,
@@ -44,6 +45,7 @@ function RepPortalContent() {
   const searchParams = useSearchParams();
   const queryRep = searchParams.get("rep");
   const queryPhone = searchParams.get("phone");
+  const { role, logout: globalLogout } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [repProfile, setRepProfile] = useState(null);
@@ -70,7 +72,7 @@ function RepPortalContent() {
   const [pageSize, setPageSize] = useState(25);
   const [viewMode, setViewMode] = useState("table"); // "table" or "cards"
 
-  // Fetch executives for login selector
+  // Fetch executives list (Admin only)
   const fetchExecutivesList = async () => {
     try {
       const res = await crmApi.getSalesExecutives();
@@ -78,19 +80,33 @@ function RepPortalContent() {
         setExecutivesList(res.executives.filter((e) => e.isActive !== false));
       }
     } catch (err) {
-      console.warn("Could not fetch executives list:", err);
+      // Expected for SALES role
     }
   };
 
-  // Fetch My Leads using secure Rep Token
+  // Fetch My Leads using secure Rep Token (with first-party cookie fallback)
   const fetchMyLeads = async (tokenOverride = null) => {
     try {
       setLoading(true);
-      const token =
+      let token =
         tokenOverride ||
         (typeof window !== "undefined"
           ? localStorage.getItem("rn_rep_token") || localStorage.getItem("rn_crm_token")
           : null);
+
+      if (!token && typeof window !== "undefined") {
+        try {
+          const sRes = await fetch("/api/session", { credentials: "same-origin", cache: "no-store" });
+          if (sRes.ok) {
+            const sData = await sRes.json();
+            if (sData?.token) {
+              token = sData.token;
+              localStorage.setItem("rn_crm_token", token);
+            }
+          }
+        } catch {}
+      }
+
       if (!token) {
         setRepProfile(null);
         setRawLeads([]);
@@ -104,14 +120,12 @@ function RepPortalContent() {
         setRepSummary(res.summary);
         setRawLeads(res.leads || []);
       } else {
-        // Invalid session
-        handleLogout();
+        await handleLogout();
       }
     } catch (err) {
       console.warn("My leads fetch error:", err);
-      // If 401 or token expired
       if (err.message && (err.message.includes("401") || err.message.includes("expired") || err.message.includes("Unauthorized"))) {
-        handleLogout();
+        await handleLogout();
       }
     } finally {
       setLoading(false);
@@ -119,9 +133,14 @@ function RepPortalContent() {
   };
 
   useEffect(() => {
-    fetchExecutivesList();
     fetchMyLeads();
   }, []);
+
+  useEffect(() => {
+    if (role === "ADMIN") {
+      fetchExecutivesList();
+    }
+  }, [role]);
 
   // Pre-select executive if query params provided
   useEffect(() => {
@@ -170,6 +189,12 @@ function RepPortalContent() {
         localStorage.setItem("rn_rep_token", res.token);
         localStorage.setItem("rn_crm_token", res.token);
         localStorage.setItem("rn_sales_rep_auth", res.rep.name);
+        await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ token: res.token }),
+        }).catch(() => {});
         setRepProfile(res.rep);
         setLoginPinInput("");
         setLoginError("");
@@ -185,20 +210,14 @@ function RepPortalContent() {
   };
 
   // Handle Logout / Lock
-  const handleLogout = () => {
-    try {
-      localStorage.removeItem("rn_rep_token");
-      localStorage.removeItem("rn_crm_token");
-      localStorage.removeItem("rn_sales_rep_auth");
-      localStorage.removeItem("rn_user");
-    } catch {}
+  const handleLogout = async () => {
     setRepProfile(null);
     setRepSummary(null);
     setRawLeads([]);
     setSelectedExecForLogin(null);
     setLoginPinInput("");
     setLoginError("");
-    window.location.href = "/login";
+    await globalLogout();
   };
 
   // Filtered Leads

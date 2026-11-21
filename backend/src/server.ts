@@ -27,11 +27,15 @@ import { setupOutgoingMessageWorker } from "./workers/outgoingMessageWorker.js";
 
 const app = express();
 
-// Trust reverse proxy (Traefik / Coolify / Cloudflare)
-app.set("trust proxy", 1);
+// Trust reverse proxy chain (Cloudflare + Traefik / Coolify)
+app.set("trust proxy", 2);
 
 // Security and utility middleware
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 app.use(
   cors({
     origin: [config.FRONTEND_URL, "https://crm.rnvalves.com", "http://localhost:3000", "http://localhost:3001"],
@@ -43,25 +47,36 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 app.use(morgan(config.NODE_ENV === "production" ? "combined" : "dev"));
 
-// 1. Global Rate Limiter: 120 requests per minute per IP
+// 1. Global Rate Limiter: 240 requests per minute per real client IP
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: 240,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false },
+  keyGenerator: (req) =>
+    (req.headers["cf-connecting-ip"] as string) ||
+    (req.headers["x-real-ip"] as string) ||
+    req.ip ||
+    "unknown",
+  validate: false,
   message: { error: "Too many requests from this IP, please try again later." },
 });
 app.use("/api/", globalLimiter);
 
-// 2. Strict Auth Rate Limiter: 10 login attempts per 15 minutes to prevent brute force
+// 2. Strict Auth Rate Limiter: 25 failed login attempts per 15 minutes per client IP
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 25,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false },
-  message: { error: "Too many login attempts, please try again after 15 minutes." },
+  keyGenerator: (req) =>
+    (req.headers["cf-connecting-ip"] as string) ||
+    (req.headers["x-real-ip"] as string) ||
+    req.ip ||
+    "unknown",
+  validate: false,
+  message: { error: "Too many failed login attempts, please try again after 15 minutes." },
 });
 app.use("/api/auth/login", authLimiter);
 app.use("/auth/login", authLimiter);

@@ -33,16 +33,18 @@ function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("admin"); // "admin" or "sales"
 
-  // If already authenticated, redirect immediately
+  // If already authenticated on initial load (not mid-submit), redirect immediately
   useEffect(() => {
-    if (!authLoading && isAuthenticated && user) {
-      if (user.role === "ADMIN") {
-        router.push(redirectParam && !redirectParam.includes("login") ? redirectParam : "/dashboard");
-      } else if (user.role === "SALES") {
-        router.push("/rep-portal");
-      }
+    if (!isSubmitting && !authLoading && isAuthenticated && user) {
+      const dest =
+        user.role === "ADMIN"
+          ? redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("/login")
+            ? redirectParam
+            : "/dashboard"
+          : "/rep-portal";
+      window.location.replace(dest);
     }
-  }, [authLoading, isAuthenticated, user, redirectParam, router]);
+  }, [isSubmitting, authLoading, isAuthenticated, user, redirectParam]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -74,15 +76,15 @@ function LoginForm() {
       const result = await login(cleanIdentifier, cleanSecret);
       if (result && result.redirectTo) {
         const dest =
-          redirectParam && !redirectParam.includes("login") && result.user.role === "ADMIN"
+          redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("/login") && result.user.role === "ADMIN"
             ? redirectParam
             : result.redirectTo;
-        window.location.href = dest;
+        window.location.replace(dest);
         return;
       }
+      setIsSubmitting(false);
     } catch (err) {
       setError(err.message || "Invalid credentials. Please verify and try again.");
-    } finally {
       setIsSubmitting(false);
     }
   };

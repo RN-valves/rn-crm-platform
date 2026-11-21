@@ -1064,12 +1064,12 @@ export async function repLogin(req: Request, res: Response): Promise<void> {
 
     const token = jwt.sign(repPayload, config.JWT_SECRET, { expiresIn: "30d" });
 
-    // Set cookie with cross-subdomain compatibility (.rnvalves.com)
+    // Set cookie with SameSite=Lax across .rnvalves.com
     const isProduction = config.NODE_ENV === "production";
     const cookieOptions: any = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: (isProduction ? "none" : "lax") as any,
+      sameSite: "lax" as any,
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: "/",
     };
