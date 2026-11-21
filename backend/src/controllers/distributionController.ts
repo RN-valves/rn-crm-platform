@@ -121,6 +121,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         totalCount: number;
         convertedCount: number;
         inProgressCount: number;
+        lostCount: number;
         totalEstimatedValue: number;
       }
     > = {};
@@ -133,6 +134,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         totalCount: 0,
         convertedCount: 0,
         inProgressCount: 0,
+        lostCount: 0,
         totalEstimatedValue: 0,
       };
     }
@@ -148,6 +150,8 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         repBuckets[canonicalName].totalCount += 1;
         if (l.status === "CONVERTED") {
           repBuckets[canonicalName].convertedCount += 1;
+        } else if (l.status === "LOST") {
+          repBuckets[canonicalName].lostCount += 1;
         } else {
           repBuckets[canonicalName].inProgressCount += 1;
         }
@@ -167,6 +171,8 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       leadsCount: b.totalCount,
       convertedCount: b.convertedCount,
       inProgressCount: b.inProgressCount,
+      lostCount: b.lostCount,
+      conversionRate: b.totalCount > 0 ? Math.round((b.convertedCount / b.totalCount) * 100) : 0,
       totalEstimatedValue: b.totalEstimatedValue,
       sharePercent: totalLeadsCount > 0 ? Math.round((b.totalCount / totalLeadsCount) * 100) : 0,
       leads: b.leads.map((l) => ({
@@ -179,7 +185,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         businessName: l.businessName,
         status: l.status,
         priority: l.priority,
-        estimatedValue: l.estimatedValue,
+        estimatedValue: l.estimatedValue || 0,
         productCategory: l.productCategory,
         pincode: l.pincode || "",
         repNotificationStatus: l.repNotificationStatus || "DELIVERED",
@@ -189,28 +195,59 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         lastReplyAt: l.lastReplyAt || l.createdAt,
         intentTag: l.intentTag || l.productCategory || "Wholesale Dealership",
         routingReason: l.routingReason || `PIN ${l.pincode || "Pan-India"} → Routed to ${b.executive.name}`,
+        followupDate: l.followupDate,
+        internalNotes: l.internalNotes || [],
+        history: l.history || [],
+        lossReason: l.lossReason || "",
+        assignedEmployeeName: b.executive.name,
+        assignedEmployeePhone: b.executive.mobile,
         createdAt: l.createdAt,
+        updatedAt: l.updatedAt,
       })),
     }));
 
     // 7. Human Mode / Takeover Conversations
-    const humanTakeovers = humanControls.map((hc) => {
-      const p10 = normalizePhone(hc.phone);
-      const contact = contactMap.get(p10);
-      return {
-        _id: hc._id,
-        phone: hc.phone,
-        customerName: contact?.name || "WhatsApp User",
-        businessName: contact?.businessName || "",
-        city: contact?.city || "",
-        mode: hc.mode,
-        pauseReason: hc.pauseReason || "Customer requested human takeover",
-        assignedAgentName: hc.assignedAgentName || "Unassigned Agent",
-        lastCustomerMessageAt: hc.lastCustomerMessageAt || hc.updatedAt,
-        chatwootConversationId: hc.chatwootConversationId || "",
-        updatedAt: hc.updatedAt,
-      };
-    });
+    // Exclude conversations that have already been assigned to a sales executive or are in leads
+    const assignedPhoneSet = new Set<string>();
+    for (const l of leads) {
+      if (l.assignedEmployeeName && l.assignedEmployeeName !== "Unassigned") {
+        const p10 = normalizePhone(l.phone);
+        if (p10) assignedPhoneSet.add(p10);
+      }
+    }
+
+    const humanTakeovers = humanControls
+      .filter((hc) => {
+        const p10 = normalizePhone(hc.phone);
+        // If already assigned to an executive as a lead, remove from human takeover queue!
+        if (p10 && assignedPhoneSet.has(p10)) return false;
+        // If assignedAgentName is already an executive, remove from pending takeover queue!
+        if (
+          hc.assignedAgentName &&
+          hc.assignedAgentName !== "Unassigned Agent" &&
+          hc.assignedAgentName !== "Unassigned"
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((hc) => {
+        const p10 = normalizePhone(hc.phone);
+        const contact = contactMap.get(p10);
+        return {
+          _id: hc._id,
+          phone: hc.phone,
+          customerName: contact?.name || "WhatsApp User",
+          businessName: contact?.businessName || "",
+          city: contact?.city || "",
+          mode: hc.mode,
+          pauseReason: hc.pauseReason || "Customer requested human takeover",
+          assignedAgentName: hc.assignedAgentName || "Unassigned Agent",
+          lastCustomerMessageAt: hc.lastCustomerMessageAt || hc.updatedAt,
+          chatwootConversationId: hc.chatwootConversationId || "",
+          updatedAt: hc.updatedAt,
+        };
+      });
 
     const humanPhoneSet = new Set<string>();
     for (const ht of humanTakeovers) {
@@ -276,6 +313,13 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
     const totalAssignedLeads = repDistribution.reduce((acc, r) => acc + r.leadsCount, 0);
     const totalUnassignedLeads = unassignedLeads.length;
 
+    const totalConvertedLeads = leads.filter((l) => l.status === "CONVERTED").length;
+    const totalLostLeads = leads.filter((l) => l.status === "LOST").length;
+    const totalInProgressLeads = leads.filter(
+      (l) => l.status !== "CONVERTED" && l.status !== "LOST"
+    ).length;
+    const totalPipelineValue = leads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
+
     const totalRepDelivered = leads.filter(
       (l) => l.repNotificationStatus !== "FAILED" && l.assignedEmployeeName && l.assignedEmployeeName !== "Unassigned"
     ).length;
@@ -287,12 +331,18 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         totalLeads: totalLeadsCount,
         totalAssignedLeads,
         totalUnassignedLeads,
+        totalConvertedLeads,
+        totalLostLeads,
+        totalInProgressLeads,
+        totalPipelineValue,
         totalHumanTakeovers: humanTakeovers.length,
         totalDroppedAtHi: droppedAtHi.length,
         totalRepDelivered,
         totalCustomerReplied: totalLeadsCount,
         leadCompletionRate:
           totalInquiries > 0 ? Math.round((totalLeadsCount / totalInquiries) * 100) : 0,
+        conversionRate:
+          totalLeadsCount > 0 ? Math.round((totalConvertedLeads / totalLeadsCount) * 100) : 0,
       },
       executives: repDistribution,
       unassignedLeads: unassignedLeads.map((l) => ({
@@ -852,5 +902,67 @@ export async function reengageBulkCustomers(req: Request, res: Response): Promis
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to process bulk re-engagement" });
+  }
+}
+
+/**
+ * Update Lead Follow-up Progress, Status, Remarks, Next Date & Value
+ * Allows sales reps / admin to mark leads as CONVERTED (Won), LOST, or in follow-up.
+ */
+export async function updateLeadFollowup(req: Request, res: Response): Promise<void> {
+  try {
+    const { leadId, phone, status, comment, followupDate, estimatedValue, lossReason } = req.body;
+    const Lead = getLeadModel();
+
+    let targetLead: any = null;
+    if (leadId) {
+      targetLead = await Lead.findById(leadId);
+    }
+    if (!targetLead && phone) {
+      const cleanDigits = phone.replace(/\D/g, "");
+      targetLead = await Lead.findOne({
+        phone: { $in: [phone, cleanDigits, `+${cleanDigits}`, `+91${cleanDigits.slice(-10)}`] },
+      }).sort({ updatedAt: -1 });
+    }
+
+    if (!targetLead) {
+      res.status(404).json({ error: "Lead not found" });
+      return;
+    }
+
+    const fromStatus = targetLead.status;
+    if (status) {
+      targetLead.status = status;
+    }
+    if (estimatedValue !== undefined && estimatedValue !== null && estimatedValue !== "") {
+      targetLead.estimatedValue = Number(estimatedValue) || 0;
+    }
+    if (followupDate) {
+      targetLead.followupDate = new Date(followupDate);
+    }
+    if (lossReason) {
+      targetLead.lossReason = lossReason;
+    }
+    if (comment && comment.trim()) {
+      targetLead.internalNotes.push(`[${new Date().toLocaleDateString("en-IN")}] ${comment.trim()}`);
+    }
+
+    targetLead.history.push({
+      fromStatus,
+      toStatus: status || fromStatus,
+      updatedBy: (req as any).user?.name || targetLead.assignedEmployeeName || "Sales Executive",
+      timestamp: new Date(),
+      comment: comment ? comment.trim() : `Follow-up updated to ${status || fromStatus}`,
+    });
+
+    await targetLead.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Lead ${targetLead.leadNumber} follow-up updated to ${targetLead.status}`,
+      lead: targetLead,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to update lead follow-up" });
   }
 }

@@ -51,6 +51,7 @@ export interface ILead extends Document {
   lastReplyAt?: Date;
   intentTag?: string;
   routingReason?: string;
+  lossReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,6 +79,7 @@ const LeadSchema = new Schema<ILead>(
     },
     assignedEmployeeId: { type: String, default: "", index: true },
     assignedEmployeeName: { type: String, default: "" },
+    lossReason: { type: String, default: "" },
     status: {
       type: String,
       enum: ["NEW", "CONTACTED", "INTERESTED", "QUOTATION_SENT", "NEGOTIATION", "CONVERTED", "LOST"],

@@ -5,6 +5,7 @@ import {
   reengageCustomer,
   reengageBulkCustomers,
   resendRepAlert,
+  updateLeadFollowup,
 } from "../controllers/distributionController.js";
 
 const router = Router();
@@ -24,5 +25,8 @@ router.post("/reengage", reengageCustomer);
 
 // POST /api/distribution/reengage-bulk
 router.post("/reengage-bulk", reengageBulkCustomers);
+
+// POST /api/distribution/update-followup
+router.post("/update-followup", updateLeadFollowup);
 
 export default router;
