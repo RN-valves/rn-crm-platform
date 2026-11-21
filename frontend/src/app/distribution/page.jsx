@@ -89,7 +89,9 @@ function LeadDistributionInner() {
   // Reports Tab Filters
   const [reportRepFilter, setReportRepFilter] = useState("ALL");
   const [reportStatusFilter, setReportStatusFilter] = useState("ALL");
-  const [reportDateRange, setReportDateRange] = useState("ALL"); // "ALL", "TODAY", "YESTERDAY", "LAST_7", "LAST_30"
+  const [reportDateRange, setReportDateRange] = useState("ALL"); // "ALL", "TODAY", "YESTERDAY", "LAST_7", "LAST_30", "CUSTOM"
+  const [reportCustomStart, setReportCustomStart] = useState("");
+  const [reportCustomEnd, setReportCustomEnd] = useState("");
 
   // Rep Portal Selected Rep
   const [portalRepName, setPortalRepName] = useState("");
@@ -152,10 +154,10 @@ function LeadDistributionInner() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (force = false) => {
     setLoading(true);
     try {
-      const res = await crmApi.getDistributionAnalytics();
+      const res = await crmApi.getDistributionAnalytics(force);
       setData(res);
       if (typeof window !== "undefined" && res) {
         const execList = res.executives || [];
@@ -323,7 +325,7 @@ function LeadDistributionInner() {
     document.body.removeChild(link);
   };
 
-  // Filtered Leads for Reports Tab
+  // Filtered Leads for Reports Tab (including Custom Date Range)
   const filteredReportLeads = allLeads.filter((l) => {
     if (reportRepFilter !== "ALL") {
       if (reportRepFilter === "UNASSIGNED" && l.assignedEmployeeName !== "Unassigned") return false;
@@ -347,6 +349,15 @@ function LeadDistributionInner() {
         if (now - created > 7 * oneDay) return false;
       } else if (reportDateRange === "LAST_30") {
         if (now - created > 30 * oneDay) return false;
+      } else if (reportDateRange === "CUSTOM") {
+        if (reportCustomStart) {
+          const sTime = new Date(reportCustomStart).setHours(0, 0, 0, 0);
+          if (created < sTime) return false;
+        }
+        if (reportCustomEnd) {
+          const eTime = new Date(reportCustomEnd).setHours(23, 59, 59, 999);
+          if (created > eTime) return false;
+        }
       }
     }
     if (searchQuery.trim()) {
@@ -362,6 +373,107 @@ function LeadDistributionInner() {
     }
     return true;
   });
+
+  // Executive-wise summary breakdown for the current report filter
+  const reportExecutiveSummary = executives.map((ex) => {
+    const repLeads = filteredReportLeads.filter((l) => l.assignedEmployeeName === ex.name);
+    const won = repLeads.filter((l) => l.status === "CONVERTED").length;
+    const lost = repLeads.filter((l) => l.status === "LOST").length;
+    const active = repLeads.length - won - lost;
+    const value = repLeads.reduce((sum, l) => sum + (Number(l.estimatedValue) || 0), 0);
+    return {
+      name: ex.name,
+      state: ex.state,
+      mobile: ex.mobile,
+      total: repLeads.length,
+      won,
+      active,
+      lost,
+      winRate: repLeads.length > 0 ? Math.round((won / repLeads.length) * 100) : 0,
+      value,
+    };
+  });
+
+  // Loss Reason Intelligence Breakdown
+  const lostReportLeads = filteredReportLeads.filter((l) => l.status === "LOST");
+  const lossBreakdownMap = {};
+  lostReportLeads.forEach((l) => {
+    const reason = (l.lossReason || "Not Specified").trim();
+    lossBreakdownMap[reason] = (lossBreakdownMap[reason] || 0) + 1;
+  });
+  const lossBreakdownList = Object.entries(lossBreakdownMap)
+    .map(([reason, count]) => ({
+      reason,
+      count,
+      percent: lostReportLeads.length > 0 ? Math.round((count / lostReportLeads.length) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const exportExecutiveSummaryExcel = () => {
+    const headers = [
+      "Sales Executive",
+      "Assigned Territory",
+      "Mobile",
+      "Total Leads",
+      "Won (Converted)",
+      "Active Follow-up",
+      "Lost",
+      "Win Rate (%)",
+      "Total Deal Value (INR)",
+    ];
+    const rows = reportExecutiveSummary.map((r) => [
+      r.name,
+      r.state || "",
+      r.mobile || "",
+      r.total,
+      r.won,
+      r.active,
+      r.lost,
+      `${r.winRate}%`,
+      r.value,
+    ]);
+    const csv =
+      "\uFEFF" +
+      [headers, ...rows]
+        .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `RN_Valves_Executive_Summary_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Dedicated Section Metadata for Dynamic Page Header
+  const SECTION_HEADERS = {
+    executives: {
+      title: "Sales Executives & Territory Matrix",
+      subtitle: "Live territory allocation, PIN-based lead routing, and executive conversion metrics",
+    },
+    leads: {
+      title: "All Pipeline Leads",
+      subtitle: "Manage, assign, and update follow-up outcomes across all inbound inquiries",
+    },
+    dropped: {
+      title: 'Dropped at "Hi" — Abandoned Inquiries',
+      subtitle: "Re-engage incomplete WhatsApp visitors or route them directly to a sales executive",
+    },
+    human: {
+      title: "Human Takeovers — Live Handover Queue",
+      subtitle: "Conversations paused from AI mode awaiting sales executive assignment or reply",
+    },
+    reports: {
+      title: "Reports & Excel Analytics Center",
+      subtitle: "Filter leads by executive, stage, and date range to generate Excel & PDF reports",
+    },
+    rep_portal: {
+      title: "Sales Rep Workspace Preview",
+      subtitle: "Inspect and update individual executive follow-ups, deal values, and win/loss status",
+    },
+  };
+  const currentHeader = SECTION_HEADERS[activeTab] || SECTION_HEADERS.executives;
 
   // Selected Sales Executive for Portal
   const selectedPortalExec = executives.find((e) => e.name === portalRepName) || executives[0];
@@ -389,22 +501,23 @@ function LeadDistributionInner() {
   });
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-50 dark:bg-slate-950 transition-colors">
+    <div className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#F8FAFC] dark:bg-slate-950 transition-colors">
       <Header
-        title="Lead Distribution & Drop-off Intelligence"
-        subtitle="Rep allocation matrix, unassigned leads, dropped at 'Hi', and human handovers"
-        onRefresh={fetchData}
+        title={currentHeader.title}
+        subtitle={currentHeader.subtitle}
+        onRefresh={() => fetchData(true)}
         loading={loading}
       />
 
-      <main className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto w-full">
+      <main className="p-4 sm:p-6 lg:p-7 space-y-5 max-w-7xl mx-auto w-full">
         {reassignMsg && (
           <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-bold flex items-center justify-between animate-in fade-in shadow-sm">
             <span>✅ {reassignMsg}</span>
           </div>
         )}
 
-        {/* 1. High-Level Performance Metric Cards (6 KPI tiles) */}
+        {/* 1. Overview KPI Tiles (Shown on Executives & All Pipeline Leads views) */}
+        {(activeTab === "executives" || activeTab === "leads") && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
           {/* Total Inquiries */}
           <Card hover>
@@ -558,6 +671,7 @@ function LeadDistributionInner() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {/* 2. Clean Minimalist Section Switcher & Search Toolbar */}
         <div className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-2xl border border-slate-200/85 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -1464,44 +1578,65 @@ function LeadDistributionInner() {
 
         {/* TAB 5: REPORTS & EXCEL EXPORT PANEL */}
         {activeTab === "reports" && (
-          <div className="space-y-6 animate-fadeIn">
-            {/* Top Action & Header Bar */}
-            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-5 animate-fadeIn">
+            {/* Top Action & Export Toolbar */}
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/85 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-                  <span>Lead Distribution & Performance Reports</span>
+                  <span>Lead Distribution & Executive Performance Reports</span>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Filter leads across all sales reps, analyze follow-up status, and export clean reports directly to Microsoft Excel.
+                  Generate detailed lead sheets, executive summary scorecards, and print-ready PDF reports.
                 </p>
               </div>
 
-              <button
-                onClick={() =>
-                  exportToExcel(
-                    filteredReportLeads,
-                    `RN_Valves_Leads_Report_${reportRepFilter}_${reportStatusFilter}`
-                  )
-                }
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-2 shadow-sm transition-all"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Download Excel Report ({filteredReportLeads.length})</span>
-                <Download className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex flex-wrap items-center gap-2 no-print">
+                <button
+                  type="button"
+                  onClick={() =>
+                    exportToExcel(
+                      filteredReportLeads,
+                      `RN_Valves_Leads_Report_${reportRepFilter}_${reportStatusFilter}`
+                    )
+                  }
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs inline-flex items-center gap-1.5 shadow-sm transition-all"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Leads Excel ({filteredReportLeads.length})</span>
+                  <Download className="w-3 h-3" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={exportExecutiveSummaryExcel}
+                  className="px-3.5 py-2 bg-[#1091d0] hover:bg-[#0c7db5] text-white font-semibold rounded-xl text-xs inline-flex items-center gap-1.5 shadow-sm transition-all"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Executive Summary Excel</span>
+                  <Download className="w-3 h-3" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => typeof window !== "undefined" && window.print()}
+                  className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl text-xs inline-flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 transition-all"
+                >
+                  <span>Print / PDF</span>
+                </button>
+              </div>
             </div>
 
             {/* Filter Controls Bar */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/85 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs no-print">
               <div className="flex flex-wrap items-center gap-3">
                 {/* Rep Filter */}
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-500">Rep:</span>
+                  <span className="font-semibold text-slate-500">Executive:</span>
                   <select
                     value={reportRepFilter}
                     onChange={(e) => setReportRepFilter(e.target.value)}
-                    className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rn-500"
+                    className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#1091d0]"
                   >
                     <option value="ALL">All Sales Executives ({executives.length})</option>
                     <option value="UNASSIGNED">Unassigned Only</option>
@@ -1515,97 +1650,241 @@ function LeadDistributionInner() {
 
                 {/* Status Filter */}
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-500">Stage:</span>
+                  <span className="font-semibold text-slate-500">Stage:</span>
                   <select
                     value={reportStatusFilter}
                     onChange={(e) => setReportStatusFilter(e.target.value)}
-                    className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rn-500"
+                    className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#1091d0]"
                   >
                     <option value="ALL">All Statuses / Outcomes</option>
-                    <option value="CONVERTED">🟢 Converted / Won Deals</option>
-                    <option value="QUOTATION_SENT">📄 Quotation / Price List Sent</option>
-                    <option value="NEGOTIATION">💬 In Negotiation</option>
-                    <option value="CONTACTED">📞 Contacted (Follow-up)</option>
-                    <option value="NEW">🔵 New Inquiries</option>
-                    <option value="LOST">🔴 Lost Deals</option>
+                    <option value="CONVERTED">Converted / Won Deals</option>
+                    <option value="QUOTATION_SENT">Quotation Sent</option>
+                    <option value="NEGOTIATION">In Negotiation</option>
+                    <option value="CONTACTED">Contacted (Follow-up)</option>
+                    <option value="NEW">New Inquiries</option>
+                    <option value="LOST">Lost Deals</option>
                   </select>
                 </div>
 
                 {/* Date Range Filter */}
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-500">Timeline:</span>
+                  <span className="font-semibold text-slate-500">Timeline:</span>
                   <select
                     value={reportDateRange}
                     onChange={(e) => setReportDateRange(e.target.value)}
-                    className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rn-500"
+                    className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#1091d0]"
                   >
                     <option value="ALL">All Time</option>
                     <option value="TODAY">Today</option>
                     <option value="YESTERDAY">Yesterday</option>
                     <option value="LAST_7">Last 7 Days</option>
                     <option value="LAST_30">Last 30 Days</option>
+                    <option value="CUSTOM">Custom Date Range</option>
                   </select>
                 </div>
+
+                {reportDateRange === "CUSTOM" && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={reportCustomStart}
+                      onChange={(e) => setReportCustomStart(e.target.value)}
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200"
+                    />
+                    <span className="text-slate-400">to</span>
+                    <input
+                      type="date"
+                      value={reportCustomEnd}
+                      onChange={(e) => setReportCustomEnd(e.target.value)}
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200"
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="text-slate-400 font-medium">
-                Matching <strong className="text-slate-700 dark:text-slate-200">{filteredReportLeads.length}</strong> leads
+              <div className="text-slate-500 font-medium">
+                Showing <strong className="text-slate-800 dark:text-white">{filteredReportLeads.length}</strong> matching leads
               </div>
             </div>
 
-            {/* Performance KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+            {/* 5 Minimalist Report KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/85 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Total Leads Filtered
+                  Filtered Leads
                 </span>
                 <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                   {filteredReportLeads.length}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Assigned in selected criteria</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">In selected criteria</p>
               </div>
 
-              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-4 shadow-sm">
-                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">
-                  Won Deals (Converted)
+              <div className="bg-white dark:bg-slate-900 border border-emerald-200/90 dark:border-emerald-800/60 rounded-2xl p-4 shadow-sm">
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
+                  Won (Converted)
                 </span>
-                <p className="text-2xl font-black text-emerald-900 dark:text-emerald-100 mt-1">
+                <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
                   {filteredReportLeads.filter((l) => l.status === "CONVERTED").length}
                 </p>
-                <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400 mt-0.5">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   {filteredReportLeads.length > 0
                     ? Math.round(
                         (filteredReportLeads.filter((l) => l.status === "CONVERTED").length /
                           filteredReportLeads.length) *
                           100
                       )
-                    : 0}% Conversion Rate
+                    : 0}% Win Rate
                 </p>
               </div>
 
-              <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-2xl p-4 shadow-sm">
-                <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider block">
-                  Active in Follow-up
+              <div className="bg-white dark:bg-slate-900 border border-sky-200/90 dark:border-sky-800/60 rounded-2xl p-4 shadow-sm">
+                <span className="text-[10px] font-bold text-[#1091d0] dark:text-sky-400 uppercase tracking-wider block">
+                  Active Follow-up
                 </span>
-                <p className="text-2xl font-black text-blue-900 dark:text-blue-100 mt-1">
+                <p className="text-2xl font-black text-[#1091d0] dark:text-sky-400 mt-1">
                   {filteredReportLeads.filter((l) => l.status !== "CONVERTED" && l.status !== "LOST").length}
                 </p>
-                <p className="text-[11px] text-blue-700/80 dark:text-blue-400 mt-0.5">
-                  Quotes, negotiations & chats
-                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Quotes & negotiations</p>
               </div>
 
-              <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-2xl p-4 shadow-sm">
-                <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wider block">
-                  Lost Inquiries
+              <div className="bg-white dark:bg-slate-900 border border-rose-200/90 dark:border-rose-800/60 rounded-2xl p-4 shadow-sm">
+                <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider block">
+                  Lost Deals
                 </span>
-                <p className="text-2xl font-black text-rose-900 dark:text-rose-100 mt-1">
-                  {filteredReportLeads.filter((l) => l.status === "LOST").length}
+                <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
+                  {lostReportLeads.length}
                 </p>
-                <p className="text-[11px] text-rose-700/80 dark:text-rose-400 mt-0.5">
-                  Dropped / competitor / price
-                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Competitor / pricing</p>
               </div>
+
+              <div className="col-span-2 md:col-span-1 bg-white dark:bg-slate-900 border border-indigo-200/90 dark:border-indigo-800/60 rounded-2xl p-4 shadow-sm">
+                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">
+                  Pipeline Value
+                </span>
+                <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1 truncate">
+                  ₹{filteredReportLeads.reduce((s, l) => s + (Number(l.estimatedValue) || 0), 0).toLocaleString("en-IN")}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Estimated order value</p>
+              </div>
+            </div>
+
+            {/* Executive Scorecard & Loss Reason Market Intelligence Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Executive Summary Table */}
+              <Card className="lg:col-span-2">
+                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                      Executive-Wise Report Scorecard
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Click any executive row to filter detailed report below
+                    </p>
+                  </div>
+                  {reportRepFilter !== "ALL" && (
+                    <button
+                      type="button"
+                      onClick={() => setReportRepFilter("ALL")}
+                      className="text-[11px] font-semibold text-[#1091d0] hover:underline"
+                    >
+                      Show All Executives
+                    </button>
+                  )}
+                </div>
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0 text-xs">
+                    <thead>
+                      <tr>
+                        <th className="px-4 py-2.5">Executive</th>
+                        <th className="px-3 py-2.5 text-center">Assigned</th>
+                        <th className="px-3 py-2.5 text-center">Won</th>
+                        <th className="px-3 py-2.5 text-center">Follow-up</th>
+                        <th className="px-3 py-2.5 text-center">Lost</th>
+                        <th className="px-3 py-2.5 text-center">Win %</th>
+                        <th className="px-4 py-2.5 text-end">Value (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportExecutiveSummary.map((r) => (
+                        <tr
+                          key={r.name}
+                          onClick={() =>
+                            setReportRepFilter(reportRepFilter === r.name ? "ALL" : r.name)
+                          }
+                          className={`cursor-pointer ${
+                            reportRepFilter === r.name ? "bg-[#EEF6FF] dark:bg-rn-950/40" : ""
+                          }`}
+                        >
+                          <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">
+                            {r.name}
+                            <span className="block text-[10px] text-slate-400 font-normal truncate max-w-[180px]">
+                              {r.state}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-center font-bold text-slate-800 dark:text-slate-200">
+                            {r.total}
+                          </td>
+                          <td className="px-3 py-2.5 text-center font-bold text-emerald-600">
+                            {r.won}
+                          </td>
+                          <td className="px-3 py-2.5 text-center font-semibold text-[#1091d0]">
+                            {r.active}
+                          </td>
+                          <td className="px-3 py-2.5 text-center font-semibold text-rose-600">
+                            {r.lost}
+                          </td>
+                          <td className="px-3 py-2.5 text-center">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-bold text-[11px]">
+                              {r.winRate}%
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-end font-bold text-slate-900 dark:text-white">
+                            ₹{r.value.toLocaleString("en-IN")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              {/* Loss Reason Market Intelligence */}
+              <Card>
+                <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                    Loss Reason Intelligence
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Why lost inquiries did not convert ({lostReportLeads.length} lost)
+                  </p>
+                </div>
+                <div className="p-4 space-y-3">
+                  {lossBreakdownList.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      No lost deals in the selected period — great job!
+                    </div>
+                  ) : (
+                    lossBreakdownList.map((item) => (
+                      <div key={item.reason} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium text-slate-700 dark:text-slate-300 truncate pr-2">
+                            {item.reason}
+                          </span>
+                          <span className="font-bold text-slate-900 dark:text-white shrink-0">
+                            {item.count} ({item.percent}%)
+                          </span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                          <div
+                            className="h-full bg-rose-500 rounded-full transition-all"
+                            style={{ width: `${Math.max(item.percent, 6)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Card>
             </div>
 
             {/* Reports Leads Table */}

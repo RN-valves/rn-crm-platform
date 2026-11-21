@@ -60,20 +60,10 @@ function SidebarInner() {
 
     let cancelled = false;
     crmApi
-      .getDistributionAnalytics()
+      .getDistributionCounts()
       .then((res) => {
-        if (cancelled || !res) return;
-        const execList = res.executives || [];
-        const unassigned = res.unassignedLeads || [];
-        const totalLeadsCount =
-          unassigned.length +
-          execList.reduce((sum, ex) => sum + ((ex.leads || []).length || 0), 0);
-        setDistCounts({
-          executives: execList.length,
-          leads: totalLeadsCount || res.summary?.totalLeads || 0,
-          dropped: (res.droppedAtHi || []).length,
-          human: (res.humanTakeovers || []).length,
-        });
+        if (cancelled || !res?.counts) return;
+        setDistCounts(res.counts);
       })
       .catch(() => {});
 

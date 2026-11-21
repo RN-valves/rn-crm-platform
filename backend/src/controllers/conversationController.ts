@@ -11,58 +11,113 @@ import { getCorporateBotMongoFilter } from "../services/botFilter.js";
 export async function getConversations(req: Request, res: Response): Promise<void> {
   try {
     const mode = req.query.mode as string;
-    const search = req.query.search as string;
+    const search = ((req.query.search as string) || "").trim().toLowerCase();
 
     const query: any = { ...getCorporateBotMongoFilter() };
     if (mode && mode !== "ALL") query.mode = mode;
-    if (search) {
-      const regex = new RegExp(search.trim(), "i");
-      query.$or = [{ phone: regex }, { assignedAgentName: regex }];
-    }
 
     try {
       const ConversationControl = getConversationControlModel();
-      const rawConversations = await ConversationControl.find(query)
-        .sort({ updatedAt: -1 })
-        .lean();
-
       const Message = getMessageModel();
       const Contact = getContactModel();
       const Lead = getLeadModel();
 
-      const conversations = await Promise.all(
-        rawConversations.map(async (conv) => {
-          const cleanDigits = conv.phone.replace(/\D/g, "");
-          const phoneVariants = [
-            conv.phone,
-            `+${cleanDigits}`,
-            cleanDigits,
-            cleanDigits.startsWith("91") ? `+${cleanDigits}` : `+91${cleanDigits}`,
-          ];
+      const norm10 = (p: string = "") => {
+        const d = String(p).replace(/\D/g, "");
+        return d.length >= 10 ? d.slice(-10) : d;
+      };
 
-          const [lastMsg, contact, lead] = await Promise.all([
-            Message.findOne({ phone: { $in: phoneVariants } }).sort({ createdAt: -1 }).lean(),
-            Contact.findOne({ phone: { $in: phoneVariants } }).lean(),
-            Lead.findOne({ phone: { $in: phoneVariants } }).sort({ createdAt: -1 }).lean(),
-          ]);
+      // Run 4 parallel batch queries instead of N×3 per-conversation queries
+      const [rawConversations, allContacts, allLeads, latestMessages] = await Promise.all([
+        ConversationControl.find(query).sort({ updatedAt: -1 }).lean(),
+        Contact.find({}, "phone name businessName businessType city").lean(),
+        Lead.find({}, "phone customerName businessName businessType city assignedEmployeeName")
+          .sort({ createdAt: -1 })
+          .lean(),
+        Message.aggregate([
+          { $sort: { createdAt: -1 } },
+          {
+            $group: {
+              _id: "$phone",
+              content: { $first: "$content" },
+              createdAt: { $first: "$createdAt" },
+            },
+          },
+        ]).catch(() => []),
+      ]);
 
-          const resolvedName = contact?.name || lead?.customerName || (conv as any).customerName || "";
-          const resolvedBusiness = contact?.businessName || lead?.customerName || (conv as any).businessName || "";
-          const resolvedType = contact?.businessType || lead?.businessType || (conv as any).businessType || "Dealer";
-          const resolvedTeam = lead?.assignedEmployeeName ? `Sales (${lead.assignedEmployeeName})` : ((conv as any).assignedTeam || "Sales");
+      const contactByPhone = new Map<string, any>();
+      for (const c of allContacts) {
+        const k = norm10(c.phone);
+        if (k && !contactByPhone.has(k)) contactByPhone.set(k, c);
+      }
 
-          return {
-            ...conv,
-            customerName: resolvedName,
-            businessName: resolvedBusiness,
-            businessType: resolvedType,
-            assignedTeam: resolvedTeam,
-            city: contact?.city || lead?.city || "",
-            lastMessage: lastMsg?.content || (conv.pauseReason ? `Status: ${conv.pauseReason}` : "Active chat"),
-            lastMessageAt: lastMsg?.createdAt || conv.lastCustomerMessageAt || conv.updatedAt,
-          };
-        })
-      );
+      const leadByPhone = new Map<string, any>();
+      for (const l of allLeads) {
+        const k = norm10(l.phone);
+        if (k && !leadByPhone.has(k)) leadByPhone.set(k, l);
+      }
+
+      const msgByPhone = new Map<string, any>();
+      for (const m of latestMessages) {
+        const k = norm10(m._id);
+        if (k) {
+          const existing = msgByPhone.get(k);
+          if (!existing || new Date(m.createdAt) > new Date(existing.createdAt)) {
+            msgByPhone.set(k, m);
+          }
+        }
+      }
+
+      let conversations = rawConversations.map((conv) => {
+        const k = norm10(conv.phone);
+        const contact = contactByPhone.get(k);
+        const lead = leadByPhone.get(k);
+        const lastMsg = msgByPhone.get(k);
+
+        const resolvedName =
+          contact?.name || lead?.customerName || (conv as any).customerName || "";
+        const resolvedBusiness =
+          contact?.businessName ||
+          lead?.businessName ||
+          lead?.customerName ||
+          (conv as any).businessName ||
+          "";
+        const resolvedType =
+          contact?.businessType ||
+          lead?.businessType ||
+          (conv as any).businessType ||
+          "Dealer";
+        const resolvedTeam = lead?.assignedEmployeeName
+          ? `Sales (${lead.assignedEmployeeName})`
+          : (conv as any).assignedTeam || "Sales";
+
+        return {
+          ...conv,
+          customerName: resolvedName,
+          businessName: resolvedBusiness,
+          businessType: resolvedType,
+          assignedTeam: resolvedTeam,
+          city: contact?.city || lead?.city || "",
+          lastMessage:
+            lastMsg?.content ||
+            (conv.pauseReason ? `Status: ${conv.pauseReason}` : "Active chat"),
+          lastMessageAt:
+            lastMsg?.createdAt || conv.lastCustomerMessageAt || conv.updatedAt,
+        };
+      });
+
+      if (search) {
+        conversations = conversations.filter(
+          (c) =>
+            c.phone?.toLowerCase().includes(search) ||
+            c.customerName?.toLowerCase().includes(search) ||
+            c.businessName?.toLowerCase().includes(search) ||
+            c.city?.toLowerCase().includes(search) ||
+            c.assignedAgentName?.toLowerCase().includes(search) ||
+            c.assignedTeam?.toLowerCase().includes(search)
+        );
+      }
 
       res.status(200).json({ conversations });
     } catch {
