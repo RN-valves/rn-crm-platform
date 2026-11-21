@@ -80,7 +80,7 @@ export async function getSalesExecutives(_req: Request, res: Response): Promise<
  */
 export async function createSalesExecutive(req: Request, res: Response): Promise<void> {
   try {
-    const { name, mobile, area, state, pinPrefixes, isActive, isDefaultFallback } = req.body;
+    const { name, mobile, area, state, pinPrefixes, pin, isActive, isDefaultFallback } = req.body;
 
     if (!name || !mobile || !state) {
       res.status(400).json({ error: "Name, Mobile Number, and State/Territory are required." });
@@ -100,6 +100,7 @@ export async function createSalesExecutive(req: Request, res: Response): Promise
         : typeof pinPrefixes === "string"
         ? pinPrefixes.split(",").map((p: string) => p.trim()).filter(Boolean)
         : [],
+      pin: pin ? String(pin).trim() : "1234",
       isActive: isActive !== undefined ? Boolean(isActive) : true,
       isDefaultFallback: Boolean(isDefaultFallback),
       orderIndex: count + 1,
@@ -125,7 +126,7 @@ export async function createSalesExecutive(req: Request, res: Response): Promise
 export async function updateSalesExecutive(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const { name, mobile, area, state, pinPrefixes, isActive, isDefaultFallback, orderIndex } = req.body;
+    const { name, mobile, area, state, pinPrefixes, pin, isActive, isDefaultFallback, orderIndex } = req.body;
 
     const Model = getSalesExecutiveModel();
     const updateData: any = {};
@@ -134,6 +135,7 @@ export async function updateSalesExecutive(req: Request, res: Response): Promise
     if (mobile !== undefined) updateData.mobile = mobile.trim();
     if (area !== undefined) updateData.area = area.trim();
     if (state !== undefined) updateData.state = state.trim();
+    if (pin !== undefined) updateData.pin = String(pin).trim();
     if (pinPrefixes !== undefined) {
       updateData.pinPrefixes = Array.isArray(pinPrefixes)
         ? pinPrefixes.map((p: string) => String(p).trim()).filter(Boolean)

@@ -5,7 +5,13 @@ const API_BASE_URL =
     : "http://localhost:5000/api");
 
 export async function apiRequest(endpoint, options = {}) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("rn_crm_token") : null;
+  const token =
+    options?.token ||
+    (typeof window !== "undefined"
+      ? (endpoint.includes("/my-leads")
+          ? localStorage.getItem("rn_rep_token") || localStorage.getItem("rn_crm_token")
+          : localStorage.getItem("rn_crm_token") || localStorage.getItem("rn_rep_token"))
+      : null);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
@@ -97,6 +103,10 @@ export const crmApi = {
 
   // Lead Distribution & Drop-off Intelligence
   getDistributionAnalytics: () => apiRequest("/distribution/analytics"),
+  repLogin: (data) =>
+    apiRequest("/distribution/rep-login", { method: "POST", body: JSON.stringify(data) }),
+  getMyLeads: (token) =>
+    apiRequest("/distribution/my-leads", token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
   assignLeadToExecutive: (data) =>
     apiRequest("/distribution/assign-lead", { method: "POST", body: JSON.stringify(data) }),
   resendRepAlert: (data) =>

@@ -36,6 +36,7 @@ export default function SalesExecutiveModal({ isOpen, onClose, onUpdated }) {
     state: "",
     area: "",
     pinPrefixes: "",
+    pin: "1234",
     isActive: true,
     isDefaultFallback: false,
   });
@@ -86,6 +87,7 @@ export default function SalesExecutiveModal({ isOpen, onClose, onUpdated }) {
       state: exec.state || "",
       area: exec.area || "",
       pinPrefixes: Array.isArray(exec.pinPrefixes) ? exec.pinPrefixes.join(", ") : "",
+      pin: exec.pin || "1234",
       isActive: exec.isActive !== undefined ? exec.isActive : true,
       isDefaultFallback: Boolean(exec.isDefaultFallback),
     });
@@ -112,6 +114,7 @@ export default function SalesExecutiveModal({ isOpen, onClose, onUpdated }) {
           .split(",")
           .map((p) => p.trim())
           .filter(Boolean),
+        pin: formData.pin ? formData.pin.trim() : "1234",
         isActive: formData.isActive,
         isDefaultFallback: formData.isDefaultFallback,
       };
@@ -241,6 +244,18 @@ export default function SalesExecutiveModal({ isOpen, onClose, onUpdated }) {
                 onChange={(e) => setFormData({ ...formData, pinPrefixes: e.target.value })}
                 icon={Hash}
                 helperText="Indian PIN codes matching these 2 digits are routed to this executive by the AI assistant."
+              />
+            </div>
+
+            <div>
+              <Input
+                label="Sales Portal Security PIN (4-6 digits) *"
+                type="text"
+                maxLength={6}
+                placeholder="1234"
+                value={formData.pin || "1234"}
+                onChange={(e) => setFormData({ ...formData, pin: e.target.value })}
+                helperText="Executive enters this PIN to authenticate into their isolated /rep-portal panel (Default: 1234)."
               />
             </div>
 

@@ -8,6 +8,7 @@ import { Card, CardContent } from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
 import Input from "../../components/ui/Input";
+import Pagination from "../../components/ui/Pagination";
 import LeadFollowupModal from "../../components/LeadFollowupModal";
 import {
   UserCheck,
@@ -32,6 +33,11 @@ import {
   Building,
   User,
   Sparkles,
+  Lock,
+  KeyRound,
+  Bell,
+  AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 
 function RepPortalContent() {
@@ -40,95 +46,153 @@ function RepPortalContent() {
   const queryPhone = searchParams.get("phone");
 
   const [loading, setLoading] = useState(true);
-  const [analyticsData, setAnalyticsData] = useState(null);
-  const [activeRepName, setActiveRepName] = useState("");
-  const [mobileLoginInput, setMobileLoginInput] = useState("");
-  const [loginError, setLoginError] = useState("");
+  const [repProfile, setRepProfile] = useState(null);
+  const [repSummary, setRepSummary] = useState(null);
+  const [rawLeads, setRawLeads] = useState([]);
+  const [executivesList, setExecutivesList] = useState([]);
 
+  // Login Form State
+  const [selectedExecForLogin, setSelectedExecForLogin] = useState(null);
+  const [loginPhoneInput, setLoginPhoneInput] = useState("");
+  const [loginPinInput, setLoginPinInput] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedLeadForFollowup, setSelectedLeadForFollowup] = useState(null);
   const [resendingLeadId, setResendingLeadId] = useState(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState("");
 
-  const fetchAnalytics = async () => {
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Fetch executives for login selector
+  const fetchExecutivesList = async () => {
     try {
-      setLoading(true);
-      const res = await crmApi.getDistributionAnalytics();
-      if (res.success && res.data) {
-        setAnalyticsData(res.data);
+      const res = await crmApi.getSalesExecutives();
+      if (res && res.executives) {
+        setExecutivesList(res.executives.filter((e) => e.isActive !== false));
       }
     } catch (err) {
-      console.error("Failed to fetch distribution analytics:", err);
+      console.warn("Could not fetch executives list:", err);
+    }
+  };
+
+  // Fetch My Leads using secure Rep Token
+  const fetchMyLeads = async (tokenOverride = null) => {
+    try {
+      setLoading(true);
+      const token = tokenOverride || (typeof window !== "undefined" ? localStorage.getItem("rn_rep_token") : null);
+      if (!token) {
+        setRepProfile(null);
+        setRawLeads([]);
+        setLoading(false);
+        return;
+      }
+
+      const res = await crmApi.getMyLeads(token);
+      if (res && res.success) {
+        setRepProfile(res.rep);
+        setRepSummary(res.summary);
+        setRawLeads(res.leads || []);
+      } else {
+        // Invalid session
+        handleLogout();
+      }
+    } catch (err) {
+      console.warn("My leads fetch error:", err);
+      // If 401 or token expired
+      if (err.message && (err.message.includes("401") || err.message.includes("expired") || err.message.includes("Unauthorized"))) {
+        handleLogout();
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAnalytics();
+    fetchExecutivesList();
+    fetchMyLeads();
   }, []);
 
-  // Initialize active sales executive from query params or localStorage
+  // Pre-select executive if query params provided
   useEffect(() => {
-    if (!analyticsData) return;
-    const executives = analyticsData.executives || [];
+    if (!executivesList.length) return;
 
     if (queryRep) {
-      const match = executives.find(
+      const match = executivesList.find(
         (e) => e.name.toLowerCase().includes(queryRep.toLowerCase())
       );
-      if (match) {
-        setActiveRepName(match.name);
-        try {
-          localStorage.setItem("rn_sales_rep_auth", match.name);
-        } catch {}
-        return;
-      }
-    }
-
-    if (queryPhone) {
+      if (match) setSelectedExecForLogin(match);
+    } else if (queryPhone) {
       const cleanQ = queryPhone.replace(/\D/g, "").slice(-10);
-      const match = executives.find((e) => {
+      const match = executivesList.find((e) => {
         const cleanE = (e.mobile || "").replace(/\D/g, "").slice(-10);
         return cleanE === cleanQ;
       });
-      if (match) {
-        setActiveRepName(match.name);
-        try {
-          localStorage.setItem("rn_sales_rep_auth", match.name);
-        } catch {}
-        return;
-      }
+      if (match) setSelectedExecForLogin(match);
+    }
+  }, [executivesList, queryRep, queryPhone]);
+
+  // Handle Login Submission with PIN
+  const handlePinLogin = async (e) => {
+    e?.preventDefault();
+    setLoginError("");
+
+    if (!selectedExecForLogin && !loginPhoneInput.trim()) {
+      setLoginError("Kripya apna Sales Executive profile select karein ya mobile number enter karein.");
+      return;
     }
 
-    // Try reading from localStorage
+    if (!loginPinInput || loginPinInput.trim().length < 4) {
+      setLoginError("Kripya 4-digit security PIN enter karein (Default PIN: 1234).");
+      return;
+    }
+
+    setIsLoggingIn(true);
     try {
-      const saved = localStorage.getItem("rn_sales_rep_auth");
-      if (saved && executives.some((e) => e.name === saved)) {
-        setActiveRepName(saved);
+      const payload = {
+        repName: selectedExecForLogin?.name,
+        mobile: selectedExecForLogin?.mobile || loginPhoneInput.trim(),
+        pin: loginPinInput.trim(),
+      };
+
+      const res = await crmApi.repLogin(payload);
+      if (res && res.success && res.token) {
+        localStorage.setItem("rn_rep_token", res.token);
+        localStorage.setItem("rn_sales_rep_auth", res.rep.name);
+        setRepProfile(res.rep);
+        setLoginPinInput("");
+        setLoginError("");
+        await fetchMyLeads(res.token);
+      } else {
+        setLoginError(res?.error || "Login fail ho gaya. Kripya apna PIN check karein.");
       }
+    } catch (err) {
+      setLoginError(err?.message || "Galat PIN! Kripya sahi PIN enter karein (Default: 1234).");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  // Handle Logout / Lock
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem("rn_rep_token");
+      localStorage.removeItem("rn_sales_rep_auth");
     } catch {}
-  }, [analyticsData, queryRep, queryPhone]);
+    setRepProfile(null);
+    setRepSummary(null);
+    setRawLeads([]);
+    setSelectedExecForLogin(null);
+    setLoginPinInput("");
+    setLoginError("");
+  };
 
-  const executives = analyticsData?.executives || [];
-  const repDistribution = analyticsData?.repDistribution || [];
-
-  // Current logged in executive details
-  const currentExec = useMemo(() => {
-    if (!activeRepName) return null;
-    return executives.find((e) => e.name === activeRepName) || null;
-  }, [executives, activeRepName]);
-
-  // Current executive's assigned leads
-  const currentRepData = useMemo(() => {
-    if (!activeRepName) return null;
-    return repDistribution.find((rd) => rd.name === activeRepName) || null;
-  }, [repDistribution, activeRepName]);
-
-  const rawLeads = currentRepData?.leads || [];
-
-  // Filtered leads
+  // Filtered Leads
   const filteredLeads = useMemo(() => {
     return rawLeads.filter((l) => {
       // Status Filter
@@ -136,6 +200,18 @@ function RepPortalContent() {
       if (statusFilter === "IN_PROGRESS" && !["CONTACTED", "QUOTATION_SENT", "NEGOTIATION"].includes(l.status)) return false;
       if (statusFilter === "WON" && l.status !== "CONVERTED") return false;
       if (statusFilter === "LOST" && l.status !== "LOST") return false;
+      if (statusFilter === "DUE_TODAY") {
+        if (!l.followupDate) return false;
+        const d = new Date(l.followupDate).toISOString().split("T")[0];
+        const today = new Date().toISOString().split("T")[0];
+        return d === today && l.status !== "CONVERTED" && l.status !== "LOST";
+      }
+      if (statusFilter === "OVERDUE") {
+        if (!l.followupDate) return false;
+        const d = new Date(l.followupDate).toISOString().split("T")[0];
+        const today = new Date().toISOString().split("T")[0];
+        return d < today && l.status !== "CONVERTED" && l.status !== "LOST";
+      }
 
       // Search Query
       if (searchQuery.trim()) {
@@ -152,61 +228,30 @@ function RepPortalContent() {
     });
   }, [rawLeads, statusFilter, searchQuery]);
 
-  // Handle Login by clicking executive card
-  const handleSelectExecutive = (execName) => {
-    setActiveRepName(execName);
-    setLoginError("");
-    try {
-      localStorage.setItem("rn_sales_rep_auth", execName);
-    } catch {}
-  };
+  // Reset to page 1 on filter/search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, searchQuery]);
 
-  // Handle Mobile Login
-  const handleMobileLogin = (e) => {
-    e.preventDefault();
-    setLoginError("");
-    const clean = mobileLoginInput.replace(/\D/g, "").slice(-10);
-    if (!clean || clean.length < 10) {
-      setLoginError("Kripya 10-digit registered mobile number enter karein.");
-      return;
-    }
-
-    const match = executives.find((exec) => {
-      const execMobile = (exec.mobile || "").replace(/\D/g, "").slice(-10);
-      return execMobile === clean;
-    });
-
-    if (match) {
-      setActiveRepName(match.name);
-      try {
-        localStorage.setItem("rn_sales_rep_auth", match.name);
-      } catch {}
-    } else {
-      setLoginError(`Mobile number +91 ${clean} kisi registered Sales Executive se match nahi hua.`);
-    }
-  };
-
-  // Handle Logout / Switch
-  const handleLogout = () => {
-    setActiveRepName("");
-    try {
-      localStorage.removeItem("rn_sales_rep_auth");
-    } catch {}
-  };
+  // Paginated Leads
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredLeads.slice(start, start + pageSize);
+  }, [filteredLeads, currentPage, pageSize]);
 
   // Resend Alert to Rep
   const handleResendRepAlert = async (lead) => {
     try {
       setResendingLeadId(lead._id);
       setActionSuccessMsg("");
-      const res = await crmApi.resendRepAlert({
+      await crmApi.resendRepAlert({
         leadId: lead._id,
-        repName: currentExec?.name,
-        repPhone: currentExec?.mobile,
+        repName: repProfile?.name,
+        repPhone: repProfile?.mobile,
       });
-      setActionSuccessMsg(`WhatsApp alert resent to ${currentExec?.name} for lead ${lead.phone}!`);
+      setActionSuccessMsg(`WhatsApp alert resent to ${repProfile?.name} for lead ${lead.phone}!`);
       setTimeout(() => setActionSuccessMsg(""), 4000);
-      await fetchAnalytics();
+      await fetchMyLeads();
     } catch (err) {
       alert("Failed to resend alert: " + (err.message || "Unknown error"));
     } finally {
@@ -232,7 +277,6 @@ function RepPortalContent() {
       "Estimated Deal Value (INR)",
       "Next Followup Date",
       "Loss Reason",
-      "Assigned Executive",
       "Inquiry Date",
     ];
 
@@ -247,7 +291,6 @@ function RepPortalContent() {
       `"${l.estimatedValue || 0}"`,
       `"${l.followupDate ? new Date(l.followupDate).toLocaleDateString("en-IN") : "Not Set"}"`,
       `"${(l.lossReason || "").replace(/"/g, '""')}"`,
-      `"${l.assignedEmployeeName || activeRepName}"`,
       `"${l.createdAt ? new Date(l.createdAt).toLocaleDateString("en-IN") : ""}"`,
     ]);
 
@@ -255,18 +298,18 @@ function RepPortalContent() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `RN_Valves_Leads_${activeRepName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `RN_Valves_Leads_${(repProfile?.name || "rep").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  if (loading && !analyticsData) {
+  if (loading && !repProfile && !executivesList.length) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6">
         <RefreshCw className="w-8 h-8 text-rn-600 animate-spin mb-3" />
         <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
-          Loading Sales Executive Portal...
+          Loading Secure Sales Portal...
         </p>
       </div>
     );
@@ -277,109 +320,120 @@ function RepPortalContent() {
       <Header />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-        {/* VIEW 1: LOGIN / SELECT EXECUTIVE SCREEN */}
-        {!activeRepName ? (
-          <div className="max-w-3xl mx-auto space-y-6 pt-6 animate-fadeIn">
+        {/* VIEW 1: SECURE PIN LOGIN SCREEN */}
+        {!repProfile ? (
+          <div className="max-w-xl mx-auto space-y-6 pt-6 animate-fadeIn">
             <div className="text-center space-y-2">
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-rn-600 text-white shadow-lg shadow-rn-600/30 mb-2">
-                <UserCheck className="w-7 h-7" />
+                <Lock className="w-7 h-7" />
               </div>
               <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                 RN Valves & Faucets — Sales Executive Portal
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Apna profile select karein ya registered WhatsApp mobile number enter karke apni assigned leads aur follow-up status update karein.
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Data Privacy & Security Protected: Kripya apna profile chunein aur apna secure 4-digit PIN enter karein.
               </p>
             </div>
 
-            {/* Mobile Number Fast Login Card */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm">
-              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-                <Phone className="w-4 h-4 text-rn-600" />
-                <span>Quick Login with Registered Mobile Number</span>
-              </h2>
-              <form onSubmit={handleMobileLogin} className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-bold text-xs">
-                    +91
+            {/* Login Box */}
+            <div className="bg-white dark:bg-slate-900 p-6 sm:p-7 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-md space-y-5">
+              <form onSubmit={handlePinLogin} className="space-y-4">
+                {/* Step 1: Select Executive */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+                    1️⃣ Apna Profile Chunein *
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {executivesList.map((exec) => {
+                      const isSelected = selectedExecForLogin?.name === exec.name;
+                      return (
+                        <button
+                          key={exec.name}
+                          type="button"
+                          onClick={() => {
+                            setSelectedExecForLogin(exec);
+                            setLoginError("");
+                          }}
+                          className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
+                            isSelected
+                              ? "border-rn-600 bg-rn-50 dark:bg-rn-950/60 ring-2 ring-rn-500 shadow-sm"
+                              : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className="font-extrabold text-xs text-slate-900 dark:text-white line-clamp-1">
+                              {exec.name}
+                            </span>
+                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-rn-600 shrink-0" />}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {exec.mobile ? exec.mobile.replace(/\s+/g, "") : ""}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
+                </div>
+
+                {/* Step 2: Enter PIN */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5 text-rn-600" />
+                      <span>2️⃣ 4-Digit Security PIN *</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 normal-case font-normal">
+                      Default: <strong>1234</strong>
+                    </span>
+                  </label>
+
                   <input
-                    type="tel"
-                    placeholder="9315600189"
-                    value={mobileLoginInput}
-                    onChange={(e) => setMobileLoginInput(e.target.value)}
-                    className="w-full pl-12 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-rn-500"
+                    type="password"
+                    maxLength={6}
+                    placeholder="Enter 4-digit PIN (e.g. 1234)"
+                    value={loginPinInput}
+                    onChange={(e) => setLoginPinInput(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono text-center tracking-widest text-lg font-black focus:outline-none focus:ring-2 focus:ring-rn-500 transition-all"
                   />
                 </div>
-                <Button type="submit" variant="primary" className="gap-2">
-                  <span>Enter My Portal</span>
-                  <ChevronRight className="w-4 h-4" />
+
+                {loginError && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full py-3 text-sm font-black justify-center gap-2 shadow-lg shadow-rn-600/25"
+                  disabled={isLoggingIn}
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Verifying PIN...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Secure Login to My Leads</span>
+                    </>
+                  )}
                 </Button>
               </form>
-              {loginError && (
-                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium mt-2 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  <span>{loginError}</span>
+
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-center">
+                <p className="text-[11px] text-slate-400">
+                  🔒 Data Isolation: Har Sales Executive ko sirf unki territory ke customers dikhte hain.
                 </p>
-              )}
-            </div>
-
-            {/* One-Tap Executive Cards */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
-                  Ya direct apna naam tap karein ({executives.length} Territory Executives):
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {executives.map((exec) => {
-                  const repBucket = repDistribution.find((rd) => rd.name === exec.name);
-                  const leadsCount = repBucket?.leadsCount || 0;
-                  const wonCount = repBucket?.convertedCount || 0;
-
-                  return (
-                    <div
-                      key={exec.name}
-                      onClick={() => handleSelectExecutive(exec.name)}
-                      className="bg-white dark:bg-slate-900 hover:border-rn-500 hover:shadow-md transition-all cursor-pointer p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 flex items-center justify-between group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-rn-100 dark:bg-rn-950/60 text-rn-700 dark:text-rn-300 flex items-center justify-center font-black text-sm group-hover:scale-105 transition-transform">
-                          {exec.name.charAt(0)}
-                        </div>
-                        <div>
-                          <h4 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-rn-600 transition-colors">
-                            {exec.name}
-                          </h4>
-                          <p className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                            📞 {exec.mobile}
-                          </p>
-                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
-                            📍 {exec.area || exec.state}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-black bg-rn-50 dark:bg-rn-950 text-rn-700 dark:text-rn-300 border border-rn-200 dark:border-rn-800">
-                          {leadsCount} leads
-                        </span>
-                        {wonCount > 0 && (
-                          <span className="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                            🎉 {wonCount} won
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           </div>
         ) : (
-          /* VIEW 2: LOGGED-IN SALES EXECUTIVE DASHBOARD & LEADS */
-          <div className="space-y-6 animate-fadeIn">
+          /* VIEW 2: LOGGED-IN SALES EXECUTIVE DASHBOARD */
+          <div className="space-y-5 animate-fadeIn">
             {/* Action Alert Banner */}
             {actionSuccessMsg && (
               <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-2xl p-3.5 flex items-center gap-2 text-emerald-800 dark:text-emerald-300 text-xs font-bold animate-fadeIn">
@@ -388,28 +442,80 @@ function RepPortalContent() {
               </div>
             )}
 
+            {/* Daily Urgent Follow-up Checklist Alert */}
+            {((repSummary?.overdueCount || 0) > 0 || (repSummary?.dueTodayCount || 0) > 0) && (
+              <div className="bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-amber-500/10 border border-amber-300 dark:border-amber-900/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shadow-md shrink-0">
+                    <Bell className="w-5 h-5 animate-bounce" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                      Daily Follow-up Action Required!
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                      Aapke paas{" "}
+                      {repSummary?.overdueCount > 0 && (
+                        <strong className="text-rose-600 dark:text-rose-400 font-black">
+                          {repSummary.overdueCount} Overdue
+                        </strong>
+                      )}
+                      {repSummary?.overdueCount > 0 && repSummary?.dueTodayCount > 0 && " aur "}
+                      {repSummary?.dueTodayCount > 0 && (
+                        <strong className="text-amber-600 dark:text-amber-400 font-black">
+                          {repSummary.dueTodayCount} Due Today
+                        </strong>
+                      )}{" "}
+                      customer follow-ups pending hain!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {repSummary?.overdueCount > 0 && (
+                    <button
+                      onClick={() => setStatusFilter("OVERDUE")}
+                      className="px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-bold shadow-sm hover:bg-rose-700 transition-colors"
+                    >
+                      View Overdue ({repSummary.overdueCount})
+                    </button>
+                  )}
+                  {repSummary?.dueTodayCount > 0 && (
+                    <button
+                      onClick={() => setStatusFilter("DUE_TODAY")}
+                      className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold shadow-sm hover:bg-amber-700 transition-colors"
+                    >
+                      View Due Today ({repSummary.dueTodayCount})
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Executive Profile Header Card */}
             <div className="bg-gradient-to-r from-rn-900 via-slate-900 to-rn-950 text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-rn-800/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-rn-600 text-white flex items-center justify-center font-black text-2xl shadow-md border border-white/20">
-                  {activeRepName.charAt(0)}
+                  {repProfile.name?.charAt(0) || "U"}
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h1 className="text-xl font-black tracking-tight">{activeRepName}</h1>
+                    <h1 className="text-xl font-black tracking-tight">{repProfile.name}</h1>
                     <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold rounded-md border border-emerald-500/30">
-                      ACTIVE SALES EXECUTIVE
+                      AUTHENTICATED EXECUTIVE
                     </span>
                   </div>
                   <p className="text-xs text-rn-200 font-mono mt-1">
-                    📞 {currentExec?.mobile || "Registered Executive"}
+                    📞 {repProfile.mobile}
                   </p>
-                  <p className="text-xs text-slate-300 mt-1 flex items-center gap-1.5 flex-wrap">
-                    <MapPin className="w-3.5 h-3.5 text-rn-400 shrink-0" />
-                    <span>
-                      Territory: <strong>{currentExec?.area || currentExec?.state}</strong>
-                    </span>
-                  </p>
+                  {repProfile.area && (
+                    <p className="text-xs text-slate-300 mt-1 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-rn-400 shrink-0" />
+                      <span>
+                        Territory: <strong>{repProfile.area}</strong>
+                      </span>
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -427,10 +533,10 @@ function RepPortalContent() {
                 </Button>
 
                 <Button
-                  onClick={fetchAnalytics}
+                  onClick={() => fetchMyLeads()}
                   variant="outline"
                   size="sm"
-                  className="bg-white/10 hover:bg-white/20 text-white border-white/20 gap-1.5 text-xs"
+                  className="bg-white/10 hover:bg-white/20 text-white border-white/20 gap-1.5 text-xs font-bold"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>Refresh</span>
@@ -440,10 +546,10 @@ function RepPortalContent() {
                   onClick={handleLogout}
                   variant="outline"
                   size="sm"
-                  className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border-rose-500/30 gap-1.5 text-xs"
+                  className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border-rose-500/30 gap-1.5 text-xs font-bold"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>Switch Rep</span>
+                  <span>Lock / Logout</span>
                 </Button>
               </div>
             </div>
@@ -457,7 +563,7 @@ function RepPortalContent() {
                 <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                   {rawLeads.length}
                 </p>
-                <p className="text-[10px] text-slate-500">Routing active</p>
+                <p className="text-[10px] text-slate-500">Live Territory Leads</p>
               </div>
 
               <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm text-center">
@@ -465,9 +571,9 @@ function RepPortalContent() {
                   New / Pending
                 </span>
                 <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
-                  {rawLeads.filter((l) => l.status === "NEW" || l.status === "CONTACTED").length}
+                  {repSummary?.pendingCount || rawLeads.filter((l) => l.status === "NEW" || l.status === "CONTACTED").length}
                 </p>
-                <p className="text-[10px] text-slate-500">Needs follow-up</p>
+                <p className="text-[10px] text-slate-500">Follow-up Pending</p>
               </div>
 
               <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm text-center">
@@ -475,7 +581,7 @@ function RepPortalContent() {
                   In Discussion
                 </span>
                 <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                  {rawLeads.filter((l) => ["QUOTATION_SENT", "NEGOTIATION"].includes(l.status)).length}
+                  {repSummary?.inProgressCount || rawLeads.filter((l) => ["QUOTATION_SENT", "NEGOTIATION"].includes(l.status)).length}
                 </p>
                 <p className="text-[10px] text-slate-500">Quotes & Bargains</p>
               </div>
@@ -485,10 +591,12 @@ function RepPortalContent() {
                   Won (Converted)
                 </span>
                 <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-                  {rawLeads.filter((l) => l.status === "CONVERTED").length}
+                  {repSummary?.wonCount || rawLeads.filter((l) => l.status === "CONVERTED").length}
                 </p>
                 <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                  {rawLeads.length > 0 ? Math.round((rawLeads.filter((l) => l.status === "CONVERTED").length / rawLeads.length) * 100) : 0}% Win Rate
+                  {rawLeads.length > 0
+                    ? Math.round(((repSummary?.wonCount || rawLeads.filter((l) => l.status === "CONVERTED").length) / rawLeads.length) * 100)
+                    : 0}% Win Rate
                 </p>
               </div>
 
@@ -497,9 +605,9 @@ function RepPortalContent() {
                   Pipeline Value
                 </span>
                 <p className="text-2xl font-black text-rn-700 dark:text-rn-300 mt-1">
-                  ₹{rawLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0).toLocaleString("en-IN")}
+                  ₹{(repSummary?.totalValue || rawLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0)).toLocaleString("en-IN")}
                 </p>
-                <p className="text-[10px] text-slate-500">Estimated sales</p>
+                <p className="text-[10px] text-slate-500">Estimated Value</p>
               </div>
             </div>
 
@@ -515,8 +623,35 @@ function RepPortalContent() {
                       : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
                   }`}
                 >
-                  All Leads ({rawLeads.length})
+                  All ({rawLeads.length})
                 </button>
+
+                {(repSummary?.dueTodayCount || 0) > 0 && (
+                  <button
+                    onClick={() => setStatusFilter("DUE_TODAY")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                      statusFilter === "DUE_TODAY"
+                        ? "bg-amber-600 text-white shadow-sm"
+                        : "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200"
+                    }`}
+                  >
+                    ⚠️ Due Today ({repSummary.dueTodayCount})
+                  </button>
+                )}
+
+                {(repSummary?.overdueCount || 0) > 0 && (
+                  <button
+                    onClick={() => setStatusFilter("OVERDUE")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                      statusFilter === "OVERDUE"
+                        ? "bg-rose-600 text-white shadow-sm"
+                        : "bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 hover:bg-rose-200"
+                    }`}
+                  >
+                    🚨 Overdue ({repSummary.overdueCount})
+                  </button>
+                )}
+
                 <button
                   onClick={() => setStatusFilter("NEW")}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
@@ -525,8 +660,9 @@ function RepPortalContent() {
                       : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
                   }`}
                 >
-                  New Follow-up ({rawLeads.filter((l) => l.status === "NEW").length})
+                  New ({rawLeads.filter((l) => l.status === "NEW").length})
                 </button>
+
                 <button
                   onClick={() => setStatusFilter("IN_PROGRESS")}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
@@ -537,6 +673,7 @@ function RepPortalContent() {
                 >
                   In Progress ({rawLeads.filter((l) => ["CONTACTED", "QUOTATION_SENT", "NEGOTIATION"].includes(l.status)).length})
                 </button>
+
                 <button
                   onClick={() => setStatusFilter("WON")}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
@@ -547,6 +684,7 @@ function RepPortalContent() {
                 >
                   Won ({rawLeads.filter((l) => l.status === "CONVERTED").length})
                 </button>
+
                 <button
                   onClick={() => setStatusFilter("LOST")}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
@@ -571,7 +709,7 @@ function RepPortalContent() {
               </div>
             </div>
 
-            {/* Leads List */}
+            {/* Paginated Leads List */}
             {filteredLeads.length === 0 ? (
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-12 text-center space-y-3">
                 <UserCheck className="w-12 h-12 text-slate-300 mx-auto" />
@@ -580,25 +718,38 @@ function RepPortalContent() {
                 </h3>
                 <p className="text-xs text-slate-400">
                   {searchQuery || statusFilter !== "ALL"
-                    ? "Filter ya search change karke dekhein."
+                    ? "Filter ya search criteria change karke dekhein."
                     : "Filhaal aapko koi lead assign nahi hui hai."}
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredLeads.map((lead) => {
+                {paginatedLeads.map((lead) => {
                   const isWon = lead.status === "CONVERTED";
                   const isLost = lead.status === "LOST";
                   const isPending = lead.status === "NEW";
+
+                  // Due / Overdue status
+                  let dueStatus = null;
+                  if (lead.followupDate && !isWon && !isLost) {
+                    const d = new Date(lead.followupDate).toISOString().split("T")[0];
+                    const today = new Date().toISOString().split("T")[0];
+                    if (d < today) dueStatus = "OVERDUE";
+                    else if (d === today) dueStatus = "TODAY";
+                  }
 
                   return (
                     <div
                       key={lead._id || lead.phone}
                       className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all p-4 sm:p-5 shadow-sm space-y-3 ${
-                        isWon
+                        dueStatus === "OVERDUE"
+                          ? "border-rose-400 dark:border-rose-800/80 bg-rose-50/15"
+                          : dueStatus === "TODAY"
+                          ? "border-amber-400 dark:border-amber-800/80 bg-amber-50/15"
+                          : isWon
                           ? "border-emerald-300 dark:border-emerald-900/50 bg-emerald-50/10"
                           : isLost
-                          ? "border-slate-200 dark:border-slate-800 opacity-80"
+                          ? "border-slate-200 dark:border-slate-800 opacity-75"
                           : isPending
                           ? "border-blue-200 dark:border-blue-900/50"
                           : "border-slate-200/90 dark:border-slate-800"
@@ -618,6 +769,16 @@ function RepPortalContent() {
                             {lead.leadNumber && (
                               <span className="text-[10px] font-mono text-slate-400">
                                 #{lead.leadNumber}
+                              </span>
+                            )}
+                            {dueStatus === "OVERDUE" && (
+                              <span className="px-2 py-0.2 rounded-md bg-rose-600 text-white text-[10px] font-black animate-pulse">
+                                🚨 OVERDUE FOLLOW-UP
+                              </span>
+                            )}
+                            {dueStatus === "TODAY" && (
+                              <span className="px-2 py-0.2 rounded-md bg-amber-500 text-white text-[10px] font-black">
+                                ⚠️ DUE TODAY
                               </span>
                             )}
                           </div>
@@ -728,7 +889,7 @@ function RepPortalContent() {
                           {/* 2. Direct WhatsApp Call / Chat to Customer */}
                           <a
                             href={`https://wa.me/${lead.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
-                              `Namaste ${lead.customerName || "ji"}! 🙏 Main ${activeRepName} baat kar raha hoon RN Valves & Faucets se. Aapki inquiry ke sambhandh me baat karni thi.`
+                              `Namaste ${lead.customerName || "ji"}! 🙏 Main ${repProfile?.name} baat kar raha hoon RN Valves & Faucets se. Aapki inquiry ke sambhandh me baat karni thi.`
                             )}`}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -762,6 +923,20 @@ function RepPortalContent() {
                     </div>
                   );
                 })}
+
+                {/* Scalable Enterprise Pagination */}
+                <Pagination
+                  totalItems={filteredLeads.length}
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  pageSizeOptions={[10, 25, 50]}
+                  onPageChange={(p) => setCurrentPage(p)}
+                  onPageSizeChange={(sz) => {
+                    setPageSize(sz);
+                    setCurrentPage(1);
+                  }}
+                  className="rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm mt-4"
+                />
               </div>
             )}
           </div>
@@ -775,7 +950,7 @@ function RepPortalContent() {
           onClose={() => setSelectedLeadForFollowup(null)}
           lead={selectedLeadForFollowup}
           onSuccess={() => {
-            fetchAnalytics();
+            fetchMyLeads();
             setActionSuccessMsg(`Lead ${selectedLeadForFollowup.phone} follow-up updated successfully!`);
             setTimeout(() => setActionSuccessMsg(""), 4000);
           }}

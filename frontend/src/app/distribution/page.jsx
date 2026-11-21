@@ -40,6 +40,7 @@ import {
   Calendar,
 } from "lucide-react";
 import Link from "next/link";
+import Pagination from "../../components/ui/Pagination";
 import ManageAssignmentModal from "../../components/ManageAssignmentModal";
 import ReengageModal from "../../components/ReengageModal";
 import LeadFollowupModal from "../../components/LeadFollowupModal";
@@ -76,6 +77,31 @@ export default function LeadDistributionPage() {
   // Live Rep Alert Resend State
   const [resendingLeadId, setResendingLeadId] = useState(null);
   const [resendStatusMsg, setResendStatusMsg] = useState("");
+
+  // Pagination States for all views
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [leadsPageSize, setLeadsPageSize] = useState(25);
+
+  const [droppedPage, setDroppedPage] = useState(1);
+  const [droppedPageSize, setDroppedPageSize] = useState(25);
+
+  const [humanPage, setHumanPage] = useState(1);
+  const [humanPageSize, setHumanPageSize] = useState(25);
+
+  const [reportsPage, setReportsPage] = useState(1);
+  const [reportsPageSize, setReportsPageSize] = useState(25);
+
+  const [portalPage, setPortalPage] = useState(1);
+  const [portalPageSize, setPortalPageSize] = useState(25);
+
+  // Auto-reset page 1 when search or filters change
+  useEffect(() => {
+    setLeadsPage(1);
+    setDroppedPage(1);
+    setHumanPage(1);
+    setReportsPage(1);
+    setPortalPage(1);
+  }, [searchQuery, selectedRepFilter, reportRepFilter, reportStatusFilter, reportDateRange, portalRepName]);
 
   const openFollowupModal = (lead) => {
     setFollowupModalLead(lead);
@@ -977,7 +1003,9 @@ export default function LeadDistributionPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredLeads.map((lead) => {
+                      filteredLeads
+                        .slice((leadsPage - 1) * leadsPageSize, leadsPage * leadsPageSize)
+                        .map((lead) => {
                         const isUnassigned =
                           !lead.assignedEmployeeName || lead.assignedEmployeeName === "Unassigned";
 
@@ -1139,6 +1167,18 @@ export default function LeadDistributionPage() {
                   </tbody>
                 </table>
               </div>
+
+              <Pagination
+                totalItems={filteredLeads.length}
+                currentPage={leadsPage}
+                pageSize={leadsPageSize}
+                pageSizeOptions={[10, 25, 50, 100]}
+                onPageChange={(p) => setLeadsPage(p)}
+                onPageSizeChange={(sz) => {
+                  setLeadsPageSize(sz);
+                  setLeadsPage(1);
+                }}
+              />
             </Card>
           </div>
         )}
@@ -1217,7 +1257,9 @@ export default function LeadDistributionPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredDropped.map((d) => (
+                      filteredDropped
+                        .slice((droppedPage - 1) * droppedPageSize, droppedPage * droppedPageSize)
+                        .map((d) => (
                         <tr
                           key={d._id || d.phone}
                           className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
@@ -1292,6 +1334,18 @@ export default function LeadDistributionPage() {
                   </tbody>
                 </table>
               </div>
+
+              <Pagination
+                totalItems={filteredDropped.length}
+                currentPage={droppedPage}
+                pageSize={droppedPageSize}
+                pageSizeOptions={[10, 25, 50, 100]}
+                onPageChange={(p) => setDroppedPage(p)}
+                onPageSizeChange={(sz) => {
+                  setDroppedPageSize(sz);
+                  setDroppedPage(1);
+                }}
+              />
             </Card>
           </div>
         )}
@@ -1353,7 +1407,9 @@ export default function LeadDistributionPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredHuman.map((h) => (
+                      filteredHuman
+                        .slice((humanPage - 1) * humanPageSize, humanPage * humanPageSize)
+                        .map((h) => (
                         <tr
                           key={h._id || h.phone}
                           className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
@@ -1424,6 +1480,18 @@ export default function LeadDistributionPage() {
                   </tbody>
                 </table>
               </div>
+
+              <Pagination
+                totalItems={filteredHuman.length}
+                currentPage={humanPage}
+                pageSize={humanPageSize}
+                pageSizeOptions={[10, 25, 50, 100]}
+                onPageChange={(p) => setHumanPage(p)}
+                onPageSizeChange={(sz) => {
+                  setHumanPageSize(sz);
+                  setHumanPage(1);
+                }}
+              />
             </Card>
           </div>
         )}
@@ -1600,7 +1668,9 @@ export default function LeadDistributionPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredReportLeads.map((lead) => (
+                      filteredReportLeads
+                        .slice((reportsPage - 1) * reportsPageSize, reportsPage * reportsPageSize)
+                        .map((lead) => (
                         <tr
                           key={lead._id}
                           className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
@@ -1699,6 +1769,18 @@ export default function LeadDistributionPage() {
                   </tbody>
                 </table>
               </div>
+
+              <Pagination
+                totalItems={filteredReportLeads.length}
+                currentPage={reportsPage}
+                pageSize={reportsPageSize}
+                pageSizeOptions={[10, 25, 50, 100]}
+                onPageChange={(p) => setReportsPage(p)}
+                onPageSizeChange={(sz) => {
+                  setReportsPageSize(sz);
+                  setReportsPage(1);
+                }}
+              />
             </Card>
           </div>
         )}
@@ -1855,7 +1937,9 @@ export default function LeadDistributionPage() {
                         </td>
                       </tr>
                     ) : (
-                      portalLeads.map((lead) => {
+                      portalLeads
+                        .slice((portalPage - 1) * portalPageSize, portalPage * portalPageSize)
+                        .map((lead) => {
                         const cleanDigits = (lead.phone || "").replace(/\D/g, "");
                         const waLink = `https://wa.me/${cleanDigits}?text=${encodeURIComponent(
                           `Namaste ${lead.customerName || ""} ji! 🙏 Main ${portalRepName}, RN Valves & Faucets se baat kar raha hoon. Aapki requirement ke baare me baat karni thi.`
@@ -1966,6 +2050,18 @@ export default function LeadDistributionPage() {
                   </tbody>
                 </table>
               </div>
+
+              <Pagination
+                totalItems={portalLeads.length}
+                currentPage={portalPage}
+                pageSize={portalPageSize}
+                pageSizeOptions={[10, 25, 50]}
+                onPageChange={(p) => setPortalPage(p)}
+                onPageSizeChange={(sz) => {
+                  setPortalPageSize(sz);
+                  setPortalPage(1);
+                }}
+              />
             </Card>
           </div>
         )}

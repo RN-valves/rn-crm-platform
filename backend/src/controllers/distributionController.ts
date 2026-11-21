@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
+import { config } from "../config/env.js";
 import { getLeadModel } from "../models/Lead.js";
 import { getContactModel } from "../models/Contact.js";
 import { getConversationControlModel } from "../models/ConversationControl.js";
@@ -964,5 +966,196 @@ export async function updateLeadFollowup(req: Request, res: Response): Promise<v
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to update lead follow-up" });
+  }
+}
+
+/**
+ * Sales Executive Authentication using 4-digit PIN
+ * POST /api/distribution/rep-login
+ */
+export async function repLogin(req: Request, res: Response): Promise<void> {
+  try {
+    const { repName, mobile, pin } = req.body;
+
+    if (!pin || String(pin).trim() === "") {
+      res.status(400).json({ error: "Kripya 4-digit security PIN enter karein." });
+      return;
+    }
+
+    const SalesExecutive = getSalesExecutiveModel();
+    let executives: any[] = [];
+    try {
+      executives = await SalesExecutive.find({ isActive: true }).lean();
+    } catch {}
+    if (!executives || executives.length === 0) {
+      executives = INITIAL_SALES_EXECUTIVES;
+    }
+
+    let matchedExec: any = null;
+    if (repName) {
+      const canonicalTarget = normalizeRepName(repName);
+      matchedExec = executives.find(
+        (e) => normalizeRepName(e.name).toLowerCase() === canonicalTarget.toLowerCase()
+      );
+    }
+
+    if (!matchedExec && mobile) {
+      const cleanInput = normalizePhone(mobile);
+      matchedExec = executives.find((e) => normalizePhone(e.mobile) === cleanInput);
+    }
+
+    if (!matchedExec) {
+      res.status(404).json({ error: "Sales Executive profile nahi mila. Naam ya number check karein." });
+      return;
+    }
+
+    const expectedPin = String(matchedExec.pin || "1234").trim();
+    const providedPin = String(pin).trim();
+
+    if (expectedPin !== providedPin) {
+      res.status(401).json({ error: "Galat 4-digit PIN! Kripya sahi PIN enter karein (Default: 1234)." });
+      return;
+    }
+
+    // Generate authenticated rep token
+    const token = jwt.sign(
+      {
+        id: String(matchedExec._id || matchedExec.name),
+        repName: matchedExec.name,
+        repMobile: matchedExec.mobile,
+        role: "Sales_Agent",
+        department: "Sales",
+      },
+      config.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Welcome ${matchedExec.name}! Authentication successful.`,
+      token,
+      rep: {
+        id: matchedExec._id,
+        name: matchedExec.name,
+        mobile: matchedExec.mobile,
+        area: matchedExec.area,
+        state: matchedExec.state,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to authenticate sales executive" });
+  }
+}
+
+/**
+ * Isolated Leads Fetch for Authenticated Sales Executive
+ * GET /api/distribution/my-leads
+ */
+export async function getMyLeads(req: Request, res: Response): Promise<void> {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Unauthorized: Missing authentication token" });
+      return;
+    }
+
+    const token = authHeader.split(" ")[1];
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, config.JWT_SECRET);
+    } catch {
+      res.status(401).json({ error: "Session expired or invalid token. Please log in again." });
+      return;
+    }
+
+    const repName = decoded.repName;
+    const repMobile = decoded.repMobile;
+
+    if (!repName && !repMobile) {
+      res.status(403).json({ error: "Invalid sales executive session" });
+      return;
+    }
+
+    const canonicalName = normalizeRepName(repName || "");
+    const cleanPhone = normalizePhone(repMobile || "");
+
+    const Lead = getLeadModel();
+    const leads = (
+      await Lead.find({
+        $or: [
+          { assignedEmployeeName: new RegExp(canonicalName, "i") },
+          ...(cleanPhone ? [{ repPhone: new RegExp(cleanPhone) }] : []),
+        ],
+      })
+        .sort({ updatedAt: -1 })
+        .lean()
+    ).filter((l) => !isCorporateBotNumber(l.phone));
+
+    // Calculate metrics
+    const totalLeads = leads.length;
+    const wonLeads = leads.filter((l) => l.status === "CONVERTED");
+    const pendingLeads = leads.filter((l) => l.status === "NEW" || l.status === "CONTACTED");
+    const inProgressLeads = leads.filter((l) => ["QUOTATION_SENT", "NEGOTIATION"].includes(l.status));
+    const lostLeads = leads.filter((l) => l.status === "LOST");
+    const totalValue = leads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const dueTodayCount = leads.filter((l) => {
+      if (!l.followupDate) return false;
+      const d = new Date(l.followupDate).toISOString().split("T")[0];
+      return d === todayStr && l.status !== "CONVERTED" && l.status !== "LOST";
+    }).length;
+
+    const overdueCount = leads.filter((l) => {
+      if (!l.followupDate) return false;
+      const d = new Date(l.followupDate).toISOString().split("T")[0];
+      return d < todayStr && l.status !== "CONVERTED" && l.status !== "LOST";
+    }).length;
+
+    res.status(200).json({
+      success: true,
+      rep: {
+        name: canonicalName,
+        mobile: repMobile,
+      },
+      summary: {
+        totalLeads,
+        wonCount: wonLeads.length,
+        pendingCount: pendingLeads.length,
+        inProgressCount: inProgressLeads.length,
+        lostCount: lostLeads.length,
+        totalValue,
+        dueTodayCount,
+        overdueCount,
+      },
+      leads: leads.map((l) => ({
+        _id: l._id,
+        leadNumber: l.leadNumber,
+        customerName: l.customerName,
+        phone: l.phone,
+        city: l.city,
+        state: l.state,
+        businessName: l.businessName,
+        status: l.status,
+        priority: l.priority,
+        estimatedValue: l.estimatedValue || 0,
+        productCategory: l.productCategory,
+        pincode: l.pincode || "",
+        repNotificationStatus: l.repNotificationStatus || "DELIVERED",
+        customerReplyStatus: l.customerReplyStatus || "REPLIED",
+        intentTag: l.intentTag || l.productCategory || "Wholesale Dealership",
+        routingReason: l.routingReason || "",
+        followupDate: l.followupDate,
+        internalNotes: l.internalNotes || [],
+        history: l.history || [],
+        lossReason: l.lossReason || "",
+        assignedEmployeeName: l.assignedEmployeeName,
+        assignedEmployeePhone: (l as any).assignedEmployeePhone || l.repPhone || "",
+        createdAt: l.createdAt,
+        updatedAt: l.updatedAt,
+      })),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch sales rep leads" });
   }
 }

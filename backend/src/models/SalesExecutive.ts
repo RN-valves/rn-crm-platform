@@ -7,6 +7,7 @@ export interface ISalesExecutive extends Document {
   area: string;
   state: string;
   pinPrefixes: string[]; // e.g. ["11", "20", "21"]
+  pin?: string; // 4-digit security PIN for rep portal access
   isActive: boolean;
   isDefaultFallback: boolean;
   orderIndex: number;
@@ -21,6 +22,7 @@ const SalesExecutiveSchema = new Schema<ISalesExecutive>(
     area: { type: String, default: "", trim: true },
     state: { type: String, required: true, trim: true },
     pinPrefixes: { type: [String], default: [] },
+    pin: { type: String, default: "1234", trim: true },
     isActive: { type: Boolean, default: true },
     isDefaultFallback: { type: Boolean, default: false },
     orderIndex: { type: Number, default: 0 },
@@ -45,6 +47,7 @@ export const INITIAL_SALES_EXECUTIVES = [
     area: "Delhi NCR, UP, Bihar & Jharkhand",
     state: "UP / Bihar / Delhi NCR / Jharkhand",
     pinPrefixes: ["11", "20", "21", "22", "23", "24", "25", "26", "27", "28", "80", "81", "82", "83", "84", "85"],
+    pin: "1234",
     isActive: true,
     isDefaultFallback: false,
     orderIndex: 1,
@@ -55,6 +58,7 @@ export const INITIAL_SALES_EXECUTIVES = [
     area: "Haryana, Gujarat, Punjab, Odisha & Head Office",
     state: "Haryana / Gujarat / Punjab / Odisha",
     pinPrefixes: ["12", "13", "14", "15", "16", "17", "36", "37", "38", "39", "75", "76", "77"],
+    pin: "1234",
     isActive: true,
     isDefaultFallback: true,
     orderIndex: 2,
@@ -65,6 +69,7 @@ export const INITIAL_SALES_EXECUTIVES = [
     area: "Rajasthan, Madhya Pradesh & Chhattisgarh",
     state: "Rajasthan / MP / Chhattisgarh",
     pinPrefixes: ["30", "31", "32", "33", "34", "45", "46", "47", "48", "49"],
+    pin: "1234",
     isActive: true,
     isDefaultFallback: false,
     orderIndex: 3,
@@ -75,6 +80,7 @@ export const INITIAL_SALES_EXECUTIVES = [
     area: "Maharashtra, Kerala & Goa",
     state: "Maharashtra / Kerala / Goa",
     pinPrefixes: ["40", "41", "42", "43", "44", "67", "68", "69"],
+    pin: "1234",
     isActive: true,
     isDefaultFallback: false,
     orderIndex: 4,
@@ -85,6 +91,7 @@ export const INITIAL_SALES_EXECUTIVES = [
     area: "West Bengal, Assam, Tamil Nadu & Jammu & Kashmir",
     state: "WB / Assam / Tamil Nadu / Jammu & Kashmir",
     pinPrefixes: ["18", "19", "60", "61", "62", "63", "64", "70", "71", "72", "73", "74", "78", "79"],
+    pin: "1234",
     isActive: true,
     isDefaultFallback: false,
     orderIndex: 5,
@@ -95,6 +102,7 @@ export const INITIAL_SALES_EXECUTIVES = [
     area: "Karnataka Region",
     state: "Karnataka",
     pinPrefixes: ["56", "57", "58", "59"],
+    pin: "1234",
     isActive: true,
     isDefaultFallback: false,
     orderIndex: 6,
@@ -105,6 +113,7 @@ export const INITIAL_SALES_EXECUTIVES = [
     area: "Andhra Pradesh & Telangana (Hyderabad)",
     state: "Andhra Pradesh / Telangana",
     pinPrefixes: ["50", "51", "52", "53"],
+    pin: "1234",
     isActive: true,
     isDefaultFallback: false,
     orderIndex: 7,
