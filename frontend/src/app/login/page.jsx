@@ -111,11 +111,15 @@ function LoginForm() {
         {/* Brand Card */}
         <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 shadow-2xl shadow-black/60">
           {/* Logo & Header */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-rn-600 to-rn-500 shadow-xl shadow-rn-600/30 text-white font-black text-2xl mb-4 border border-rn-400/30">
-              RN
+          <div className="text-center mb-7">
+            <div className="inline-flex items-center justify-center bg-white rounded-2xl px-6 py-3.5 shadow-xl shadow-black/30 ring-1 ring-white/20 mb-4">
+              <img
+                src="/rn-logo.png"
+                alt="RN Valves & Faucets — Built for Long Life"
+                className="h-24 w-auto object-contain select-none"
+              />
             </div>
-            <h1 className="text-2xl font-black text-white tracking-wide flex items-center justify-center gap-2">
+            <h1 className="text-xl font-black text-white tracking-wide flex items-center justify-center gap-2">
               RN VALVES
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rn-500/20 text-rn-300 border border-rn-500/30">
                 PRO CRM
@@ -295,8 +299,8 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="min-h-screen w-full flex items-center justify-center bg-slate-950 text-slate-200">
-          <div className="w-12 h-12 rounded-xl bg-rn-600 flex items-center justify-center font-bold text-white text-xl animate-pulse">
-            RN
+          <div className="bg-white rounded-2xl p-3 shadow-xl animate-pulse">
+            <img src="/rn-logo.png" alt="RN Valves & Faucets" className="h-16 w-auto object-contain" />
           </div>
         </div>
       }

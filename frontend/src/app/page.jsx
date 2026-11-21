@@ -24,8 +24,12 @@ export default function RootPage() {
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-950 text-slate-200">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-rn-600 to-rn-500 flex items-center justify-center font-black text-white text-2xl shadow-xl shadow-rn-600/30 mb-4 animate-pulse">
-        RN
+      <div className="bg-white rounded-2xl px-5 py-3 shadow-xl shadow-black/40 mb-4 animate-pulse">
+        <img
+          src="/rn-logo.png"
+          alt="RN Valves & Faucets"
+          className="h-20 w-auto object-contain select-none"
+        />
       </div>
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-300">
         <div className="w-4 h-4 border-2 border-rn-500 border-t-transparent rounded-full animate-spin" />

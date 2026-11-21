@@ -352,8 +352,12 @@ function RepPortalContent() {
         {!repProfile ? (
           <div className="max-w-xl mx-auto space-y-6 pt-6 animate-fadeIn">
             <div className="text-center space-y-2">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-rn-600 text-white shadow-lg shadow-rn-600/30 mb-2">
-                <Lock className="w-7 h-7" />
+              <div className="inline-flex items-center justify-center bg-white rounded-2xl px-5 py-3 shadow-md border border-slate-200/80 mb-2">
+                <img
+                  src="/rn-logo.png"
+                  alt="RN Valves & Faucets"
+                  className="h-20 w-auto object-contain select-none"
+                />
               </div>
               <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                 RN Valves & Faucets — Sales Executive Portal

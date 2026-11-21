@@ -68,8 +68,12 @@ export default function Sidebar() {
       {/* Brand Header */}
       <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800/80">
         <Link href={homeHref} className="flex items-center gap-3 group">
-          <div className="w-9 h-9 rounded-xl bg-rn-600 flex items-center justify-center font-black text-white text-base shadow-lg shadow-rn-600/30 group-hover:scale-105 transition-transform">
-            RN
+          <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-lg shadow-black/30 group-hover:scale-105 transition-transform shrink-0">
+            <img
+              src="/rn-icon.png"
+              alt="RN Valves & Faucets"
+              className="w-full h-full object-contain select-none"
+            />
           </div>
           <div>
             <h1 className="font-extrabold text-white tracking-wider text-sm flex items-center gap-1.5">
