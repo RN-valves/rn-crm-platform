@@ -30,6 +30,7 @@ import {
   MessageSquare,
   ShieldCheck,
   ChevronRight,
+  ChevronDown,
   FileSpreadsheet,
   Download,
   IndianRupee,
@@ -495,89 +496,136 @@ export default function LeadDistributionPage() {
           </Card>
         </div>
 
-        {/* 2. Interactive Navigation Tabs & Search */}
-        <div className="border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            <button
-              onClick={() => setActiveTab("executives")}
-              className={`px-3.5 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "executives"
-                  ? "border-rn-600 text-rn-700 dark:text-rn-300 bg-white dark:bg-slate-900 shadow-sm"
-                  : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Sales Executives ({executives.length})</span>
-            </button>
+        {/* 2. Interactive Navigation Dropdown & Search */}
+        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <label htmlFor="distribution-view-select" className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">
+                View:
+              </label>
+              <div className="relative flex-1 sm:w-72">
+                <select
+                  id="distribution-view-select"
+                  value={activeTab}
+                  onChange={(e) => setActiveTab(e.target.value)}
+                  className="w-full appearance-none pl-9 pr-9 py-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white font-bold text-xs rounded-xl border border-slate-300 dark:border-slate-700 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-rn-500 transition-all"
+                >
+                  <option value="executives">
+                    Sales Executives ({executives.length})
+                  </option>
+                  <option value="leads">
+                    All Pipeline Leads ({allLeads.length}){summary.totalUnassignedLeads > 0 ? ` - ${summary.totalUnassignedLeads} Unassigned` : ""}
+                  </option>
+                  <option value="dropped">
+                    Dropped at "Hi" ({droppedAtHi.length})
+                  </option>
+                  <option value="human">
+                    Human Takeovers ({humanTakeovers.length})
+                  </option>
+                  <option value="reports">
+                    Reports & Excel ({allLeads.length})
+                  </option>
+                  <option value="rep_portal">
+                    Sales Rep Portal
+                  </option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-rn-600 dark:text-rn-400">
+                  {activeTab === "executives" && <Users className="w-4 h-4" />}
+                  {activeTab === "leads" && <Kanban className="w-4 h-4" />}
+                  {activeTab === "dropped" && <PhoneMissed className="w-4 h-4 text-amber-600" />}
+                  {activeTab === "human" && <Bot className="w-4 h-4 text-purple-600" />}
+                  {activeTab === "reports" && <FileSpreadsheet className="w-4 h-4 text-emerald-600" />}
+                  {activeTab === "rep_portal" && <UserCheck className="w-4 h-4 text-blue-600" />}
+                </div>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
+                  <ChevronDown className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
 
-            <button
-              onClick={() => setActiveTab("leads")}
-              className={`px-3.5 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "leads"
-                  ? "border-rn-600 text-rn-700 dark:text-rn-300 bg-white dark:bg-slate-900 shadow-sm"
-                  : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              <Kanban className="w-4 h-4" />
-              <span>All Pipeline Leads ({allLeads.length})</span>
-              {summary.totalUnassignedLeads > 0 && (
-                <span className="px-1.5 py-0.2 bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-400 text-[10px] rounded-full font-bold">
-                  {summary.totalUnassignedLeads} unassigned
-                </span>
-              )}
-            </button>
+            {/* Quick-switch chips for desktop convenience */}
+            <div className="hidden xl:flex items-center gap-1 pl-2 border-l border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setActiveTab("executives")}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                  activeTab === "executives"
+                    ? "bg-rn-600 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Executives ({executives.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("leads")}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                  activeTab === "leads"
+                    ? "bg-rn-600 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Pipeline ({allLeads.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("dropped")}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                  activeTab === "dropped"
+                    ? "bg-amber-600 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Dropped ({droppedAtHi.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("human")}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                  activeTab === "human"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Human ({humanTakeovers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("reports")}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                  activeTab === "reports"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Reports
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("rep_portal")}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                  activeTab === "rep_portal"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                Rep Portal
+              </button>
+            </div>
 
-            <button
-              onClick={() => setActiveTab("dropped")}
-              className={`px-3.5 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "dropped"
-                  ? "border-amber-600 text-amber-800 dark:text-amber-300 bg-white dark:bg-slate-900 shadow-sm"
-                  : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
-              }`}
+            {/* Direct Link to Standalone Rep Portal */}
+            <Link
+              href="/rep-portal"
+              target="_blank"
+              className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50"
             >
-              <PhoneMissed className="w-4 h-4 text-amber-600" />
-              <span>Dropped at "Hi" ({droppedAtHi.length})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("human")}
-              className={`px-3.5 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "human"
-                  ? "border-purple-600 text-purple-800 dark:text-purple-300 bg-white dark:bg-slate-900 shadow-sm"
-                  : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              <Bot className="w-4 h-4 text-purple-600" />
-              <span>Human Takeovers ({humanTakeovers.length})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("reports")}
-              className={`px-3.5 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "reports"
-                  ? "border-emerald-600 text-emerald-800 dark:text-emerald-300 bg-white dark:bg-slate-900 shadow-sm"
-                  : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Reports & Excel ({allLeads.length})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("rep_portal")}
-              className={`px-3.5 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "rep_portal"
-                  ? "border-blue-600 text-blue-800 dark:text-blue-300 bg-white dark:bg-slate-900 shadow-sm"
-                  : "border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              <UserCheck className="w-4 h-4 text-blue-600" />
-              <span>Sales Rep Portal</span>
-            </button>
+              <span>Full Rep Portal</span>
+              <ExternalLink className="w-3 h-3" />
+            </Link>
           </div>
 
           {/* Search Box */}
-          <div className="pb-2 w-full sm:w-64">
+          <div className="w-full md:w-64">
             <Input
               type="text"
               placeholder="Search phone, rep, city..."
