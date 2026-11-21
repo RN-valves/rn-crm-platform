@@ -106,6 +106,14 @@ export default function LeadFollowupModal({ isOpen, onClose, lead, onSuccess }) 
       color: "border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200",
     },
     {
+      value: "INTERESTED",
+      label: "Interested (Product Qualified)",
+      desc: "Dealer confirmed interest in specific product line",
+      badge: "indigo",
+      icon: "✨",
+      color: "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200",
+    },
+    {
       value: "CONTACTED",
       label: "Contacted (Follow-up In Progress)",
       desc: "Spoke on call / WhatsApp, awaiting response",

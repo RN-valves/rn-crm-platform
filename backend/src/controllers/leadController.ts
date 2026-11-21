@@ -4,6 +4,7 @@ import { getAuditLogModel } from "../models/AuditLog.js";
 import { getConversationStateModel } from "../models/ConversationState.js";
 import { getConversationControlModel } from "../models/ConversationControl.js";
 import { getCrmConnection } from "../database/connections.js";
+import { invalidateDistributionCache } from "./distributionController.js";
 
 export async function getLeads(req: Request, res: Response): Promise<void> {
   try {
@@ -157,6 +158,7 @@ export async function updateLeadStage(req: Request, res: Response): Promise<void
     });
 
     await existing.save();
+    invalidateDistributionCache();
 
     // Log to audit trail
     try {
@@ -196,6 +198,7 @@ export async function createLead(req: Request, res: Response): Promise<void> {
       ],
     });
 
+    invalidateDistributionCache();
     res.status(201).json({ lead: newLead });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -215,6 +218,7 @@ export async function deleteLead(req: Request, res: Response): Promise<void> {
       res.status(404).json({ error: "Lead not found" });
       return;
     }
+    invalidateDistributionCache();
     res.status(200).json({ success: true, message: "Lead deleted successfully", lead: deleted });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

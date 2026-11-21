@@ -12,6 +12,7 @@ import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { getCrmConnection } from "../database/connections.js";
 import { isCorporateBotNumber } from "../services/botFilter.js";
 import { SalesRepDirectory } from "../services/conversation/salesRepDirectory.js";
+import { invalidateDashboardCache } from "./dashboardController.js";
 
 const STAFF_PHONE_PATTERNS = [
   "9315160881", // Amit Kumar Sir
@@ -44,6 +45,7 @@ let distributionCache: { expiresAt: number; payload: any } | null = null;
 
 export function invalidateDistributionCache(): void {
   distributionCache = null;
+  invalidateDashboardCache();
 }
 
 export async function getDistributionAnalytics(req: Request, res: Response): Promise<void> {
