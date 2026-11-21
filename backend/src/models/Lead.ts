@@ -93,7 +93,11 @@ const LeadSchema = new Schema<ILead>(
       index: true,
     },
     estimatedValue: { type: Number, default: 0 },
-    followupDate: { type: Date, index: true },
+    followupDate: {
+      type: Date,
+      default: () => new Date(Date.now() + 24 * 60 * 60 * 1000),
+      index: true,
+    },
     internalNotes: { type: [String], default: [] },
     history: [
       {
@@ -138,4 +142,37 @@ LeadSchema.index({ customerName: "text", businessName: "text", requirementDescri
 export function getLeadModel(): Model<ILead> {
   const db = getCrmConnection();
   return db.models.Lead || db.model<ILead>("Lead", LeadSchema);
+}
+
+let backfilledOnce = false;
+
+/**
+ * Ensures any untouched NEW lead without a followupDate receives a 24-hour SLA deadline (createdAt + 24h)
+ */
+export async function backfillUntouchedLeadFollowups(): Promise<void> {
+  if (backfilledOnce) return;
+  try {
+    const Lead = getLeadModel();
+    const untouched = await Lead.find({
+      status: "NEW",
+      $or: [{ followupDate: { $exists: false } }, { followupDate: null }],
+    }).select("_id createdAt");
+
+    if (untouched.length > 0) {
+      const ops = untouched.map((doc: any) => {
+        const baseTime = doc.createdAt ? new Date(doc.createdAt).getTime() : Date.now();
+        return {
+          updateOne: {
+            filter: { _id: doc._id },
+            update: { $set: { followupDate: new Date(baseTime + 24 * 60 * 60 * 1000) } },
+          },
+        };
+      });
+      await Lead.bulkWrite(ops);
+      console.log(`✅ [SLA] Assigned 24-hour follow-up deadlines to ${untouched.length} untouched NEW leads.`);
+    }
+    backfilledOnce = true;
+  } catch (err: any) {
+    console.warn("[SLA] Follow-up deadline backfill notice:", err.message);
+  }
 }

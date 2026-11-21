@@ -5,6 +5,7 @@ import Header from "../../components/Header";
 import LeadFollowupModal from "../../components/LeadFollowupModal";
 import Modal from "../../components/ui/Modal";
 import Input from "../../components/ui/Input";
+import Pagination from "../../components/ui/Pagination";
 import { crmApi } from "../../lib/api";
 import { Card, CardContent } from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
@@ -27,7 +28,10 @@ export default function FollowupsPage() {
   const [followups, setFollowups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("PENDING"); // "PENDING", "OVERDUE", "TODAY", "COMPLETED", "ALL"
+  const [repFilter, setRepFilter] = useState("ALL");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [selectedLead, setSelectedLead] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -103,6 +107,19 @@ export default function FollowupsPage() {
   const todayStr = new Date().toISOString().split("T")[0];
   const nowMs = Date.now();
 
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, repFilter, search]);
+
+  const repOptions = useMemo(() => {
+    const set = new Set(
+      followups
+        .map((f) => f.assignedName)
+        .filter((n) => n && n !== "Unassigned")
+    );
+    return Array.from(set).sort();
+  }, [followups]);
+
   const filteredList = useMemo(() => {
     return followups.filter((f) => {
       const schedDateStr = f.scheduledAt
@@ -114,6 +131,12 @@ export default function FollowupsPage() {
       if (statusFilter === "OVERDUE" && !isOverdue) return false;
       if (statusFilter === "TODAY" && schedDateStr !== todayStr) return false;
 
+      if (repFilter === "UNASSIGNED") {
+        if (f.assignedName && f.assignedName !== "Unassigned") return false;
+      } else if (repFilter !== "ALL") {
+        if (f.assignedName !== repFilter) return false;
+      }
+
       if (!search.trim()) return true;
       const s = search.toLowerCase();
       return (
@@ -124,7 +147,7 @@ export default function FollowupsPage() {
         f.notes?.toLowerCase().includes(s)
       );
     });
-  }, [followups, statusFilter, search, todayStr, nowMs]);
+  }, [followups, statusFilter, repFilter, search, todayStr, nowMs]);
 
   const overdueCount = followups.filter(
     (f) => f.status === "PENDING" && f.scheduledAt && new Date(f.scheduledAt).getTime() < nowMs
@@ -221,14 +244,30 @@ export default function FollowupsPage() {
             ))}
           </div>
 
-          <div className="w-full sm:w-64">
-            <Input
-              type="text"
-              placeholder="Search customer, phone, rep..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              icon={Search}
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select
+              value={repFilter}
+              onChange={(e) => setRepFilter(e.target.value)}
+              className="px-3 py-2 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[#1091d0]"
+            >
+              <option value="ALL">All Executives</option>
+              <option value="UNASSIGNED">Unassigned Only</option>
+              {repOptions.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex-1 sm:w-60">
+              <Input
+                type="text"
+                placeholder="Search customer, phone, rep..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                icon={Search}
+              />
+            </div>
           </div>
         </div>
 
@@ -245,10 +284,12 @@ export default function FollowupsPage() {
           ) : filteredList.length === 0 ? (
             <div className="col-span-1 md:col-span-2 text-center py-14 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/85 dark:border-slate-800 text-slate-400 text-xs font-medium space-y-2">
               <CalendarCheck className="w-8 h-8 mx-auto text-slate-300" />
-              <p>No follow-ups in this view. Click "Schedule Follow-up" or set a follow-up date on any lead.</p>
+              <p>No follow-ups in this view. Switch to "Pending" or "Overdue" to see active 24h SLA follow-ups.</p>
             </div>
           ) : (
-            filteredList.map((f) => {
+            filteredList
+              .slice((page - 1) * pageSize, page * pageSize)
+              .map((f) => {
               const isOverdue =
                 f.status === "PENDING" &&
                 f.scheduledAt &&
@@ -346,6 +387,23 @@ export default function FollowupsPage() {
             })
           )}
         </div>
+
+        {filteredList.length > 0 && (
+          <Card>
+            <Pagination
+              totalItems={filteredList.length}
+              currentPage={page}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 20, 50]}
+              onPageChange={setPage}
+              onPageSizeChange={(sz) => {
+                setPageSize(sz);
+                setPage(1);
+              }}
+              itemName="follow-ups"
+            />
+          </Card>
+        )}
       </main>
 
       {/* Lead Follow-up Update Modal */}

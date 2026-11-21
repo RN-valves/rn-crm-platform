@@ -21,6 +21,7 @@ import salesExecutiveRoutes from "./routes/salesExecutiveRoutes.js";
 import distributionRoutes from "./routes/distributionRoutes.js";
 import { seedSalesExecutivesIfEmpty } from "./models/SalesExecutive.js";
 import { seedAdminUserIfEmpty } from "./models/User.js";
+import { backfillUntouchedLeadFollowups } from "./models/Lead.js";
 import { setupIncomingMessageWorker } from "./workers/incomingMessageWorker.js";
 import { setupAiProcessingWorker } from "./workers/aiProcessingWorker.js";
 import { setupOutgoingMessageWorker } from "./workers/outgoingMessageWorker.js";
@@ -133,6 +134,7 @@ async function bootstrap() {
       console.log("✅ [Database] CRM & eCommerce databases initialized.");
       await seedSalesExecutivesIfEmpty().catch(() => {});
       await seedAdminUserIfEmpty().catch(() => {});
+      await backfillUntouchedLeadFollowups().catch(() => {});
     })
     .catch((dbErr) => {
       console.error("⚠️ [Database] Background initialization warning:", dbErr.message);

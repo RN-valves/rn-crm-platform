@@ -1,9 +1,11 @@
 import { Request, Response } from "express";
 import { getFollowupModel } from "../models/Followup.js";
-import { getLeadModel } from "../models/Lead.js";
+import { getLeadModel, backfillUntouchedLeadFollowups } from "../models/Lead.js";
+import { invalidateDistributionCache } from "./distributionController.js";
 
 export async function getFollowups(req: Request, res: Response): Promise<void> {
   try {
+    await backfillUntouchedLeadFollowups();
     const status = (req.query.status as string) || "PENDING";
     const query: any = {};
     if (status !== "ALL") query.status = status;
@@ -98,13 +100,25 @@ export async function updateFollowupStatus(req: Request, res: Response): Promise
         return;
       }
       if (status === "COMPLETED") {
+        const prevStatus = lead.status;
+        if (lead.status === "NEW") {
+          lead.status = "CONTACTED";
+        }
         lead.followupDate = undefined;
         lead.internalNotes.push(
           `[${new Date().toLocaleDateString("en-IN")}] Follow-up completed${
             completionRemarks ? `: ${completionRemarks}` : ""
           }`
         );
+        lead.history.push({
+          fromStatus: prevStatus,
+          toStatus: lead.status,
+          updatedBy: req.user?.name || "Admin",
+          timestamp: new Date(),
+          comment: "Follow-up marked completed",
+        });
         await lead.save();
+        invalidateDistributionCache();
       }
       res.status(200).json({ success: true, lead });
       return;

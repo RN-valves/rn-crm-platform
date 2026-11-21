@@ -155,6 +155,8 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
         humanConvRes,
         pendingFollowupsRes,
         overdueFollowupsRes,
+        pendingLeadFollowupsRes,
+        overdueLeadFollowupsRes,
         allExecsRes,
         repStatsRes,
       ] = await Promise.all([
@@ -173,6 +175,14 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
           ...followupDateFilter,
           status: "PENDING",
           scheduledAt: { $lt: now },
+        }).catch(() => 0),
+        Lead.countDocuments({
+          status: { $nin: ["CONVERTED", "LOST"] },
+          followupDate: { $ne: null },
+        }).catch(() => 0),
+        Lead.countDocuments({
+          status: { $nin: ["CONVERTED", "LOST"] },
+          followupDate: { $ne: null, $lt: now },
         }).catch(() => 0),
         SalesRepDirectory.getAllExecutives().catch(() => INITIAL_SALES_EXECUTIVES),
         Lead.aggregate([
@@ -197,8 +207,8 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       convertedLeads = convertedLeadsRes;
       aiConversations = aiConvRes;
       humanConversations = humanConvRes;
-      followupsPending = pendingFollowupsRes;
-      followupsOverdue = overdueFollowupsRes;
+      followupsPending = pendingFollowupsRes + pendingLeadFollowupsRes;
+      followupsOverdue = overdueFollowupsRes + overdueLeadFollowupsRes;
 
       stagesRes.forEach((s: any) => {
         if (s._id && leadsByStage[s._id] !== undefined) {
