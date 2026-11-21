@@ -65,9 +65,10 @@ function RepPortalContent() {
   const [resendingLeadId, setResendingLeadId] = useState(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState("");
 
-  // Pagination State
+  // Pagination & View Mode State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [viewMode, setViewMode] = useState("table"); // "table" or "cards"
 
   // Fetch executives for login selector
   const fetchExecutivesList = async () => {
@@ -697,15 +698,42 @@ function RepPortalContent() {
                 </button>
               </div>
 
-              {/* Search Box */}
-              <div className="w-full md:w-72">
-                <Input
-                  type="text"
-                  placeholder="Search customer, phone, city..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="text-xs"
-                />
+              {/* Search Box & View Mode Toggle */}
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                      viewMode === "table"
+                        ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                        : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                  >
+                    📊 Table View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("cards")}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                      viewMode === "cards"
+                        ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                        : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                  >
+                    📱 Card View
+                  </button>
+                </div>
+
+                <div className="w-full md:w-64">
+                  <Input
+                    type="text"
+                    placeholder="Search customer, phone, city..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
               </div>
             </div>
 
@@ -722,7 +750,183 @@ function RepPortalContent() {
                     : "Filhaal aapko koi lead assign nahi hui hai."}
                 </p>
               </div>
+            ) : viewMode === "table" ? (
+              /* BOOTSTRAP DATA TABLE VIEW */
+              <div className="card shadow-sm border border-slate-200/90 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                <div className="table-responsive">
+                  <table className="table table-hover table-striped align-middle mb-0 text-xs">
+                    <thead className="table-light border-bottom text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th className="px-4 py-3">Lead ID & Date</th>
+                        <th className="px-4 py-3">Customer / Firm</th>
+                        <th className="px-4 py-3">Phone</th>
+                        <th className="px-4 py-3">Territory & PIN</th>
+                        <th className="px-4 py-3">Requirement</th>
+                        <th className="px-4 py-3">Current Status</th>
+                        <th className="px-4 py-3 text-end">Deal Value (₹)</th>
+                        <th className="px-4 py-3">Next Follow-up</th>
+                        <th className="px-4 py-3">Latest Notes</th>
+                        <th className="px-4 py-3 text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedLeads.map((lead) => {
+                        const isWon = lead.status === "CONVERTED";
+                        const isLost = lead.status === "LOST";
+                        const cleanPhone = (lead.phone || "").replace(/\D/g, "");
+                        const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                          `Namaste ${lead.customerName || ""} ji! 🙏 Main ${repProfile?.name} baat kar raha hoon RN Valves & Faucets se.`
+                        )}`;
+
+                        let dueStatus = null;
+                        if (lead.followupDate && !isWon && !isLost) {
+                          const d = new Date(lead.followupDate).toISOString().split("T")[0];
+                          const today = new Date().toISOString().split("T")[0];
+                          if (d < today) dueStatus = "OVERDUE";
+                          else if (d === today) dueStatus = "TODAY";
+                        }
+
+                        return (
+                          <tr
+                            key={lead._id || lead.phone}
+                            className={
+                              dueStatus === "OVERDUE"
+                                ? "table-danger"
+                                : dueStatus === "TODAY"
+                                ? "table-warning"
+                                : ""
+                            }
+                          >
+                            <td className="px-4 py-3 font-mono font-bold text-slate-600 dark:text-slate-400">
+                              <div>#{lead.leadNumber || "—"}</div>
+                              <div className="text-[10px] text-slate-400 font-normal">
+                                {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString("en-IN") : ""}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-bold text-slate-900 dark:text-white">
+                                {lead.customerName || "Customer"}
+                              </div>
+                              {lead.businessName && (
+                                <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                  <Building className="w-3 h-3 text-slate-400" />
+                                  {lead.businessName}
+                                </p>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 font-mono font-bold text-slate-800 dark:text-slate-200">
+                              {lead.phone}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-slate-800 dark:text-slate-200">
+                                {lead.city || lead.state || "—"}
+                              </div>
+                              {lead.pincode && (
+                                <span className="badge bg-light text-dark border font-mono mt-0.5">
+                                  PIN: {lead.pincode}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                              {lead.productCategory || "Wholesale Dealership"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`badge ${
+                                  isWon
+                                    ? "bg-success"
+                                    : isLost
+                                    ? "bg-danger"
+                                    : lead.status === "QUOTATION_SENT"
+                                    ? "bg-info text-dark"
+                                    : lead.status === "NEGOTIATION"
+                                    ? "bg-warning text-dark"
+                                    : "bg-primary"
+                                }`}
+                              >
+                                {isWon && "🎉 "}
+                                {lead.status || "NEW"}
+                              </span>
+                              {dueStatus === "OVERDUE" && (
+                                <span className="badge bg-danger ms-1 animate-pulse">
+                                  🚨 OVERDUE
+                                </span>
+                              )}
+                              {dueStatus === "TODAY" && (
+                                <span className="badge bg-warning text-dark ms-1">
+                                  ⚠️ TODAY
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-end font-bold text-slate-900 dark:text-white">
+                              {lead.estimatedValue > 0
+                                ? `₹${Number(lead.estimatedValue).toLocaleString("en-IN")}`
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                              {lead.followupDate
+                                ? new Date(lead.followupDate).toLocaleDateString("en-IN")
+                                : "Not set"}
+                            </td>
+                            <td
+                              className="px-4 py-3 max-w-xs text-slate-500 truncate"
+                              title={lead.lossReason || ""}
+                            >
+                              {lead.lossReason
+                                ? `Loss: ${lead.lossReason}`
+                                : lead.history && lead.history.length > 0
+                                ? lead.history[lead.history.length - 1].comment
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-end">
+                              <div className="btn-group btn-group-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedLeadForFollowup(lead)}
+                                  className="btn btn-sm btn-primary"
+                                  title="Update Follow-up Status"
+                                >
+                                  Update
+                                </button>
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-sm btn-success"
+                                  title="WhatsApp Customer"
+                                >
+                                  WhatsApp
+                                </a>
+                                <a
+                                  href={`tel:${lead.phone}`}
+                                  className="btn btn-sm btn-outline-secondary"
+                                  title="Call Customer"
+                                >
+                                  Call
+                                </a>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <Pagination
+                  totalItems={filteredLeads.length}
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  pageSizeOptions={[10, 25, 50]}
+                  onPageChange={(p) => setCurrentPage(p)}
+                  onPageSizeChange={(sz) => {
+                    setPageSize(sz);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
             ) : (
+              /* MOBILE CARDS VIEW */
               <div className="space-y-3">
                 {paginatedLeads.map((lead) => {
                   const isWon = lead.status === "CONVERTED";

@@ -680,18 +680,18 @@ export default function LeadDistributionPage() {
                 </Badge>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <div className="table-responsive">
+                <table className="table table-hover table-striped align-middle mb-0 text-xs">
+                  <thead className="table-light border-bottom text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                     <tr>
-                      <th className="px-6 py-4">Sales Executive</th>
-                      <th className="px-6 py-4">Assigned Region</th>
-                      <th className="px-6 py-4">WhatsApp Contact</th>
-                      <th className="px-6 py-4 text-center">Total Leads</th>
-                      <th className="px-6 py-4 text-center">Won</th>
-                      <th className="px-6 py-4 text-center">In Progress</th>
-                      <th className="px-6 py-4">Share of Leads</th>
-                      <th className="px-6 py-4 text-right">Action</th>
+                      <th className="px-4 py-3">Sales Executive</th>
+                      <th className="px-4 py-3">Assigned Region</th>
+                      <th className="px-4 py-3">WhatsApp Contact</th>
+                      <th className="px-4 py-3 text-center">Total Leads</th>
+                      <th className="px-4 py-3 text-center">Won</th>
+                      <th className="px-4 py-3 text-center">In Progress</th>
+                      <th className="px-4 py-3">Share of Leads</th>
+                      <th className="px-4 py-3 text-end">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -948,19 +948,19 @@ export default function LeadDistributionPage() {
 
             {/* Leads Table */}
             <Card>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <div className="table-responsive">
+                <table className="table table-hover table-striped align-middle mb-0 text-xs">
+                  <thead className="table-light border-bottom text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                     <tr>
-                      <th className="px-6 py-4">Lead ID</th>
-                      <th className="px-6 py-4">Customer / Firm</th>
-                      <th className="px-6 py-4">Phone Number</th>
-                      <th className="px-6 py-4">Territory Route & PIN</th>
-                      <th className="px-6 py-4">Assigned Sales Executive</th>
-                      <th className="px-6 py-4 text-center">Rep WhatsApp Alert</th>
-                      <th className="px-6 py-4 text-center">Customer Reply</th>
-                      <th className="px-6 py-4">Stage</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
+                      <th className="px-4 py-3">Lead ID</th>
+                      <th className="px-4 py-3">Customer / Firm</th>
+                      <th className="px-4 py-3">Phone Number</th>
+                      <th className="px-4 py-3">Territory Route & PIN</th>
+                      <th className="px-4 py-3">Assigned Sales Executive</th>
+                      <th className="px-4 py-3 text-center">Rep WhatsApp Alert</th>
+                      <th className="px-4 py-3 text-center">Customer Reply</th>
+                      <th className="px-4 py-3">Stage</th>
+                      <th className="px-4 py-3 text-end">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -1214,16 +1214,16 @@ export default function LeadDistributionPage() {
             </div>
 
             <Card>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <div className="table-responsive">
+                <table className="table table-hover table-striped align-middle mb-0 text-xs">
+                  <thead className="table-light border-bottom text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                     <tr>
-                      <th className="px-6 py-4">Phone Number</th>
-                      <th className="px-6 py-4">Captured Name</th>
-                      <th className="px-6 py-4">Drop-off Stage</th>
-                      <th className="px-6 py-4">Interactions</th>
-                      <th className="px-6 py-4">Last Active</th>
-                      <th className="px-6 py-4 text-right">Re-engage</th>
+                      <th className="px-4 py-3">Phone Number</th>
+                      <th className="px-4 py-3">Captured Name</th>
+                      <th className="px-4 py-3">Drop-off Stage</th>
+                      <th className="px-4 py-3">Interactions</th>
+                      <th className="px-4 py-3">Last Active</th>
+                      <th className="px-4 py-3 text-end">Re-engage</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -1364,16 +1364,16 @@ export default function LeadDistributionPage() {
             </div>
 
             <Card>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <div className="table-responsive">
+                <table className="table table-hover table-striped align-middle mb-0 text-xs">
+                  <thead className="table-light border-bottom text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                     <tr>
-                      <th className="px-6 py-4">Customer Phone</th>
-                      <th className="px-6 py-4">Customer Name / Firm</th>
-                      <th className="px-6 py-4">Handover Reason</th>
-                      <th className="px-6 py-4">Assigned Agent / Team</th>
-                      <th className="px-6 py-4">Last Message</th>
-                      <th className="px-6 py-4 text-right">Inbox Action</th>
+                      <th className="px-4 py-3">Customer Phone</th>
+                      <th className="px-4 py-3">Customer Name / Firm</th>
+                      <th className="px-4 py-3">Handover Reason</th>
+                      <th className="px-4 py-3">Assigned Agent / Team</th>
+                      <th className="px-4 py-3">Last Message</th>
+                      <th className="px-4 py-3 text-end">Inbox Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -1644,20 +1644,20 @@ export default function LeadDistributionPage() {
 
             {/* Reports Leads Table */}
             <Card>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <div className="table-responsive">
+                <table className="table table-hover table-striped align-middle mb-0 text-xs">
+                  <thead className="table-light border-bottom text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                     <tr>
-                      <th className="px-6 py-4">Lead ID & Date</th>
-                      <th className="px-6 py-4">Customer / Firm</th>
-                      <th className="px-6 py-4">Phone Number</th>
-                      <th className="px-6 py-4">Territory / PIN</th>
-                      <th className="px-6 py-4">Assigned Executive</th>
-                      <th className="px-6 py-4">Status / Outcome</th>
-                      <th className="px-6 py-4 text-right">Deal Value (₹)</th>
-                      <th className="px-6 py-4">Follow-up Date</th>
-                      <th className="px-6 py-4">Latest Notes</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
+                      <th className="px-4 py-3">Lead ID & Date</th>
+                      <th className="px-4 py-3">Customer / Firm</th>
+                      <th className="px-4 py-3">Phone Number</th>
+                      <th className="px-4 py-3">Territory / PIN</th>
+                      <th className="px-4 py-3">Assigned Executive</th>
+                      <th className="px-4 py-3">Status / Outcome</th>
+                      <th className="px-4 py-3 text-end">Deal Value (₹)</th>
+                      <th className="px-4 py-3">Follow-up Date</th>
+                      <th className="px-4 py-3">Latest Notes</th>
+                      <th className="px-4 py-3 text-end">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -1914,19 +1914,19 @@ export default function LeadDistributionPage() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <div className="table-responsive">
+                <table className="table table-hover table-striped align-middle mb-0 text-xs">
+                  <thead className="table-light border-bottom text-slate-700 dark:text-slate-300 font-bold uppercase tracking-wider text-[11px]">
                     <tr>
-                      <th className="px-6 py-4">Customer / Firm</th>
-                      <th className="px-6 py-4">Phone Number</th>
-                      <th className="px-6 py-4">Territory & PIN</th>
-                      <th className="px-6 py-4">Requirement</th>
-                      <th className="px-6 py-4">Current Stage</th>
-                      <th className="px-6 py-4 text-right">Deal Value (₹)</th>
-                      <th className="px-6 py-4">Next Follow-up</th>
-                      <th className="px-6 py-4">Latest Notes</th>
-                      <th className="px-6 py-4 text-right">Follow-up Actions</th>
+                      <th className="px-4 py-3">Customer / Firm</th>
+                      <th className="px-4 py-3">Phone Number</th>
+                      <th className="px-4 py-3">Territory & PIN</th>
+                      <th className="px-4 py-3">Requirement</th>
+                      <th className="px-4 py-3">Current Stage</th>
+                      <th className="px-4 py-3 text-end">Deal Value (₹)</th>
+                      <th className="px-4 py-3">Next Follow-up</th>
+                      <th className="px-4 py-3">Latest Notes</th>
+                      <th className="px-4 py-3 text-end">Follow-up Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">

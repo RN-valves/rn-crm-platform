@@ -82,80 +82,89 @@ export default function Pagination({
         )}
       </div>
 
-      {/* Right: Page Navigation Buttons */}
-      <div className="flex items-center gap-1">
-        {/* First Page */}
-        <button
-          type="button"
-          onClick={() => handlePage(1)}
-          disabled={safeCurrentPage === 1}
-          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="First Page"
-        >
-          <ChevronsLeft className="w-3.5 h-3.5" />
-        </button>
+      {/* Right: Bootstrap 5 Pagination */}
+      <nav aria-label="Table navigation">
+        <ul className="pagination pagination-sm mb-0 flex items-center">
+          {/* First Page */}
+          <li className={`page-item ${safeCurrentPage === 1 ? "disabled" : ""}`}>
+            <button
+              type="button"
+              onClick={() => handlePage(1)}
+              disabled={safeCurrentPage === 1}
+              className="page-link"
+              title="First Page"
+              aria-label="First"
+            >
+              <ChevronsLeft className="w-3.5 h-3.5" />
+            </button>
+          </li>
 
-        {/* Prev Page */}
-        <button
-          type="button"
-          onClick={() => handlePage(safeCurrentPage - 1)}
-          disabled={safeCurrentPage === 1}
-          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="Previous Page"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-        </button>
+          {/* Prev Page */}
+          <li className={`page-item ${safeCurrentPage === 1 ? "disabled" : ""}`}>
+            <button
+              type="button"
+              onClick={() => handlePage(safeCurrentPage - 1)}
+              disabled={safeCurrentPage === 1}
+              className="page-link"
+              title="Previous Page"
+              aria-label="Previous"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+          </li>
 
-        {/* Number Buttons */}
-        <div className="flex items-center gap-1 mx-1">
+          {/* Number Buttons */}
           {getPageNumbers().map((num, idx) => {
             if (num === "...") {
               return (
-                <span key={`dots-${idx}`} className="px-1.5 text-slate-400 font-bold">
-                  ...
-                </span>
+                <li key={`dots-${idx}`} className="page-item disabled">
+                  <span className="page-link">...</span>
+                </li>
               );
             }
             const isActive = num === safeCurrentPage;
             return (
-              <button
-                key={num}
-                type="button"
-                onClick={() => handlePage(num)}
-                className={`min-w-7 h-7 px-2 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
-                  isActive
-                    ? "bg-rn-600 text-white shadow-sm"
-                    : "border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-              >
-                {num}
-              </button>
+              <li key={num} className={`page-item ${isActive ? "active" : ""}`}>
+                <button
+                  type="button"
+                  onClick={() => handlePage(num)}
+                  className="page-link"
+                >
+                  {num}
+                </button>
+              </li>
             );
           })}
-        </div>
 
-        {/* Next Page */}
-        <button
-          type="button"
-          onClick={() => handlePage(safeCurrentPage + 1)}
-          disabled={safeCurrentPage === totalPages}
-          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="Next Page"
-        >
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+          {/* Next Page */}
+          <li className={`page-item ${safeCurrentPage === totalPages ? "disabled" : ""}`}>
+            <button
+              type="button"
+              onClick={() => handlePage(safeCurrentPage + 1)}
+              disabled={safeCurrentPage === totalPages}
+              className="page-link"
+              title="Next Page"
+              aria-label="Next"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </li>
 
-        {/* Last Page */}
-        <button
-          type="button"
-          onClick={() => handlePage(totalPages)}
-          disabled={safeCurrentPage === totalPages}
-          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          title="Last Page"
-        >
-          <ChevronsRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
+          {/* Last Page */}
+          <li className={`page-item ${safeCurrentPage === totalPages ? "disabled" : ""}`}>
+            <button
+              type="button"
+              onClick={() => handlePage(totalPages)}
+              disabled={safeCurrentPage === totalPages}
+              className="page-link"
+              title="Last Page"
+              aria-label="Last"
+            >
+              <ChevronsRight className="w-3.5 h-3.5" />
+            </button>
+          </li>
+        </ul>
+      </nav>
     </div>
   );
 }
