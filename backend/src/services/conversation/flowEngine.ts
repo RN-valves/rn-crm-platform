@@ -248,7 +248,12 @@ export class FlowEngine {
       return this.renderLanguageSelection(welcomePrefix);
     }
 
-    if (lower === "main menu" || lower === "menu" || lower === "home") {
+    if (lower === "main menu" || lower === "menu" || (lower === "home" && stateDoc.state !== "REQUIREMENT_TYPE")) {
+      if (stateDoc.customerType === "Personal Use" || stateDoc.customerType === "Website Order" || !stateDoc.customerType) {
+        stateDoc.state = "REQUIREMENT_TYPE";
+        await stateDoc.save();
+        return this.renderRequirementType(stateDoc.language);
+      }
       stateDoc.state = "BUSINESS_MENU";
       await stateDoc.save();
       return this.renderBusinessMenu(stateDoc.language, stateDoc.customerType || "Dealer");
@@ -519,23 +524,72 @@ export class FlowEngine {
           return this.renderWebsiteOrderSupport(session.language);
         }
 
-        if (cleanChoice === "4" || norm.includes("personal") || norm.includes("ghar") || norm.includes("home") || norm.includes("khud")) {
+        if (
+          cleanChoice === "4" ||
+          norm.includes("personal") ||
+          norm.includes("ghar") ||
+          norm.includes("home") ||
+          norm.includes("khud") ||
+          norm.includes("single piece")
+        ) {
           session.customerType = "Personal Use";
           session.state = "PERSONAL_USE_END";
           const lang = session.language;
           let pMsg = "";
           if (lang === "pa") {
-            pMsg = `ਕਿਉਂਕਿ ਤੁਸੀਂ ਨਿੱਜੀ ਵਰਤੋਂ (Personal Use) ਲਈ ਉਤਪਾਦ ਲੱਭ ਰਹੇ ਹੋ, ਤੁਸੀਂ ਸਾਡੀ ਅਧਿਕਾਰਤ ਵੈੱਬਸਾਈਟ ਤੋਂ ਸਿੱਧੇ ਉਤਪਾਦ ਦੇਖ ਅਤੇ ਖਰੀਦ ਸਕਦੇ ਹੋ।\n\n🌐 *ਵੈੱਬਸਾਈਟ:* https://rnvalves.com\n\nਮੁੱਖ ਮੀਨੂ 'ਤੇ ਵਾਪਸ ਜਾਣ ਲਈ *Main Menu* ਜਾਂ *Hi* ਲਿਖੋ।`;
+            pMsg =
+              `🏠 *ਨਿੱਜੀ ਵਰਤੋਂ ਅਤੇ ਆਨਲਾਈਨ ਸ਼ਾਪਿੰਗ ਸਹਾਇਤਾ (Personal Use & E-Commerce Help)*\n\n` +
+              `ਨਿੱਜੀ ਵਰਤੋਂ (Personal Use) ਲਈ ਤੁਸੀਂ ਸਾਡੀ ਅਧਿਕਾਰਤ ਵੈੱਬਸਾਈਟ ਤੋਂ ਸਿੱਧੇ ਉਤਪਾਦ ਖਰੀਦ ਸਕਦੇ ਹੋ ਜਾਂ ਆਨਲਾਈਨ ਸ਼ਾਪਿੰਗ ਸਹਾਇਤਾ ਲਈ ਸਾਡੇ *ਈ-ਕਾਮਰਸ ਵਿਭਾਗ (E-Commerce Department)* ਨਾਲ ਸੰਪਰਕ ਕਰ ਸਕਦੇ ਹੋ:\n\n` +
+              `🌐 *ਆਨਲਾਈਨ ਸਟੋਰ:* https://rnvalves.com\n\n` +
+              `🛍️ *ਆਨਲਾਈਨ ਸ਼ਾਪਿੰਗ / E-Commerce ਸਹਾਇਤਾ:*\n` +
+              `👩‍💼 *Kanika E-commerce:* +91 93156 03920\n` +
+              `👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n` +
+              `ਮੁੱਖ ਮੀਨੂ 'ਤੇ ਵਾਪਸ ਜਾਣ ਲਈ *Main Menu* ਜਾਂ *Hi* ਲਿਖੋ।`;
           } else if (lang === "te") {
-            pMsg = `మీరు వ్యక్తిగత ఉపయోగం (Personal Use) కోసం ఉత్పత్తులను చూస్తున్నందున, మీరు మా అధికారిక వెబ్‌సైట్ నుండి నేరుగా కొనుగోలు చేయవచ్చు.\n\n🌐 *వెబ్‌సైట్:* https://rnvalves.com\n\nప్రధాన మెను కోసం ఎప్పుడైనా *Main Menu* లేదా *Hi* అని టైప్ చేయండి.`;
+            pMsg =
+              `🏠 *వ్యక్తిగత ఉపయోగం & ఆన్‌లైన్ షాపింగ్ సహాయం (Personal Use & E-Commerce Help)*\n\n` +
+              `వ్యక్తిగత ఉపయోగం (Personal Use) కోసం మా అధికారిక వెబ్‌సైట్ నుండి నేరుగా కొనుగోలు చేయవచ్చు లేదా ఆన్‌లైన్ షాపింగ్ సహాయం కోసం మా *ఇ-కామర్స్ విభాగాన్ని (E-Commerce Department)* సంప్రదించవచ్చు:\n\n` +
+              `🌐 *ఆన్‌లైన్ స్టోర్:* https://rnvalves.com\n\n` +
+              `🛍️ *ఆన్‌లైన్ షాపింగ్ / E-Commerce సహాయం:*\n` +
+              `👩‍💼 *Kanika E-commerce:* +91 93156 03920\n` +
+              `👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n` +
+              `ప్రధాన మెను కోసం ఎప్పుడైనా *Main Menu* లేదా *Hi* అని టైప్ చేయండి.`;
           } else if (lang === "ta") {
-            pMsg = `நீங்கள் தனிப்பட்ட பயன்பாட்டிற்காக (Personal Use) தயாரிப்புகளைத் தேடுவதால், எங்கள் அதிகாரப்பூர்வ இணையதளத்தில் நேரடியாகப் பார்க்கலாம்.\n\n🌐 *இணையதளம்:* https://rnvalves.com\n\nமுதன்மை மெனுவுக்கு *Main Menu* அல்லது *Hi* என தட்டச்சு செய்யவும்.`;
+            pMsg =
+              `🏠 *தனிப்பட்ட பயன்பாடு & ஆன்லைன் ஷாப்பிங் உதவி (Personal Use & E-Commerce Help)*\n\n` +
+              `தனிப்பட்ட பயன்பாட்டிற்கு எங்கள் அதிகாரப்பூர்வ இணையதளத்தில் நேரடியாக வாங்கலாம் அல்லது ஆன்லைன் ஷாப்பிங் உதவிக்கு எங்கள் *இ-காமர்ஸ் துறையை (E-Commerce Department)* தொடர்பு கொள்ளலாம்:\n\n` +
+              `🌐 *ஆன்லைன் ஸ்டோர்:* https://rnvalves.com\n\n` +
+              `🛍️ *ஆன்லைன் ஷாப்பிங் / E-Commerce உதவி:*\n` +
+              `👩‍💼 *Kanika E-commerce:* +91 93156 03920\n` +
+              `👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n` +
+              `முதன்மை மெனுவுக்கு *Main Menu* அல்லது *Hi* என தட்டச்சு செய்யவும்.`;
           } else if (lang === "ur") {
-            pMsg = `چونکہ آپ ذاتی استعمال (Personal Use) کے لیے پراڈکٹس دیکھ رہے ہیں، اس لیے آپ ہماری آفیشل ویب سائٹ سے براہ راست خریداری کر سکتے ہیں۔\n\n🌐 *ویب سائٹ:* https://rnvalves.com\n\nمین مینو کے لیے *Main Menu* یا *Hi* لکھیں۔`;
+            pMsg =
+              `🏠 *ذاتی استعمال اور آن لائن شاپنگ معاونت (Personal Use & E-Commerce Help)*\n\n` +
+              `ذاتی استعمال (Personal Use) کے لیے آپ ہماری آفیشل ویب سائٹ سے براہ راست خریداری کر سکتے ہیں یا آن لائن شاپنگ میں مدد کے لیے ہمارے *ای کامرس ڈیپارٹمنٹ (E-Commerce Department)* سے رابطہ کر سکتے ہیں:\n\n` +
+              `🌐 *آن لائن اسٹور:* https://rnvalves.com\n\n` +
+              `🛍️ *آن لائن شاپنگ / E-Commerce مدد:*\n` +
+              `👩‍💼 *Kanika E-commerce:* +91 93156 03920\n` +
+              `👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n` +
+              `مین مینو کے لیے *Main Menu* یا *Hi* لکھیں۔`;
           } else if (lang === "hi") {
-            pMsg = `चूँकि आप व्यक्तिगत उपयोग (Personal Use) के लिए उत्पाद ढूंढ रहे हैं, आप हमारी आधिकारिक वेबसाइट से सीधे उत्पाद देख और खरीद सकते हैं।\n\n🌐 *वेबसाइट:* https://rnvalves.com\n\nमुख्य मेन्यू पर वापस जाने के लिए कभी भी *Main Menu* या *Hi* लिखें।`;
+            pMsg =
+              `🏠 *व्यक्तिगत उपयोग (Personal Use) एवं ऑनलाइन शॉपिंग सहायता*\n\n` +
+              `चूँकि आप व्यक्तिगत / घर के उपयोग के लिए उत्पाद देख रहे हैं, आप हमारी आधिकारिक वेबसाइट से सीधे ऑनलाइन खरीदारी कर सकते हैं या सहायता के लिए हमारे *ई-कॉमर्स विभाग (E-Commerce Department)* से संपर्क कर सकते हैं:\n\n` +
+              `🌐 *ऑनलाइन शॉपिंग वेबसाइट:* https://rnvalves.com\n\n` +
+              `🛍️ *ऑनलाइन शॉपिंग व ई-कॉमर्स सहायता:*\n` +
+              `👩‍💼 *Kanika E-commerce:* +91 93156 03920\n` +
+              `👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n` +
+              `मुख्य मेन्यू पर वापस जाने के लिए कभी भी *Main Menu* या *Hi* लिखें।`;
           } else {
-            pMsg = `Since you are looking for products for personal use, you can explore and purchase directly from our official website.\n\n🌐 *Visit Website:* https://rnvalves.com\n\nTo return to the main menu anytime, type *Main Menu* or *Hi*.`;
+            pMsg =
+              `🏠 *Personal Use & Online Shopping Support*\n\n` +
+              `Since you are looking for products for personal use, you can shop directly on our official website or reach out to our *E-Commerce Department* for online shopping assistance:\n\n` +
+              `🌐 *Shop Online:* https://rnvalves.com\n\n` +
+              `🛍️ *Online Shopping / E-Commerce Department Help:*\n` +
+              `👩‍💼 *Kanika E-commerce:* +91 93156 03920\n` +
+              `👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n` +
+              `To return to the main menu anytime, type *Main Menu* or *Hi*.`;
           }
           return { replyText: pMsg };
         }
@@ -583,7 +637,11 @@ export class FlowEngine {
           session.state = "REQUIREMENT_TYPE";
           return this.renderRequirementType(session.language);
         }
-        return { replyText: "", ignoreMessage: true };
+        const followupMsg =
+          session.language === "hi"
+            ? `🛍️ ऑनलाइन शॉपिंग या उत्पाद सहायता के लिए कृपया हमारी वेबसाइट https://rnvalves.com देखें या सीधे हमारे *ई-कॉमर्स विभाग* से संपर्क करें:\n\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n(मुख्य मेन्यू के लिए *Main Menu* लिखें)`
+            : `🛍️ For online shopping or product assistance, please visit https://rnvalves.com or contact our *E-Commerce Department* directly:\n\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n(Type *Main Menu* to return to the main menu)`;
+        return { replyText: followupMsg };
       }
 
       // ----------------------------------------------------
@@ -597,7 +655,7 @@ export class FlowEngine {
 
         const cleanCustPhone = (session.formData.mobile || session.phone).replace(/\D/g, "");
 
-        // Dispatch instant alert to E-Commerce Executive (+91 93156 03920)
+        // Dispatch instant alert to both E-Commerce Department executives (Kanika & Tammana)
         try {
           const ecommAlert =
             `📦 *नया वेबसाइट ऑर्डर सहायता अलर्ट! (Website Order Enquiry)*\n\n` +
@@ -608,10 +666,16 @@ export class FlowEngine {
             `⏰ *समय:* ${new Date().toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" })}\n\n` +
             `⚡ कृपया तुरंत ग्राहक से संपर्क करके सहायता प्रदान करें!`;
 
-          evolutionClient.sendTextMessage({
-            number: "919315603920",
-            text: ecommAlert,
-          }).catch((err: any) => console.warn(`[EcommAlert] WhatsApp dispatch notice: ${err.message}`));
+          for (const ecommNum of ["919315603920", "919625314298"]) {
+            evolutionClient
+              .sendTextMessage({
+                number: ecommNum,
+                text: ecommAlert,
+              })
+              .catch((err: any) =>
+                console.warn(`[EcommAlert] WhatsApp dispatch notice (${ecommNum}): ${err.message}`)
+              );
+          }
         } catch (e: any) {}
 
         session.state = "COMPLETED";
@@ -619,17 +683,17 @@ export class FlowEngine {
         const lang = session.language;
         let ecommAck = "";
         if (lang === "pa") {
-          ecommAck = `✅ *ਧੰਨਵਾਦ!* ਤੁਹਾਡਾ ਸੁਨੇਹਾ ਸਾਡੇ ਈ-ਕਾਮਰਸ ਐਗਜ਼ੀਕਿਊਟਿਵ (*+91 93156 03920*) ਨੂੰ ਭੇਜ ਦਿੱਤਾ ਗਿਆ ਹੈ।\n\nਉਹ ਤੁਹਾਡੇ ਆਰਡਰ ਦਾ ਸਟੇਟਸ ਚੈੱਕ ਕਰਕੇ ਜਲਦੀ ਹੀ ਤੁਹਾਡੇ ਨਾਲ ਸੰਪਰਕ ਕਰਨਗੇ।\n\n🌐 *ਸਟੋਰ:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *ਧੰਨਵਾਦ!* ਤੁਹਾਡਾ ਸੁਨੇਹਾ ਸਾਡੇ ਈ-ਕਾਮਰਸ ਵਿਭਾਗ (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) ਨੂੰ ਭੇਜ ਦਿੱਤਾ ਗਿਆ ਹੈ।\n\nਉਹ ਤੁਹਾਡੇ ਆਰਡਰ ਦਾ ਸਟੇਟਸ ਚੈੱਕ ਕਰਕੇ ਜਲਦੀ ਹੀ ਤੁਹਾਡੇ ਨਾਲ ਸੰਪਰਕ ਕਰਨਗੇ।\n\n🌐 *ਸਟੋਰ:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else if (lang === "te") {
-          ecommAck = `✅ *ధన్యవాదాలు!* మీ సందేశం మా ఇ-కామర్స్ ఎగ్జిక్యూటివ్‌కు (*+91 93156 03920*) పంపబడింది.\n\nవారు మీ ఆర్డర్ స్థితిని సమీక్షించి త్వరలోనే మిమ్మల్ని సంప్రదిస్తారు.\n\n🌐 *స్టోర్:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *ధన్యవాదాలు!* మీ సందేశం మా ఇ-కామర్స్ విభాగానికి (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) పంపబడింది.\n\nవారు మీ ఆర్డర్ స్థితిని సమీక్షించి త్వరలోనే మిమ్మల్ని సంప్రదిస్తారు.\n\n🌐 *స్టోర్:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else if (lang === "ta") {
-          ecommAck = `✅ *நன்றி!* உங்கள் செய்தி எங்கள் இ-காமர்ஸ் நிர்வாகிக்கு (*+91 93156 03920*) அனுப்பப்பட்டுள்ளது.\n\nஅவர்கள் உங்கள் ஆர்டர் நிலையை சரிபார்த்து விரைவில் உங்களை தொடர்பு கொள்வார்கள்.\n\n🌐 *ஸ்டோர்:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *நன்றி!* உங்கள் செய்தி எங்கள் இ-காமர்ஸ் துறைக்கு (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) அனுப்பப்பட்டுள்ளது.\n\nஅவர்கள் உங்கள் ஆர்டர் நிலையை சரிபார்த்து விரைவில் உங்களை தொடர்பு கொள்வார்கள்.\n\n🌐 *ஸ்டோர்:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else if (lang === "ur") {
-          ecommAck = `✅ *شکریہ!* آپ کا پیغام ہمارے ای کامرس ایگزیکٹو (*+91 93156 03920*) کو پہنچا دیا گیا ہے۔\n\nوہ آپ کے آرڈر کی جانچ کر کے جلد آپ سے رابطہ کریں گے۔\n\n🌐 *اسٹور:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *شکریہ!* آپ کا پیغام ہمارے ای کامرس ڈیپارٹمنٹ (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) کو پہنچا دیا گیا ہے۔\n\nوہ آپ کے آرڈر کی جانچ کر کے جلد آپ سے رابطہ کریں گے۔\n\n🌐 *اسٹور:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else if (lang === "hi") {
-          ecommAck = `✅ *धन्यवाद!* आपका संदेश हमारे ई-कॉमर्स एग्जीक्यूटिव (*+91 93156 03920*) को भेज दिया गया है।\n\nवे आपके ऑर्डर की स्थिति जाँचकर अतिशीघ्र आपसे संपर्क करेंगे।\n\n🌐 *आधिकारिक स्टोर:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *धन्यवाद!* आपका संदेश हमारे ई-कॉमर्स विभाग (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) को भेज दिया गया है।\n\nवे आपके ऑर्डर की स्थिति जाँचकर अतिशीघ्र आपसे संपर्क करेंगे।\n\n🌐 *आधिकारिक स्टोर:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else {
-          ecommAck = `✅ *Thank you!* Your message has been forwarded directly to our E-Commerce Executive (*+91 93156 03920*).\n\nOur team will review your order status and connect with you shortly.\n\n🌐 *Official Store:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *Thank you!* Your message has been forwarded directly to our E-Commerce Department (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*).\n\nOur team will review your order status and connect with you shortly.\n\n🌐 *Official Store:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         }
 
         return { replyText: ecommAck };
@@ -1673,17 +1737,17 @@ export class FlowEngine {
   private static renderWebsiteOrderSupport(lang: string): FlowResponse {
     let msg = "";
     if (lang === "pa") {
-      msg = `📦 *RN Valves ਵੈੱਬਸਾਈਟ ਅਤੇ ਆਨਲਾਈਨ ਆਰਡਰ ਸਹਾਇਤਾ*\n\nਜੇਕਰ ਤੁਸੀਂ rnvalves.com 'ਤੇ ਆਰਡਰ ਦਿੱਤਾ ਹੈ ਜਾਂ ਵੈੱਬਸਾਈਟ ਆਰਡਰ ਸੰਬੰਧੀ ਕੋਈ ਸਹਾਇਤਾ ਚਾਹੀਦੀ ਹੈ, ਤਾਂ ਤੁਸੀਂ ਸਿੱਧੇ ਸਾਡੇ ਈ-ਕਾਮਰਸ ਐਗਜ਼ੀਕਿਊਟਿਵ ਨਾਲ ਸੰਪਰਕ ਕਰ ਸਕਦੇ ਹੋ:\n\n👤 *ਈ-ਕਾਮਰਸ ਐਗਜ਼ੀਕਿਊਟਿਵ (E-Commerce Executive):*\n📞 *ਸੰਪਰਕ / WhatsApp:* +91 93156 03920\n🌐 *ਆਨਲਾਈਨ ਸਟੋਰ:* https://rnvalves.com\n\nਜੇਕਰ ਤੁਹਾਡੇ ਕੋਲ *Order ID* ਹੈ, ਤਾਂ ਕਿਰਪਾ ਕਰਕੇ ਇੱਥੇ ਲਿਖ ਕੇ ਭੇਜੋ, ਸਾਡੀ ਟੀਮ ਤੁਰੰਤ ਸਟੇਟਸ ਚੈੱਕ ਕਰੇਗੀ!\n\n(ਮੁੱਖ ਮੇਨੂ ਲਈ *Menu* ਲਿਖੋ)`;
+      msg = `📦 *RN Valves ਵੈੱਬਸਾਈਟ ਅਤੇ ਆਨਲਾਈਨ ਆਰਡਰ ਸਹਾਇਤਾ*\n\nਜੇਕਰ ਤੁਸੀਂ rnvalves.com 'ਤੇ ਆਰਡਰ ਦਿੱਤਾ ਹੈ ਜਾਂ ਆਨਲਾਈਨ ਸ਼ਾਪਿੰਗ / ਵੈੱਬਸਾਈਟ ਆਰਡਰ ਸੰਬੰਧੀ ਕੋਈ ਸਹਾਇਤਾ ਚਾਹੀਦੀ ਹੈ, ਤਾਂ ਤੁਸੀਂ ਸਿੱਧੇ ਸਾਡੇ ਈ-ਕਾਮਰਸ ਵਿਭਾਗ ਨਾਲ ਸੰਪਰਕ ਕਰ ਸਕਦੇ ਹੋ:\n\n🛍️ *ਈ-ਕਾਮਰਸ ਵਿਭਾਗ (E-Commerce Department):*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n🌐 *ਆਨਲਾਈਨ ਸਟੋਰ:* https://rnvalves.com\n\nਜੇਕਰ ਤੁਹਾਡੇ ਕੋਲ *Order ID* ਹੈ, ਤਾਂ ਕਿਰਪਾ ਕਰਕੇ ਇੱਥੇ ਲਿਖ ਕੇ ਭੇਜੋ, ਸਾਡੀ ਟੀਮ ਤੁਰੰਤ ਸਟੇਟਸ ਚੈੱਕ ਕਰੇਗੀ!\n\n(ਮੁੱਖ ਮੇਨੂ ਲਈ *Menu* ਲਿਖੋ)`;
     } else if (lang === "hi") {
-      msg = `📦 *RN Valves वेबसाइट और ऑनलाइन ऑर्डर सहायता*\n\nयदि आपने https://rnvalves.com पर ऑर्डर दिया है या वेबसाइट ऑर्डर के संबंध में कोई सहायता चाहिए, तो आप सीधे हमारे ई-कॉमर्स एग्जीक्यूटिव से संपर्क कर सकते हैं:\n\n👤 *ई-कॉमर्स एग्जीक्यूटिव (E-Commerce Executive):*\n📞 *कॉल / व्हाट्सएप:* +91 93156 03920\n🌐 *आधिकारिक स्टोर:* https://rnvalves.com\n\nयदि आपके पास *Order ID* है, तो कृपया यहाँ लिखकर भेजें, हमारी टीम तुरंत स्टेटस चेक करेगी!\n\n(मुख्य मेन्यू के लिए *Menu* लिखें)`;
+      msg = `📦 *RN Valves वेबसाइट और ऑनलाइन ऑर्डर सहायता*\n\nयदि आपने https://rnvalves.com पर ऑर्डर दिया है या ऑनलाइन शॉपिंग / वेबसाइट ऑर्डर के संबंध में कोई सहायता चाहिए, तो आप सीधे हमारे ई-कॉमर्स विभाग से संपर्क कर सकते हैं:\n\n🛍️ *ई-कॉमर्स विभाग (E-Commerce Department):*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n🌐 *आधिकारिक स्टोर:* https://rnvalves.com\n\nयदि आपके पास *Order ID* है, तो कृपया यहाँ लिखकर भेजें, हमारी टीम तुरंत स्टेटस चेक करेगी!\n\n(मुख्य मेन्यू के लिए *Menu* लिखें)`;
     } else if (lang === "te") {
-      msg = `📦 *RN Valves వెబ్‌సైట్ మరియు ఆన్‌లైన్ ఆర్డర్ సహాయం*\n\nమీరు rnvalves.com లో ఆర్డర్ చేసి ఉంటే లేదా వెబ్‌సైట్ ఆర్డర్ సహాయం కోసం, మీరు నేరుగా మా ఇ-కామర్స్ ఎగ్జిక్యూటివ్‌ని సంప్రదించవచ్చు:\n\n👤 *ఇ-కామర్స్ ఎగ్జిక్యూటివ్ (E-Commerce Executive):*\n📞 *కాల్ / WhatsApp:* +91 93156 03920\n🌐 *స్టోర్:* https://rnvalves.com\n\nమీ వద్ద *Order ID* ఉంటే, దయచేసి ఇక్కడ పంపండి!\n\n(ప్రధాన మెనూ కోసం *Menu* అని టైప్ చేయండి)`;
+      msg = `📦 *RN Valves వెబ్‌సైట్ మరియు ఆన్‌లైన్ ఆర్డర్ సహాయం*\n\nమీరు rnvalves.com లో ఆర్డర్ చేసి ఉంటే లేదా ఆన్‌లైన్ షాపింగ్ సహాయం కోసం, మీరు నేరుగా మా ఇ-కామర్స్ విభాగాన్ని సంప్రదించవచ్చు:\n\n🛍️ *ఇ-కామర్స్ విభాగం (E-Commerce Department):*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n🌐 *స్టోర్:* https://rnvalves.com\n\nమీ వద్ద *Order ID* ఉంటే, దయచేసి ఇక్కడ పంపండి!\n\n(ప్రధాన మెనూ కోసం *Menu* అని టైప్ చేయండి)`;
     } else if (lang === "ta") {
-      msg = `📦 *RN Valves இணையதள ஆன்லைன் ஆர்டர் ஆதரவு*\n\nநீங்கள் rnvalves.com இல் ஆர்டர் செய்திருந்தால் அல்லது இணையதள ஆர்டர் உதவிக்கு, எங்கள் இ-காமர்ஸ் நிர்வாகியை நேரடியாக தொடர்பு கொள்ளலாம்:\n\n👤 *இ-காமர்ஸ் நிர்வாகி (E-Commerce Executive):*\n📞 *அழைப்பு / WhatsApp:* +91 93156 03920\n🌐 *ஸ்டோர்:* https://rnvalves.com\n\nஉங்களிடம் *Order ID* இருந்தால், தயவுசெய்து இங்கே அனுப்பவும்!\n\n(முதன்மை மெனுவுக்கு *Menu* என தட்டச்சு செய்யவும்)`;
+      msg = `📦 *RN Valves இணையதள ஆன்லைன் ஆர்டர் ஆதரவு*\n\nநீங்கள் rnvalves.com இல் ஆர்டர் செய்திருந்தால் அல்லது ஆன்லைன் ஷாப்பிங் உதவிக்கு, எங்கள் இ-காமர்ஸ் துறையை நேரடியாக தொடர்பு கொள்ளலாம்:\n\n🛍️ *இ-காமர்ஸ் துறை (E-Commerce Department):*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n🌐 *ஸ்டோர்:* https://rnvalves.com\n\nஉங்களிடம் *Order ID* இருந்தால், தயவுசெய்து இங்கே அனுப்பவும்!\n\n(முதன்மை மெனுவுக்கு *Menu* என தட்டச்சு செய்யவும்)`;
     } else if (lang === "ur") {
-      msg = `📦 *RN Valves ویب سائٹ اور آن لائن آرڈر سپورٹ*\n\nاگر آپ نے rnvalves.com پر آرڈر دیا ہے یا آن لائن آرڈر سے متعلق رہنمائی چاہیے، تو آپ براہ راست ہمارے ای کامرس ایگزیکٹو سے رابطہ کر سکتے ہیں:\n\n👤 *ای کامرس ایگزیکٹو (E-Commerce Executive):*\n📞 *کال / واٹس ایپ:* +91 93156 03920\n🌐 *اسٹور:* https://rnvalves.com\n\nاگر آپ کے پاس *Order ID* ہے، تو براہ کرم یہاں لکھ کر بھیجیں!\n\n(مین مینو کے لیے *Menu* لکھیں)`;
+      msg = `📦 *RN Valves ویب سائٹ اور آن لائن آرڈر سپورٹ*\n\nاگر آپ نے rnvalves.com پر آرڈر دیا ہے یا آن لائن شاپنگ سے متعلق رہنمائی چاہیے، تو آپ براہ راست ہمارے ای کامرس ڈیپارٹمنٹ سے رابطہ کر سکتے ہیں:\n\n🛍️ *ای کامرس ڈیپارٹمنٹ (E-Commerce Department):*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n🌐 *اسٹور:* https://rnvalves.com\n\nاگر آپ کے پاس *Order ID* ہے، تو براہ کرم یہاں لکھ کر بھیجیں!\n\n(مین مینو کے لیے *Menu* لکھیں)`;
     } else {
-      msg = `📦 *RN Valves Website & Online Order Support*\n\nIf you have placed an order on https://rnvalves.com or need assistance regarding website orders, you can connect directly with our E-Commerce Executive:\n\n👤 *E-Commerce Executive:*\n📞 *Call / WhatsApp:* +91 93156 03920\n🌐 *Official Store:* https://rnvalves.com\n\nIf you have an *Order ID*, please reply with your Order ID here, and our team will check the status immediately!\n\n(Type *Menu* to return to the main menu)`;
+      msg = `📦 *RN Valves Website & Online Order Support*\n\nIf you have placed an order on https://rnvalves.com or need assistance regarding online shopping / website orders, you can connect directly with our E-Commerce Department:\n\n🛍️ *E-Commerce Department:*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n🌐 *Official Store:* https://rnvalves.com\n\nIf you have an *Order ID*, please reply with your Order ID here, and our team will check the status immediately!\n\n(Type *Menu* to return to the main menu)`;
     }
     return { replyText: msg };
   }
@@ -1696,7 +1760,7 @@ export class FlowEngine {
         `☎️ *टोल-फ्री कस्टमर केयर:* 1800 12340 0400\n` +
         `🛠️ *शिकायत व सर्विस डेस्क:* +91 98912 01208\n` +
         `📧 *आधिकारिक ईमेल:* enquiry@rnvalves.com\n` +
-        `📦 *वेबसाइट ऑर्डर सहायता:* +91 93156 03920 (E-Commerce Desk)\n` +
+        `📦 *ऑनलाइन शॉपिंग / ई-कॉमर्स सहायता:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *सेल्स व डीलरशिप हेल्पलाइन:* +91 93151 60881 (Amit Kumar Sir)\n` +
         `⏰ *समय:* सुबह 10:00 से शाम 7:00 (सोम-शनि)\n\n` +
         `📍 *अपने क्षेत्र के रीजनल सेल्स मैनेजर से जुड़ने के लिए अपना 6-अंकीय एरिया पिन कोड भेजें!*\n\n` +
@@ -1707,7 +1771,7 @@ export class FlowEngine {
         `☎️ *ਟੋਲ-ਫ੍ਰੀ ਕਸਟਮਰ ਕੇਅਰ:* 1800 12340 0400\n` +
         `🛠️ *ਸ਼ਿਕਾਇਤ ਅਤੇ ਸਰਵਿਸ ਡੈਸਕ:* +91 98912 01208\n` +
         `📧 *ਅਧਿਕਾਰਤ ਈਮੇਲ:* enquiry@rnvalves.com\n` +
-        `📦 *ਵੈੱਬਸਾਈਟ ਆਰਡਰ ਸਹਾਇਤਾ:* +91 93156 03920\n` +
+        `📦 *ਆਨਲਾਈਨ ਸ਼ਾਪਿੰਗ / E-Commerce ਸਹਾਇਤਾ:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *ਸੇਲਜ਼ ਹੈਲਪਲਾਈਨ:* +91 93151 60881 (Amit Kumar Sir)\n` +
         `⏰ *ਸਮਾਂ:* ਸਵੇਰੇ 10:00 ਤੋਂ ਸ਼ਾਮ 7:00 (ਸੋਮ-ਸ਼ਨੀ)\n\n` +
         `ਮੁੱਖ ਮੀਨੂ ਲਈ *Menu* ਲਿਖੋ।`;
@@ -1717,7 +1781,7 @@ export class FlowEngine {
         `☎️ *టోల్-ఫ్రీ కస్టమర్ కేర్:* 1800 12340 0400\n` +
         `🛠️ *ఫిర్యాదు & సర్వీస్ డెస్క్:* +91 98912 01208\n` +
         `📧 *అధికారిక ఈమెయిల్:* enquiry@rnvalves.com\n` +
-        `📦 *వెబ్‌సైట్ ఆర్డర్ సహాయం:* +91 93156 03920 (E-Commerce Desk)\n` +
+        `📦 *ఆన్‌లైన్ షాపింగ్ / E-Commerce సహాయం:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *సేల్స్ హెల్ప్‌లైన్:* +91 93151 60881 (Amit Kumar Sir)\n` +
         `⏰ *పనివేళలు:* ఉదయం 10:00 నుండి సాయంత్రం 7:00 వరకు (సోమ-శని)\n\n` +
         `📍 *మీ ప్రాంతీయ సేల్స్ మేనేజర్‌తో కనెక్ట్ కావడానికి మీ 6-అంకెల పిన్ కోడ్ పంపండి!*\n\n` +
@@ -1728,7 +1792,7 @@ export class FlowEngine {
         `☎️ *கட்டணமில்லா வாடிக்கையாளர் சேவை:* 1800 12340 0400\n` +
         `🛠️ *புகார் மற்றும் சேவை மையம்:* +91 98912 01208\n` +
         `📧 *அதிகாரப்பூர்வ மின்னஞ்சல்:* enquiry@rnvalves.com\n` +
-        `📦 *இணையதள ஆர்டர் உதவி:* +91 93156 03920 (E-Commerce Desk)\n` +
+        `📦 *ஆன்லைன் ஷாப்பிங் / E-Commerce உதவி:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *விற்பனை உதவி எண்:* +91 93151 60881 (Amit Kumar Sir)\n` +
         `⏰ *வேலை நேரம்:* காலை 10:00 முதல் மாலை 7:00 வரை (திங்கள்-சனி)\n\n` +
         `📍 *உங்கள் பிராந்திய விற்பனை மேலாளரை தொடர்பு கொள்ள உங்கள் 6-இலக்க பின் குறியீட்டை அனுப்பவும்!*\n\n` +
@@ -1739,7 +1803,7 @@ export class FlowEngine {
         `☎️ *ٹول فری کسٹمر کیئر:* 1800 12340 0400\n` +
         `🛠️ *شکایات و سروس ڈیسک:* +91 98912 01208\n` +
         `📧 *آفیشل ای میل:* enquiry@rnvalves.com\n` +
-        `📦 *ویب سائٹ آرڈر معاونت:* +91 93156 03920 (E-Commerce Desk)\n` +
+        `📦 *آن لائن شاپنگ / E-Commerce معاونت:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *سیلز ہیلپ لائن:* +91 93151 60881 (Amit Kumar Sir)\n` +
         `⏰ *اوقات کار:* صبح 10:00 سے شام 7:00 بجے تک (پیر تا ہفتہ)\n\n` +
         `📍 *اپنے علاقائی سیلز مینیجر سے رابطہ کے لیے اپنا 6 ہندسوں کا پن کوڈ بھیجیں!* \n\n` +
@@ -1750,7 +1814,7 @@ export class FlowEngine {
         `☎️ *Toll-Free Customer Care:* 1800 12340 0400\n` +
         `🛠️ *Complaint & Service Desk:* +91 98912 01208\n` +
         `📧 *Official Email:* enquiry@rnvalves.com\n` +
-        `📦 *Website & Online Orders:* +91 93156 03920 (E-Commerce Desk)\n` +
+        `📦 *Online Shopping & E-Commerce Help:* +91 93156 03920 (Kanika E-commerce) | +91 96253 14298 (Tammana E-commerce)\n` +
         `👤 *Sales & Dealership Helpline:* +91 93151 60881 (Amit Kumar Sir)\n` +
         `⏰ *Working Hours:* 10:00 AM - 7:00 PM (Mon-Sat)\n\n` +
         `📍 *To connect directly with your Regional Sales Manager, please reply with your 6-digit Area PIN Code.*\n\n` +
