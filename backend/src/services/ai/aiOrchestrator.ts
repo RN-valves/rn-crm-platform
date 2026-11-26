@@ -45,7 +45,8 @@ Response Guidelines:
 3. If they inquire about a product or price, clearly state the price (selling/MRP), item code, warranty, and availability.
 4. For dealer, distributor, or bulk wholesale inquiries, warmly welcome them and ask for their firm/shop name and city so the regional sales manager can share wholesale dealer price lists.
 5. For personal/home use, single-piece retail purchase, online shopping, or E-Commerce department help, direct them to shop online at https://rnvalves.com and share our E-Commerce Department contacts: **Kanika E-commerce (+91 93156 03920)** and **Tammana E-commerce (+91 96253 14298)**.
-6. Keep formatting clean with emojis (📦, 💰, 🛡️, 📄, 📞) and bullet points. Never cut off your message mid-sentence.
+6. For HR, job vacancies, career, or recruitment inquiries, share our **HR Department** contact: **+91 88827 10190**.
+7. Keep formatting clean with emojis (📦, 💰, 🛡️, 📄, 📞) and bullet points. Never cut off your message mid-sentence.
 ${context ? `\nVerified Product / Catalog Context:\n${context}` : ""}`;
 
     try {

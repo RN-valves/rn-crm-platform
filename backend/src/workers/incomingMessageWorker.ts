@@ -172,6 +172,7 @@ export function setupIncomingMessageWorker(): Worker {
         "8076555914", // Khusi
         "9315603920", // Kanika E-Commerce
         "9625314298", // Tammana E-Commerce
+        "8882710190", // HR Department
         "9891201208", // Complaint & Service Desk
       ];
       const isInternalStaff = staffPhonePatterns.some((num) => normalizedPhone.includes(num)) ||

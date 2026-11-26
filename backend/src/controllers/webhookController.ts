@@ -157,6 +157,7 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
     "8076555914",
     "9315603920", // Kanika E-Commerce
     "9625314298", // Tammana E-Commerce
+    "8882710190", // HR Department
     "9891201208",
   ];
   const isInternalStaff = staffPhonePatterns.some((p) => normalizedPhone.includes(p));

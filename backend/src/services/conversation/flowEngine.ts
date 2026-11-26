@@ -217,8 +217,8 @@ export class FlowEngine {
       return this.renderWebsiteOrderSupport(stateDoc.language);
     }
 
-    // 4c. Customer Care, Complaints & Helpline Intent
-    const isCareOrComplaint = /\b(call me|call karo|phone karo|contact number|customer care|helpline|human|agent|executive|insaan se baat|baat karni hai|complaint|shikayat|problem|kharab|service|warranty|defect|damage|toll free|tollfree|email|1800|9891201208)\b/i.test(cleanText);
+    // 4c. Customer Care, Complaints, Helpline & HR Intent
+    const isCareOrComplaint = /\b(call me|call karo|phone karo|contact number|customer care|helpline|human|agent|executive|insaan se baat|baat karni hai|complaint|shikayat|problem|kharab|service|warranty|defect|damage|toll free|tollfree|email|1800|9891201208|hr|job|jobs|vacancy|vacancies|career|careers|hiring|resume|cv|interview|naukri|bharti|8882710190)\b/i.test(cleanText);
     if (isCareOrComplaint) {
       return this.renderCustomerCareCard(stateDoc.language);
     }
@@ -1775,6 +1775,7 @@ export class FlowEngine {
         `📧 *आधिकारिक ईमेल:* enquiry@rnvalves.com\n` +
         `📦 *ऑनलाइन शॉपिंग / ई-कॉमर्स सहायता:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *सेल्स व डीलरशिप हेल्पलाइन:* +91 93151 60881 (Amit Kumar Sir)\n` +
+        `🏢 *HR विभाग (HR Department):* +91 88827 10190\n` +
         `⏰ *समय:* सुबह 10:00 से शाम 7:00 (सोम-शनि)\n\n` +
         `📍 *अपने क्षेत्र के रीजनल सेल्स मैनेजर से जुड़ने के लिए अपना 6-अंकीय एरिया पिन कोड भेजें!*\n\n` +
         `मुख्य मेन्यू के लिए *Menu* लिखें।`;
@@ -1786,6 +1787,7 @@ export class FlowEngine {
         `📧 *ਅਧਿਕਾਰਤ ਈਮੇਲ:* enquiry@rnvalves.com\n` +
         `📦 *ਆਨਲਾਈਨ ਸ਼ਾਪਿੰਗ / E-Commerce ਸਹਾਇਤਾ:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *ਸੇਲਜ਼ ਹੈਲਪਲਾਈਨ:* +91 93151 60881 (Amit Kumar Sir)\n` +
+        `🏢 *HR ਵਿਭਾਗ (HR Department):* +91 88827 10190\n` +
         `⏰ *ਸਮਾਂ:* ਸਵੇਰੇ 10:00 ਤੋਂ ਸ਼ਾਮ 7:00 (ਸੋਮ-ਸ਼ਨੀ)\n\n` +
         `ਮੁੱਖ ਮੀਨੂ ਲਈ *Menu* ਲਿਖੋ।`;
     } else if (lang === "te") {
@@ -1796,6 +1798,7 @@ export class FlowEngine {
         `📧 *అధికారిక ఈమెయిల్:* enquiry@rnvalves.com\n` +
         `📦 *ఆన్‌లైన్ షాపింగ్ / E-Commerce సహాయం:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *సేల్స్ హెల్ప్‌లైన్:* +91 93151 60881 (Amit Kumar Sir)\n` +
+        `🏢 *HR విభాగం (HR Department):* +91 88827 10190\n` +
         `⏰ *పనివేళలు:* ఉదయం 10:00 నుండి సాయంత్రం 7:00 వరకు (సోమ-శని)\n\n` +
         `📍 *మీ ప్రాంతీయ సేల్స్ మేనేజర్‌తో కనెక్ట్ కావడానికి మీ 6-అంకెల పిన్ కోడ్ పంపండి!*\n\n` +
         `ప్రధాన మెనూ కోసం *Menu* అని పంపండి.`;
@@ -1807,6 +1810,7 @@ export class FlowEngine {
         `📧 *அதிகாரப்பூர்வ மின்னஞ்சல்:* enquiry@rnvalves.com\n` +
         `📦 *ஆன்லைன் ஷாப்பிங் / E-Commerce உதவி:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *விற்பனை உதவி எண்:* +91 93151 60881 (Amit Kumar Sir)\n` +
+        `🏢 *HR துறை (HR Department):* +91 88827 10190\n` +
         `⏰ *வேலை நேரம்:* காலை 10:00 முதல் மாலை 7:00 வரை (திங்கள்-சனி)\n\n` +
         `📍 *உங்கள் பிராந்திய விற்பனை மேலாளரை தொடர்பு கொள்ள உங்கள் 6-இலக்க பின் குறியீட்டை அனுப்பவும்!*\n\n` +
         `முதன்மை மெனுவுக்கு *Menu* என அனுப்பவும்.`;
@@ -1818,6 +1822,7 @@ export class FlowEngine {
         `📧 *آفیشل ای میل:* enquiry@rnvalves.com\n` +
         `📦 *آن لائن شاپنگ / E-Commerce معاونت:* +91 93156 03920 (Kanika) | +91 96253 14298 (Tammana)\n` +
         `👤 *سیلز ہیلپ لائن:* +91 93151 60881 (Amit Kumar Sir)\n` +
+        `🏢 *ایچ آر ڈیپارٹمنٹ (HR Department):* +91 88827 10190\n` +
         `⏰ *اوقات کار:* صبح 10:00 سے شام 7:00 بجے تک (پیر تا ہفتہ)\n\n` +
         `📍 *اپنے علاقائی سیلز مینیجر سے رابطہ کے لیے اپنا 6 ہندسوں کا پن کوڈ بھیجیں!* \n\n` +
         `مین مینو کے لیے *Menu* لکھیں۔`;
@@ -1829,6 +1834,7 @@ export class FlowEngine {
         `📧 *Official Email:* enquiry@rnvalves.com\n` +
         `📦 *Online Shopping & E-Commerce Help:* +91 93156 03920 (Kanika E-commerce) | +91 96253 14298 (Tammana E-commerce)\n` +
         `👤 *Sales & Dealership Helpline:* +91 93151 60881 (Amit Kumar Sir)\n` +
+        `🏢 *HR Department:* +91 88827 10190\n` +
         `⏰ *Working Hours:* 10:00 AM - 7:00 PM (Mon-Sat)\n\n` +
         `📍 *To connect directly with your Regional Sales Manager, please reply with your 6-digit Area PIN Code.*\n\n` +
         `Type *Menu* to return to the main menu.`;
