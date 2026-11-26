@@ -205,7 +205,19 @@ export class FlowEngine {
       };
     }
 
-    // 4b. Customer Care, Complaints & Helpline Intent
+    // 4b. Direct Website Order / E-Commerce Support Shortcut (works from any state)
+    const isDirectWebsiteOrderQuery =
+      /\b(website order|online order|order status|order track|track order|my order|ecommerce|e-commerce)\b/i.test(cleanText) ||
+      /(वेबसाइट ऑर्डर|ऑनलाइन ऑर्डर|आर्डर पूछताछ|ऑर्डर पूछताछ|ਆਨਲਾਈਨ ਆਰਡਰ|వెబ్‌సైట్ ఆర్డర్|இணையதள ஆர்டர்|آن لائن آرڈر)/i.test(cleanText);
+    if (isDirectWebsiteOrderQuery && stateDoc.state !== "WEBSITE_ORDER_ENQUIRY") {
+      if (/(वेबसाइट|ऑर्डर|आर्डर|पूछताछ)/.test(cleanText)) stateDoc.language = "hi";
+      stateDoc.customerType = "Website Order";
+      stateDoc.state = "WEBSITE_ORDER_ENQUIRY";
+      await stateDoc.save();
+      return this.renderWebsiteOrderSupport(stateDoc.language);
+    }
+
+    // 4c. Customer Care, Complaints & Helpline Intent
     const isCareOrComplaint = /\b(call me|call karo|phone karo|contact number|customer care|helpline|human|agent|executive|insaan se baat|baat karni hai|complaint|shikayat|problem|kharab|service|warranty|defect|damage|toll free|tollfree|email|1800|9891201208)\b/i.test(cleanText);
     if (isCareOrComplaint) {
       return this.renderCustomerCareCard(stateDoc.language);
@@ -517,7 +529,8 @@ export class FlowEngine {
           norm.includes("order") ||
           norm.includes("online") ||
           norm.includes("ecommerce") ||
-          norm.includes("e-commerce")
+          norm.includes("e-commerce") ||
+          /(वेबसाइट|ऑर्डर|आर्डर|ऑनलाइन|पूछताछ|ਆਨਲਾਈਨ|ਆਰਡਰ|వెబ్‌సైట్|ఆర్డర్|இணையதள|ஆர்டர்|آن لائن|آرڈر)/.test(text)
         ) {
           session.customerType = "Website Order";
           session.state = "WEBSITE_ORDER_ENQUIRY";
@@ -683,17 +696,17 @@ export class FlowEngine {
         const lang = session.language;
         let ecommAck = "";
         if (lang === "pa") {
-          ecommAck = `✅ *ਧੰਨਵਾਦ!* ਤੁਹਾਡਾ ਸੁਨੇਹਾ ਸਾਡੇ ਈ-ਕਾਮਰਸ ਵਿਭਾਗ (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) ਨੂੰ ਭੇਜ ਦਿੱਤਾ ਗਿਆ ਹੈ।\n\nਉਹ ਤੁਹਾਡੇ ਆਰਡਰ ਦਾ ਸਟੇਟਸ ਚੈੱਕ ਕਰਕੇ ਜਲਦੀ ਹੀ ਤੁਹਾਡੇ ਨਾਲ ਸੰਪਰਕ ਕਰਨਗੇ।\n\n🌐 *ਸਟੋਰ:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *ਧੰਨਵਾਦ!* ਤੁਹਾਡਾ ਸੁਨੇਹਾ ਸਾਡੇ *ਈ-ਕਾਮਰਸ ਵਿਭਾਗ (E-Commerce Department)* ਨੂੰ ਭੇਜ ਦਿੱਤਾ ਗਿਆ ਹੈ।\n\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\nਉਹ ਤੁਹਾਡੇ ਆਰਡਰ ਦਾ ਸਟੇਟਸ ਚੈੱਕ ਕਰਕੇ ਜਲਦੀ ਹੀ ਤੁਹਾਡੇ ਨਾਲ ਸੰਪਰਕ ਕਰਨਗੇ।\n\n🌐 *ਸਟੋਰ:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else if (lang === "te") {
-          ecommAck = `✅ *ధన్యవాదాలు!* మీ సందేశం మా ఇ-కామర్స్ విభాగానికి (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) పంపబడింది.\n\nవారు మీ ఆర్డర్ స్థితిని సమీక్షించి త్వరలోనే మిమ్మల్ని సంప్రదిస్తారు.\n\n🌐 *స్టోర్:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *ధన్యవాదాలు!* మీ సందేశం మా *ఇ-కామర్స్ విభాగానికి (E-Commerce Department)* పంపబడింది.\n\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\nవారు మీ ఆర్డర్ స్థితిని సమీక్షించి త్వరలోనే మిమ్మల్ని సంప్రదిస్తారు.\n\n🌐 *స్టోర్:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else if (lang === "ta") {
-          ecommAck = `✅ *நன்றி!* உங்கள் செய்தி எங்கள் இ-காமர்ஸ் துறைக்கு (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) அனுப்பப்பட்டுள்ளது.\n\nஅவர்கள் உங்கள் ஆர்டர் நிலையை சரிபார்த்து விரைவில் உங்களை தொடர்பு கொள்வார்கள்.\n\n🌐 *ஸ்டோர்:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *நன்றி!* உங்கள் செய்தி எங்கள் *இ-காமர்ஸ் துறைக்கு (E-Commerce Department)* அனுப்பப்பட்டுள்ளது.\n\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\nஅவர்கள் உங்கள் ஆர்டர் நிலையை சரிபார்த்து விரைவில் உங்களை தொடர்பு கொள்வார்கள்.\n\n🌐 *ஸ்டோர்:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else if (lang === "ur") {
-          ecommAck = `✅ *شکریہ!* آپ کا پیغام ہمارے ای کامرس ڈیپارٹمنٹ (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) کو پہنچا دیا گیا ہے۔\n\nوہ آپ کے آرڈر کی جانچ کر کے جلد آپ سے رابطہ کریں گے۔\n\n🌐 *اسٹور:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *شکریہ!* آپ کا پیغام ہمارے *ای کامرس ڈیپارٹمنٹ (E-Commerce Department)* کو پہنچا دیا گیا ہے۔\n\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\nوہ آپ کے آرڈر کی جانچ کر کے جلد آپ سے رابطہ کریں گے۔\n\n🌐 *اسٹور:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else if (lang === "hi") {
-          ecommAck = `✅ *धन्यवाद!* आपका संदेश हमारे ई-कॉमर्स विभाग (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*) को भेज दिया गया है।\n\nवे आपके ऑर्डर की स्थिति जाँचकर अतिशीघ्र आपसे संपर्क करेंगे।\n\n🌐 *आधिकारिक स्टोर:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *धन्यवाद!* आपका संदेश हमारे *ई-कॉमर्स विभाग (E-Commerce Department)* को भेज दिया गया है।\n\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\nवे आपके ऑर्डर की स्थिति जाँचकर अतिशीघ्र आपसे संपर्क करेंगे।\n\n🌐 *आधिकारिक स्टोर:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         } else {
-          ecommAck = `✅ *Thank you!* Your message has been forwarded directly to our E-Commerce Department (*Kanika: +91 93156 03920 / Tammana: +91 96253 14298*).\n\nOur team will review your order status and connect with you shortly.\n\n🌐 *Official Store:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
+          ecommAck = `✅ *Thank you!* Your message has been forwarded directly to our *E-Commerce Department*:\n\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\nOur team will review your order status and connect with you shortly.\n\n🌐 *Official Store:* https://rnvalves.com\n\n1. 🏠 Main Menu`;
         }
 
         return { replyText: ecommAck };
@@ -1457,17 +1470,17 @@ export class FlowEngine {
           const lang = session.language;
           let siteMsg = "";
           if (lang === "pa") {
-            siteMsg = `🌐 *RN Valves & Faucets ਅਧਿਕਾਰਤ ਵੈੱਬਸਾਈਟ:*\nhttps://rnvalves.com\n\nਇੱਥੇ ਤੁਸੀਂ ਸਾਡੇ 200+ ਪ੍ਰੀਮੀਅਮ ਬ੍ਰਾਸ ਅਤੇ PTMT ਉਤਪਾਦ ਅਤੇ ਵਾਰੰਟੀ ਦੇਖ ਸਕਦੇ ਹੋ।\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
+            siteMsg = `🌐 *RN Valves & Faucets ਅਧਿਕਾਰਤ ਵੈੱਬਸਾਈਟ:*\nhttps://rnvalves.com\n\n🛍️ *ਆਨਲਾਈਨ ਆਰਡਰ / E-Commerce ਸਹਾਇਤਾ:*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
           } else if (lang === "te") {
-            siteMsg = `🌐 *RN Valves & Faucets అధికారిక వెబ్‌సైట్:*\nhttps://rnvalves.com\n\nఇక్కడ మీరు మా 200+ ప్రీమియం బ్రాస్ & PTMT ఉత్పత్తులు మరియు వారంటీలను పరిశీలించవచ్చు.\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
+            siteMsg = `🌐 *RN Valves & Faucets అధికారిక వెబ్‌సైట్:*\nhttps://rnvalves.com\n\n🛍️ *ఆన్‌లైన్ ఆర్డర్ / E-Commerce సహాయం:*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
           } else if (lang === "ta") {
-            siteMsg = `🌐 *RN Valves & Faucets அதிகாரப்பூர்வ வலைத்தளம்:*\nhttps://rnvalves.com\n\nஇங்கே எங்கள் 200+ பிரீமியம் பித்தளை & PTMT தயாரிப்புகளை பார்க்கலாம்.\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
+            siteMsg = `🌐 *RN Valves & Faucets அதிகாரப்பூர்வ வலைத்தளம்:*\nhttps://rnvalves.com\n\n🛍️ *ஆன்லைன் ஆர்டர் / E-Commerce உதவி:*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
           } else if (lang === "ur") {
-            siteMsg = `🌐 *RN Valves & Faucets آفیشل ویب سائٹ:*\nhttps://rnvalves.com\n\nیہاں آپ ہمارے 200+ پریمیم براس اور PTMT مصنوعات دیکھ سکتے ہیں۔\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
+            siteMsg = `🌐 *RN Valves & Faucets آفیشل ویب سائٹ:*\nhttps://rnvalves.com\n\n🛍️ *آن لائن آرڈر / E-Commerce مدد:*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
           } else if (lang === "hi") {
-            siteMsg = `🌐 *RN Valves & Faucets आधिकारिक वेबसाइट:*\nhttps://rnvalves.com\n\nयहाँ आप हमारे 200+ प्रीमियम ब्रास व PTMT उत्पाद, तकनीकी विवरण एवं वारंटी देख सकते हैं।\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
+            siteMsg = `🌐 *RN Valves & Faucets आधिकारिक वेबसाइट:*\nhttps://rnvalves.com\n\n🛍️ *वेबसाइट ऑर्डर / ई-कॉमर्स सहायता:*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
           } else {
-            siteMsg = `🌐 *RN Valves & Faucets Official Website:*\nhttps://rnvalves.com\n\nExplore our full range of 200+ premium brass & PTMT faucets, technical specs & warranties.\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
+            siteMsg = `🌐 *RN Valves & Faucets Official Website:*\nhttps://rnvalves.com\n\n🛍️ *Website Order / E-Commerce Department Help:*\n👩‍💼 *Kanika E-commerce:* +91 93156 03920\n👩‍💼 *Tammana E-commerce:* +91 96253 14298\n\n1. 👤 Talk to Sales Team\n2. 📝 Submit Requirement\n3. 📄 View Other Catalogues\n4. 📞 Customer Care & Support\n5. 🏠 Main Menu`;
           }
           return { replyText: siteMsg };
         }
