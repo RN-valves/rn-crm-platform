@@ -11,8 +11,22 @@ export async function getLeads(req: Request, res: Response): Promise<void> {
     const status = req.query.status as string;
     const priority = req.query.priority as string;
     const search = req.query.search as string;
+    const department = (req.query.department as string) || "B2B_SALES";
 
     const query: any = {};
+    if (department === "ECOMMERCE") {
+      query.$and = [
+        {
+          $or: [
+            { department: "ECOMMERCE" },
+            { businessType: { $in: ["Personal Use", "Website Order"] } },
+          ],
+        },
+      ];
+    } else if (department !== "ALL") {
+      query.department = { $ne: "ECOMMERCE" };
+      query.businessType = { $nin: ["Personal Use", "Website Order"] };
+    }
     if (status && status !== "ALL") query.status = status;
     if (priority && priority !== "ALL") query.priority = priority;
     if (search) {

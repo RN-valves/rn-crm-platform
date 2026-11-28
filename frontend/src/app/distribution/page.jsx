@@ -39,6 +39,7 @@ import {
   XCircle,
   PhoneCall,
   Calendar,
+  ShoppingBag,
 } from "lucide-react";
 import Link from "next/link";
 import Pagination from "../../components/ui/Pagination";
@@ -46,7 +47,7 @@ import ManageAssignmentModal from "../../components/ManageAssignmentModal";
 import ReengageModal from "../../components/ReengageModal";
 import LeadFollowupModal from "../../components/LeadFollowupModal";
 
-const VALID_DIST_TABS = ["executives", "leads", "dropped", "human", "reports", "rep_portal"];
+const VALID_DIST_TABS = ["executives", "leads", "ecommerce", "dropped", "human", "reports", "rep_portal"];
 
 function LeadDistributionInner() {
   const router = useRouter();
@@ -116,6 +117,13 @@ function LeadDistributionInner() {
   const [portalPage, setPortalPage] = useState(1);
   const [portalPageSize, setPortalPageSize] = useState(25);
 
+  // E-Commerce Panel Filters & Pagination
+  const [ecommRepFilter, setEcommRepFilter] = useState("ALL");
+  const [ecommStatusFilter, setEcommStatusFilter] = useState("ALL");
+  const [ecommTypeFilter, setEcommTypeFilter] = useState("ALL");
+  const [ecommPage, setEcommPage] = useState(1);
+  const [ecommPageSize, setEcommPageSize] = useState(25);
+
   // Auto-reset page 1 when search or filters change
   useEffect(() => {
     setLeadsPage(1);
@@ -123,7 +131,8 @@ function LeadDistributionInner() {
     setHumanPage(1);
     setReportsPage(1);
     setPortalPage(1);
-  }, [searchQuery, selectedRepFilter, reportRepFilter, reportStatusFilter, reportDateRange, portalRepName]);
+    setEcommPage(1);
+  }, [searchQuery, selectedRepFilter, reportRepFilter, reportStatusFilter, reportDateRange, portalRepName, ecommRepFilter, ecommStatusFilter, ecommTypeFilter]);
 
   const openFollowupModal = (lead) => {
     setFollowupModalLead(lead);
@@ -170,6 +179,7 @@ function LeadDistributionInner() {
             detail: {
               executives: execList.length,
               leads: totalLeadsCount || res.summary?.totalLeads || 0,
+              ecommerce: (res.ecommerceLeads || []).length,
               dropped: (res.droppedAtHi || []).length,
               human: (res.humanTakeovers || []).length,
             },
@@ -217,6 +227,19 @@ function LeadDistributionInner() {
   };
 
   const executives = data?.executives || [];
+  const ecommerceExecutives = data?.ecommerceExecutives || [];
+  const ecommerceLeads = data?.ecommerceLeads || [];
+  const ecommerceSummary = data?.ecommerceSummary || {
+    totalLeads: 0,
+    newCount: 0,
+    contactedCount: 0,
+    inProgressCount: 0,
+    convertedCount: 0,
+    lostCount: 0,
+    personalUseCount: 0,
+    websiteOrderCount: 0,
+    totalValue: 0,
+  };
   const unassignedLeads = data?.unassignedLeads || [];
   const humanTakeovers = data?.humanTakeovers || [];
   const droppedAtHi = data?.droppedAtHi || [];
@@ -456,6 +479,11 @@ function LeadDistributionInner() {
       title: "All Pipeline Leads",
       subtitle: "Manage, assign, and update follow-up outcomes across all inbound inquiries",
     },
+    ecommerce: {
+      title: "E-Commerce Department Panel — Online Shopping & Personal Use",
+      subtitle:
+        "Track live status of every WhatsApp customer shared with Kanika & Tammana E-commerce (excluded from Dropped at Hi)",
+    },
     dropped: {
       title: 'Dropped at "Hi" — Abandoned Inquiries',
       subtitle: "Re-engage incomplete WhatsApp visitors or route them directly to a sales executive",
@@ -499,6 +527,66 @@ function LeadDistributionInner() {
       h.pauseReason?.toLowerCase().includes(s)
     );
   });
+
+  const filteredEcommerceLeads = ecommerceLeads.filter((l) => {
+    if (ecommRepFilter !== "ALL" && l.assignedEmployeeName !== ecommRepFilter) return false;
+    if (ecommTypeFilter !== "ALL") {
+      if (ecommTypeFilter === "WEBSITE_ORDER" && l.businessType !== "Website Order") return false;
+      if (ecommTypeFilter === "PERSONAL_USE" && l.businessType === "Website Order") return false;
+    }
+    if (ecommStatusFilter !== "ALL") {
+      if (ecommStatusFilter === "NEW" && l.status !== "NEW") return false;
+      if (ecommStatusFilter === "CONTACTED" && l.status !== "CONTACTED") return false;
+      if (
+        ecommStatusFilter === "IN_PROGRESS" &&
+        !["INTERESTED", "QUOTATION_SENT", "NEGOTIATION"].includes(l.status)
+      ) {
+        return false;
+      }
+      if (ecommStatusFilter === "CONVERTED" && l.status !== "CONVERTED") return false;
+      if (ecommStatusFilter === "LOST" && l.status !== "LOST") return false;
+    }
+    if (!searchQuery.trim()) return true;
+    const s = searchQuery.toLowerCase();
+    return (
+      l.customerName?.toLowerCase().includes(s) ||
+      l.phone?.toLowerCase().includes(s) ||
+      l.leadNumber?.toLowerCase().includes(s) ||
+      l.requirementDescription?.toLowerCase().includes(s)
+    );
+  });
+
+  const exportEcommerceExcel = () => {
+    if (!filteredEcommerceLeads.length) {
+      alert("No E-Commerce enquiries to export.");
+      return;
+    }
+    const headers = [
+      "Lead ID",
+      "Inquiry Type",
+      "Customer Name",
+      "Phone",
+      "Assigned E-Commerce Executive",
+      "Status",
+      "Order Value (INR)",
+      "Follow-up Date",
+      "Notes / Order ID",
+      "Created At",
+    ];
+    const rows = filteredEcommerceLeads.map((l) => [
+      l.leadNumber || "",
+      l.businessType || "Personal Use",
+      l.customerName || "",
+      l.phone || "",
+      l.assignedEmployeeName || "",
+      l.status || "NEW",
+      l.estimatedValue || 0,
+      l.followupDate ? new Date(l.followupDate).toLocaleDateString("en-IN") : "",
+      (l.internalNotes || []).slice(-1)[0] || l.requirementDescription || "",
+      l.createdAt ? new Date(l.createdAt).toLocaleString("en-IN") : "",
+    ]);
+    downloadCsv(`RN_Valves_Ecommerce_Leads_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
 
   return (
     <div className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#F8FAFC] dark:bg-slate-950 transition-colors">
@@ -680,6 +768,7 @@ function LeadDistributionInner() {
             {[
               { id: "executives", label: "Sales Executives", count: executives.length, icon: Users },
               { id: "leads", label: "All Pipeline Leads", count: allLeads.length, icon: Kanban },
+              { id: "ecommerce", label: "E-Commerce Panel", count: ecommerceLeads.length, icon: ShoppingBag },
               { id: "dropped", label: 'Dropped at "Hi"', count: droppedAtHi.length, icon: PhoneMissed },
               { id: "human", label: "Human Takeovers", count: humanTakeovers.length, icon: Bot },
               { id: "reports", label: "Reports & Excel", count: allLeads.length, icon: FileSpreadsheet },
@@ -2311,6 +2400,442 @@ function LeadDistributionInner() {
           </div>
         )}
 
+        {/* VIEW: E-COMMERCE DEPARTMENT PANEL (Kanika & Tammana) */}
+        {activeTab === "ecommerce" && (
+          <div className="space-y-5">
+            {/* 1. E-Commerce KPI Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+              <Card hover className="cursor-pointer" onClick={() => setEcommStatusFilter("ALL")}>
+                <CardContent className="p-4 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="text-[10px] font-bold uppercase tracking-wider">
+                      Shared Numbers
+                    </span>
+                    <ShoppingBag className="w-4 h-4 text-[#1091d0]" />
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">
+                      {ecommerceSummary.totalLeads}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      🏠 {ecommerceSummary.personalUseCount} Personal • 📦 {ecommerceSummary.websiteOrderCount} Order
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card hover className="cursor-pointer" onClick={() => setEcommStatusFilter("NEW")}>
+                <CardContent className="p-4 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
+                      New (Shared)
+                    </span>
+                    <Clock className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
+                      {ecommerceSummary.newCount}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Awaiting E-Comm status</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card hover className="cursor-pointer" onClick={() => setEcommStatusFilter("CONTACTED")}>
+                <CardContent className="p-4 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                      Contacted
+                    </span>
+                    <PhoneCall className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                      {ecommerceSummary.contactedCount + ecommerceSummary.inProgressCount}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Spoke / Assisting buyer</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card hover className="cursor-pointer" onClick={() => setEcommStatusFilter("CONVERTED")}>
+                <CardContent className="p-4 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">
+                      Orders Placed
+                    </span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                      {ecommerceSummary.convertedCount}
+                    </p>
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                      Online Orders Won
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card hover className="cursor-pointer" onClick={() => setEcommStatusFilter("LOST")}>
+                <CardContent className="p-4 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">
+                      Not Interested
+                    </span>
+                    <XCircle className="w-4 h-4 text-rose-500" />
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-2xl font-black text-rose-600 dark:text-rose-400">
+                      {ecommerceSummary.lostCount}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Closed / Unreachable</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card hover>
+                <CardContent className="p-4 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Order Value
+                    </span>
+                    <IndianRupee className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-xl font-black text-slate-900 dark:text-white">
+                      ₹{(ecommerceSummary.totalValue || 0).toLocaleString("en-IN")}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">E-Commerce Revenue</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* 2. Kanika & Tammana E-Commerce Team Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {ecommerceExecutives.map((exec) => {
+                const isSelectedExec = ecommRepFilter === exec.name;
+                return (
+                  <div
+                    key={exec.name}
+                    className={`bg-white dark:bg-slate-900 rounded-2xl border p-4 sm:p-5 shadow-sm transition-all ${
+                      isSelectedExec
+                        ? "border-[#1091d0] ring-2 ring-[#DCEBFF] dark:ring-rn-900/50"
+                        : "border-slate-200/85 dark:border-slate-800"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-[#DCEBFF] dark:bg-rn-900/50 text-[#1091d0] dark:text-rn-300 flex items-center justify-center font-black text-base shrink-0">
+                          {exec.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                              {exec.name}
+                            </h3>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200/70 dark:border-sky-800">
+                              E-Commerce Dept
+                            </span>
+                          </div>
+                          <p className="text-xs font-mono text-slate-500 mt-0.5">
+                            📞 {exec.mobile}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEcommRepFilter(isSelectedExec ? "ALL" : exec.name)
+                          }
+                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                            isSelectedExec
+                              ? "bg-[#1091d0] text-white"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                          }`}
+                        >
+                          {isSelectedExec ? "Showing Assigned" : "Filter"}
+                        </button>
+                        <Link
+                          href={`/rep-portal?rep=${encodeURIComponent(exec.name)}`}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-[#DCEBFF] dark:bg-rn-900/50 text-slate-900 dark:text-white hover:opacity-90 flex items-center gap-1"
+                        >
+                          <span>Rep Panel</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-5 gap-2 mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800 text-center">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Total</span>
+                        <span className="text-sm font-black text-slate-900 dark:text-white">
+                          {exec.leadsCount || 0}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-blue-500 font-semibold block">New</span>
+                        <span className="text-sm font-black text-blue-600">
+                          {exec.newCount || 0}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-amber-500 font-semibold block">Active</span>
+                        <span className="text-sm font-black text-amber-600">
+                          {(exec.contactedCount || 0) + (exec.inProgressCount || 0)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-emerald-600 font-semibold block">Won</span>
+                        <span className="text-sm font-black text-emerald-600">
+                          {exec.convertedCount || 0}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Value</span>
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                          ₹{(exec.totalEstimatedValue || 0).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 3. Filter Toolbar + Customer Status Table */}
+            <Card className="overflow-hidden">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[
+                    { id: "ALL", label: `All Status (${ecommerceLeads.length})` },
+                    { id: "NEW", label: `New / Shared (${ecommerceSummary.newCount})` },
+                    { id: "CONTACTED", label: `Contacted (${ecommerceSummary.contactedCount})` },
+                    { id: "IN_PROGRESS", label: `Assisting (${ecommerceSummary.inProgressCount})` },
+                    { id: "CONVERTED", label: `Order Placed (${ecommerceSummary.convertedCount})` },
+                    { id: "LOST", label: `Closed (${ecommerceSummary.lostCount})` },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setEcommStatusFilter(st.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs transition-all ${
+                        ecommStatusFilter === st.id
+                          ? "bg-[#DCEBFF] dark:bg-rn-900/60 text-slate-900 dark:text-white font-semibold"
+                          : "bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={ecommTypeFilter}
+                    onChange={(e) => setEcommTypeFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    <option value="ALL">All Types (Personal + Order)</option>
+                    <option value="PERSONAL_USE">🏠 Personal Use</option>
+                    <option value="WEBSITE_ORDER">📦 Website Order Enquiry</option>
+                  </select>
+
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    icon={FileSpreadsheet}
+                    onClick={exportEcommerceExcel}
+                  >
+                    Export Excel ({filteredEcommerceLeads.length})
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/90 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
+                      <th className="py-3 px-4">Customer & WhatsApp</th>
+                      <th className="py-3 px-4">Inquiry Type</th>
+                      <th className="py-3 px-4">E-Commerce Executive</th>
+                      <th className="py-3 px-4">Current Status</th>
+                      <th className="py-3 px-4">Order Value / Latest Remark</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                    {filteredEcommerceLeads.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-slate-400">
+                          No E-Commerce enquiries match your current filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredEcommerceLeads
+                        .slice((ecommPage - 1) * ecommPageSize, ecommPage * ecommPageSize)
+                        .map((lead) => {
+                          const latestNote =
+                            (lead.internalNotes || []).slice(-1)[0] ||
+                            lead.requirementDescription ||
+                            "Shared Kanika & Tammana E-Commerce numbers";
+                          const cleanDigits = (lead.phone || "").replace(/\D/g, "");
+
+                          const statusBadgeMap = {
+                            NEW: { label: "Number Shared (New)", variant: "info" },
+                            CONTACTED: { label: "Contacted Customer", variant: "warning" },
+                            INTERESTED: { label: "Interested in Buying", variant: "purple" },
+                            QUOTATION_SENT: { label: "Product Link Shared", variant: "purple" },
+                            NEGOTIATION: { label: "Assisting Order", variant: "info" },
+                            CONVERTED: { label: "Order Placed (Won)", variant: "success" },
+                            LOST: { label: "Not Interested", variant: "danger" },
+                          };
+                          const stInfo = statusBadgeMap[lead.status] || statusBadgeMap.NEW;
+
+                          return (
+                            <tr
+                              key={lead._id || lead.phone}
+                              className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                            >
+                              <td className="py-3.5 px-4">
+                                <div className="font-bold text-slate-900 dark:text-white">
+                                  {lead.customerName || "Online Shopper"}
+                                </div>
+                                <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                                  {lead.phone}
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  {lead.leadNumber} •{" "}
+                                  {lead.createdAt
+                                    ? new Date(lead.createdAt).toLocaleDateString("en-IN", {
+                                        day: "2-digit",
+                                        month: "short",
+                                        year: "numeric",
+                                      })
+                                    : ""}
+                                </div>
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                                    lead.businessType === "Website Order"
+                                      ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/70"
+                                      : "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200/70"
+                                  }`}
+                                >
+                                  {lead.businessType === "Website Order"
+                                    ? "📦 Website Order"
+                                    : "🏠 Personal Use"}
+                                </span>
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <select
+                                  value={lead.assignedEmployeeName || "Kanika E-commerce"}
+                                  disabled={reassigningId === lead._id}
+                                  onChange={(e) => {
+                                    const nextName = e.target.value;
+                                    const targetEx = ecommerceExecutives.find(
+                                      (ex) => ex.name === nextName
+                                    );
+                                    handleReassignLead(
+                                      lead._id,
+                                      nextName,
+                                      targetEx?.mobile || "+91 93156 03920"
+                                    );
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200"
+                                >
+                                  {(ecommerceExecutives.length > 0
+                                    ? ecommerceExecutives
+                                    : [
+                                        { name: "Kanika E-commerce", mobile: "+91 93156 03920" },
+                                        { name: "Tammana E-commerce", mobile: "+91 96253 14298" },
+                                      ]
+                                  ).map((ex) => (
+                                    <option key={ex.name} value={ex.name}>
+                                      {ex.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+
+                              <td className="py-3.5 px-4">
+                                <Badge variant={stInfo.variant} size="sm">
+                                  {stInfo.label}
+                                </Badge>
+                                {lead.lossReason && lead.status === "LOST" && (
+                                  <div className="text-[10px] text-rose-500 mt-1">
+                                    {lead.lossReason}
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="py-3.5 px-4 max-w-xs">
+                                {Number(lead.estimatedValue) > 0 && (
+                                  <div className="font-bold text-emerald-600 dark:text-emerald-400 mb-0.5">
+                                    ₹{Number(lead.estimatedValue).toLocaleString("en-IN")}
+                                  </div>
+                                )}
+                                <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2">
+                                  {latestNote}
+                                </p>
+                              </td>
+
+                              <td className="py-3.5 px-4 text-right">
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openFollowupModal(lead)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-[#DCEBFF] dark:bg-rn-900/60 text-slate-900 dark:text-white font-semibold text-[11px] hover:opacity-90 transition-opacity"
+                                  >
+                                    Update Status
+                                  </button>
+                                  <Link
+                                    href={`/inbox?phone=${encodeURIComponent(lead.phone || "")}`}
+                                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                    title="View CRM Chat"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                  </Link>
+                                  <a
+                                    href={`https://wa.me/${cleanDigits}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                    title="Open WhatsApp"
+                                  >
+                                    <Phone className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <Pagination
+                totalItems={filteredEcommerceLeads.length}
+                currentPage={ecommPage}
+                pageSize={ecommPageSize}
+                pageSizeOptions={[10, 25, 50]}
+                onPageChange={(p) => setEcommPage(p)}
+                onPageSizeChange={(sz) => {
+                  setEcommPageSize(sz);
+                  setEcommPage(1);
+                }}
+              />
+            </Card>
+          </div>
+        )}
+
         {/* Lead Follow-up & Progress Update Modal */}
         <LeadFollowupModal
           isOpen={isFollowupModalOpen}
@@ -2330,7 +2855,7 @@ function LeadDistributionInner() {
             setManageModalTarget(null);
           }}
           target={manageModalTarget}
-          executives={executives}
+          executives={[...executives, ...ecommerceExecutives]}
           onSuccess={fetchData}
         />
 

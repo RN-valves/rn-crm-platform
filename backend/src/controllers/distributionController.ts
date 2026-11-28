@@ -6,7 +6,12 @@ import { getLeadModel } from "../models/Lead.js";
 import { getContactModel } from "../models/Contact.js";
 import { getConversationControlModel } from "../models/ConversationControl.js";
 import { getConversationStateModel } from "../models/ConversationState.js";
-import { getSalesExecutiveModel, INITIAL_SALES_EXECUTIVES } from "../models/SalesExecutive.js";
+import {
+  getSalesExecutiveModel,
+  INITIAL_SALES_EXECUTIVES,
+  ECOMMERCE_EXECUTIVES,
+  seedSalesExecutivesIfEmpty,
+} from "../models/SalesExecutive.js";
 import { getMessageModel } from "../models/Message.js";
 import { evolutionClient } from "../services/evolution/evolutionClient.js";
 import { getCrmConnection } from "../database/connections.js";
@@ -42,7 +47,171 @@ function normalizeRepName(name: string): string {
   if (norm.includes("danish")) return "Danish";
   if (norm.includes("pradeep")) return "Pradeep";
   if (norm.includes("khusi") || norm.includes("khushi")) return "Khusi";
+  if (norm.includes("kanika")) return "Kanika E-commerce";
+  if (norm.includes("tammana") || norm.includes("tamanna")) return "Tammana E-commerce";
   return name.trim();
+}
+
+function isEcommerceLeadDoc(l: any): boolean {
+  if (!l) return false;
+  if (l.department === "ECOMMERCE") return true;
+  if (l.businessType === "Personal Use" || l.businessType === "Website Order") return true;
+  if (l.leadSource === "WhatsApp_Ecommerce") return true;
+  if (/kanika|tammana|tamanna|e-commerce|ecommerce/i.test(l.assignedEmployeeName || "")) return true;
+  return false;
+}
+
+function isEcommerceExecDoc(exec: any): boolean {
+  if (!exec) return false;
+  if (exec.department === "ECOMMERCE") return true;
+  return /kanika|tammana|tamanna|e-commerce|ecommerce/i.test(exec.name || "");
+}
+
+let ecommerceBackfilledOnce = false;
+
+async function syncHistoricalEcommerceLeadsOnce(): Promise<void> {
+  if (ecommerceBackfilledOnce) return;
+  ecommerceBackfilledOnce = true;
+
+  try {
+    await seedSalesExecutivesIfEmpty();
+    const Lead = getLeadModel();
+    const Contact = getContactModel();
+    const ConversationState = getConversationStateModel();
+    const Message = getMessageModel();
+
+    const [ecommStates, ecommMessages, existingLeads, contacts] = await Promise.all([
+      ConversationState.find({
+        $or: [
+          { state: { $in: ["PERSONAL_USE_END", "WEBSITE_ORDER_ENQUIRY"] } },
+          { customerType: { $in: ["Personal Use", "Website Order"] } },
+        ],
+      })
+        .lean()
+        .catch(() => []),
+      Message.find({
+        content: {
+          $regex:
+            /looking for products for personal use|व्यक्तिगत \/ घर के उपयोग|Personal Use & Online Shopping|Website & Online Order Support|वेबसाइट और ऑनलाइन ऑर्डर सहायता|E-Commerce Executive|ई-कॉमर्स विभाग|Kanika E-commerce/i,
+        },
+      })
+        .select("phone content createdAt")
+        .sort({ createdAt: -1 })
+        .lean()
+        .catch(() => []),
+      Lead.find({}).select("phone department businessType").lean().catch(() => []),
+      Contact.find({}).select("phone name city state").lean().catch(() => []),
+    ]);
+
+    const existingLeadPhones = new Set<string>();
+    for (const l of existingLeads) {
+      const p10 = normalizePhone(l.phone);
+      if (p10) existingLeadPhones.add(p10);
+    }
+
+    const contactByPhone = new Map<string, any>();
+    for (const c of contacts) {
+      const p10 = normalizePhone(c.phone);
+      if (p10) contactByPhone.set(p10, c);
+    }
+
+    const candidateMap = new Map<
+      string,
+      { p10: string; inquiryType: "Personal Use" | "Website Order"; at: Date }
+    >();
+
+    for (const m of ecommMessages) {
+      const p10 = normalizePhone(m.phone);
+      if (!p10 || p10.length !== 10) continue;
+      if (STAFF_PHONE_PATTERNS.includes(p10) || isCorporateBotNumber(p10)) continue;
+      const isWebOrder = /Website & Online Order|वेबसाइट और ऑनलाइन ऑर्डर|Order ID/i.test(m.content || "");
+      const existing = candidateMap.get(p10);
+      const msgDate = m.createdAt ? new Date(m.createdAt) : new Date();
+      if (!existing) {
+        candidateMap.set(p10, {
+          p10,
+          inquiryType: isWebOrder ? "Website Order" : "Personal Use",
+          at: msgDate,
+        });
+      } else if (isWebOrder) {
+        existing.inquiryType = "Website Order";
+      }
+    }
+
+    for (const s of ecommStates) {
+      const p10 = normalizePhone(s.phone);
+      if (!p10 || p10.length !== 10) continue;
+      if (STAFF_PHONE_PATTERNS.includes(p10) || isCorporateBotNumber(p10)) continue;
+      const isWebOrder = s.state === "WEBSITE_ORDER_ENQUIRY" || s.customerType === "Website Order";
+      const sDate = (s as any).updatedAt ? new Date((s as any).updatedAt) : new Date();
+      if (!candidateMap.has(p10)) {
+        candidateMap.set(p10, {
+          p10,
+          inquiryType: isWebOrder ? "Website Order" : "Personal Use",
+          at: sDate,
+        });
+      } else if (isWebOrder) {
+        candidateMap.get(p10)!.inquiryType = "Website Order";
+      }
+    }
+
+    const ecommReps = [
+      { name: "Kanika E-commerce", mobile: "+91 93156 03920" },
+      { name: "Tammana E-commerce", mobile: "+91 96253 14298" },
+    ];
+    let rrIdx = 0;
+
+    for (const [p10, item] of candidateMap.entries()) {
+      if (existingLeadPhones.has(p10)) continue;
+
+      const rep = ecommReps[rrIdx % ecommReps.length];
+      rrIdx += 1;
+      const contact = contactByPhone.get(p10);
+      const resolvedName =
+        contact?.name && contact.name !== "WhatsApp User"
+          ? contact.name
+          : `Online Shopper (${p10.slice(-4)})`;
+      const leadNumber = `RNE-${Math.floor(10000 + Math.random() * 90000)}`;
+
+      await Lead.create({
+        leadNumber,
+        customerName: resolvedName,
+        phone: `+91${p10}`,
+        businessType: item.inquiryType,
+        department: "ECOMMERCE",
+        city: contact?.city || "Online Store",
+        state: contact?.state || "Pan-India E-Commerce",
+        productCategory:
+          item.inquiryType === "Website Order"
+            ? "Website Order Support"
+            : "Online Shopping (Personal Use)",
+        productInterest: [item.inquiryType],
+        requirementDescription: `${item.inquiryType} Enquiry — Shared E-Commerce Department contact numbers & https://rnvalves.com`,
+        leadSource: "WhatsApp_Ecommerce",
+        assignedEmployeeName: rep.name,
+        repPhone: rep.mobile,
+        repNotificationStatus: "DELIVERED",
+        repNotifiedAt: item.at,
+        customerReplyStatus: "REPLIED",
+        lastReplyAt: item.at,
+        intentTag:
+          item.inquiryType === "Website Order"
+            ? "Website Order Enquiry"
+            : "Personal Use (Shared E-Comm Numbers)",
+        routingReason: `WhatsApp ${item.inquiryType} → Shared E-Commerce Dept Contacts (${rep.name})`,
+        status: "NEW",
+        priority: item.inquiryType === "Website Order" ? "HIGH" : "MEDIUM",
+        followupDate: new Date(item.at.getTime() + 24 * 60 * 60 * 1000),
+        internalNotes: [
+          `Shared E-Commerce Department contact numbers via WhatsApp Bot (${item.inquiryType}). Assigned to ${rep.name}.`,
+        ],
+        createdAt: item.at,
+        updatedAt: item.at,
+      }).catch(() => {});
+    }
+  } catch (err: any) {
+    console.warn("[DistributionController] E-Commerce historical sync notice:", err.message);
+  }
 }
 
 let distributionCache: { expiresAt: number; payload: any } | null = null;
@@ -65,6 +234,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
           counts: {
             executives: cached.executives.length,
             leads: cached.summary.totalLeads,
+            ecommerce: cached.summary.totalEcommerceLeads || 0,
             dropped: cached.summary.totalDroppedAtHi,
             human: cached.summary.totalHumanTakeovers,
           },
@@ -82,6 +252,8 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       } catch {}
     }
 
+    await syncHistoricalEcommerceLeadsOnce();
+
     const Lead = getLeadModel();
     const Contact = getContactModel();
     const ConversationControl = getConversationControlModel();
@@ -97,9 +269,18 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       ConversationState.find({}).lean().catch(() => []),
     ]);
 
-    const executives: any[] =
-      execRaw && execRaw.length > 0 ? execRaw : INITIAL_SALES_EXECUTIVES;
-    const leads: any[] = leadsRaw.filter((l: any) => !isCorporateBotNumber(l.phone));
+    const allActiveExecs: any[] =
+      execRaw && execRaw.length > 0 ? execRaw : [...INITIAL_SALES_EXECUTIVES, ...ECOMMERCE_EXECUTIVES];
+    const executives: any[] = allActiveExecs.filter((e) => !isEcommerceExecDoc(e));
+    const ecommExecsList: any[] =
+      allActiveExecs.filter((e) => isEcommerceExecDoc(e)).length > 0
+        ? allActiveExecs.filter((e) => isEcommerceExecDoc(e))
+        : ECOMMERCE_EXECUTIVES;
+
+    const allCleanLeads: any[] = leadsRaw.filter((l: any) => !isCorporateBotNumber(l.phone));
+    const leads: any[] = allCleanLeads.filter((l: any) => !isEcommerceLeadDoc(l));
+    const ecommerceLeadsRaw: any[] = allCleanLeads.filter((l: any) => isEcommerceLeadDoc(l));
+
     const contacts: any[] = contactsRaw.filter((c: any) => !isCorporateBotNumber(c.phone));
     const humanControls: any[] = humanRaw.filter((hc: any) => !isCorporateBotNumber(hc.phone));
     const sessions: any[] = sessionsRaw.filter((s: any) => !isCorporateBotNumber(s.phone));
@@ -116,9 +297,9 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       if (p10) contactMap.set(p10, c);
     }
 
-    // Lead phone set
+    // Lead phone set (both B2B AND E-Commerce leads — neither should ever appear in Dropped at "Hi")
     const leadPhoneSet = new Set<string>();
-    for (const l of leads) {
+    for (const l of allCleanLeads) {
       const p10 = normalizePhone(l.phone);
       if (p10) leadPhoneSet.add(p10);
     }
@@ -280,6 +461,17 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       if (STAFF_PHONE_PATTERNS.includes(p10)) continue;
 
       const activeSession = sessionMap.get(p10);
+      // Exclude visitors who received E-Commerce / Personal Use / Website Order contacts — they belong in E-Commerce Panel, not Dropped at "Hi"!
+      if (
+        activeSession &&
+        (activeSession.state === "PERSONAL_USE_END" ||
+          activeSession.state === "WEBSITE_ORDER_ENQUIRY" ||
+          activeSession.customerType === "Personal Use" ||
+          activeSession.customerType === "Website Order")
+      ) {
+        continue;
+      }
+
       let dropOffStage = "Dropped after initial Greeting (Sent Hi)";
       if (activeSession) {
         if (activeSession.state === "LANGUAGE_SELECTION") {
@@ -319,6 +511,123 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       (a, b) => new Date(b.lastContactedAt).getTime() - new Date(a.lastContactedAt).getTime()
     );
 
+    // 8b. E-Commerce Department Distribution (Kanika & Tammana)
+    const ecommBuckets: Record<
+      string,
+      {
+        executive: any;
+        leads: any[];
+        totalCount: number;
+        newCount: number;
+        contactedCount: number;
+        inProgressCount: number;
+        convertedCount: number;
+        lostCount: number;
+        totalEstimatedValue: number;
+      }
+    > = {};
+
+    for (const exec of ecommExecsList) {
+      const canonicalName = normalizeRepName(exec.name);
+      ecommBuckets[canonicalName] = {
+        executive: exec,
+        leads: [],
+        totalCount: 0,
+        newCount: 0,
+        contactedCount: 0,
+        inProgressCount: 0,
+        convertedCount: 0,
+        lostCount: 0,
+        totalEstimatedValue: 0,
+      };
+    }
+
+    const fallbackEcommKey = Object.keys(ecommBuckets)[0] || "Kanika E-commerce";
+    for (const l of ecommerceLeadsRaw) {
+      const canonicalName = normalizeRepName(l.assignedEmployeeName || "");
+      const targetKey = ecommBuckets[canonicalName] ? canonicalName : fallbackEcommKey;
+      const bucket = ecommBuckets[targetKey];
+      if (bucket) {
+        bucket.leads.push(l);
+        bucket.totalCount += 1;
+        if (l.status === "CONVERTED") bucket.convertedCount += 1;
+        else if (l.status === "LOST") bucket.lostCount += 1;
+        else if (l.status === "NEW") bucket.newCount += 1;
+        else if (l.status === "CONTACTED") bucket.contactedCount += 1;
+        else bucket.inProgressCount += 1;
+        bucket.totalEstimatedValue += Number(l.estimatedValue) || 0;
+      }
+    }
+
+    const ecommerceExecutives = Object.values(ecommBuckets).map((b) => ({
+      _id: b.executive._id,
+      name: b.executive.name,
+      mobile: b.executive.mobile,
+      area: b.executive.area || "Online Shopping & Website Orders",
+      state: b.executive.state || "Pan-India E-Commerce",
+      department: "ECOMMERCE",
+      leadsCount: b.totalCount,
+      newCount: b.newCount,
+      contactedCount: b.contactedCount,
+      inProgressCount: b.inProgressCount,
+      convertedCount: b.convertedCount,
+      lostCount: b.lostCount,
+      conversionRate: b.totalCount > 0 ? Math.round((b.convertedCount / b.totalCount) * 100) : 0,
+      totalEstimatedValue: b.totalEstimatedValue,
+    }));
+
+    const ecommerceLeads = ecommerceLeadsRaw.map((l) => {
+      const canonicalName = normalizeRepName(l.assignedEmployeeName || fallbackEcommKey);
+      const bucket = ecommBuckets[canonicalName];
+      return {
+        _id: l._id,
+        leadNumber: l.leadNumber,
+        customerName: l.customerName,
+        phone: l.phone,
+        city: l.city || "Online Store",
+        state: l.state || "Pan-India E-Commerce",
+        businessName: l.businessName || "",
+        businessType: l.businessType || "Personal Use",
+        department: "ECOMMERCE",
+        status: l.status || "NEW",
+        priority: l.priority || "MEDIUM",
+        estimatedValue: l.estimatedValue || 0,
+        productCategory: l.productCategory || "Online Shopping (Personal Use)",
+        requirementDescription: l.requirementDescription || "",
+        pincode: l.pincode || "",
+        repNotificationStatus: l.repNotificationStatus || "DELIVERED",
+        repNotifiedAt: l.repNotifiedAt || l.createdAt,
+        repPhone: l.repPhone || bucket?.executive?.mobile || "+91 93156 03920",
+        customerReplyStatus: l.customerReplyStatus || "REPLIED",
+        lastReplyAt: l.lastReplyAt || l.createdAt,
+        intentTag: l.intentTag || l.businessType || "Personal Use",
+        routingReason:
+          l.routingReason || "Shared E-Commerce Dept Contacts (Kanika & Tammana) via WhatsApp",
+        followupDate: l.followupDate,
+        internalNotes: l.internalNotes || [],
+        history: l.history || [],
+        lossReason: l.lossReason || "",
+        assignedEmployeeName: canonicalName,
+        assignedEmployeePhone: bucket?.executive?.mobile || l.repPhone || "+91 93156 03920",
+        createdAt: l.createdAt,
+        updatedAt: l.updatedAt,
+      };
+    });
+
+    const ecommerceSummary = {
+      totalLeads: ecommerceLeads.length,
+      newCount: ecommerceLeads.filter((l) => l.status === "NEW").length,
+      contactedCount: ecommerceLeads.filter((l) => l.status === "CONTACTED").length,
+      inProgressCount: ecommerceLeads.filter((l) =>
+        ["INTERESTED", "QUOTATION_SENT", "NEGOTIATION"].includes(l.status)
+      ).length,
+      convertedCount: ecommerceLeads.filter((l) => l.status === "CONVERTED").length,
+      lostCount: ecommerceLeads.filter((l) => l.status === "LOST").length,
+      personalUseCount: ecommerceLeads.filter((l) => l.businessType !== "Website Order").length,
+      websiteOrderCount: ecommerceLeads.filter((l) => l.businessType === "Website Order").length,
+      totalValue: ecommerceLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0),
+    };
+
     // 9. Overall Summary
     const totalInquiries = contacts.length;
     const totalAssignedLeads = repDistribution.reduce((acc, r) => acc + r.leadsCount, 0);
@@ -340,6 +649,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       summary: {
         totalInquiries,
         totalLeads: totalLeadsCount,
+        totalEcommerceLeads: ecommerceLeads.length,
         totalAssignedLeads,
         totalUnassignedLeads,
         totalConvertedLeads,
@@ -351,14 +661,17 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         totalRepDelivered,
         totalCustomerReplied: totalLeadsCount,
         leadCompletionRate:
-          totalInquiries > 0 ? Math.round((totalLeadsCount / totalInquiries) * 100) : 0,
+          totalInquiries > 0 ? Math.round(((totalLeadsCount + ecommerceLeads.length) / totalInquiries) * 100) : 0,
         conversionRate:
           totalLeadsCount > 0 ? Math.round((totalConvertedLeads / totalLeadsCount) * 100) : 0,
       },
       executives: repDistribution,
+      ecommerceExecutives,
+      ecommerceLeads,
+      ecommerceSummary,
       unassignedLeads: unassignedLeads.map((l) => ({
         _id: l._id,
-        leadNumber: l.leadNumber,
+        leadNumber: l._id ? l.leadNumber : "",
         customerName: l.customerName,
         phone: l.phone,
         city: l.city,
@@ -390,6 +703,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         counts: {
           executives: repDistribution.length,
           leads: totalLeadsCount,
+          ecommerce: ecommerceLeads.length,
           dropped: droppedAtHi.length,
           human: humanTakeovers.length,
         },
@@ -962,14 +1276,20 @@ export async function updateLeadFollowup(req: Request, res: Response): Promise<v
       return;
     }
 
-    // Security check: SALES role can ONLY update their own assigned leads
+    // Security check: SALES role can ONLY update their own assigned leads (or team ECOMMERCE leads for E-Commerce reps)
     if (req.user && req.user.role === "SALES") {
       const userRep = normalizeRepName(req.user.repName || req.user.name || "");
       const leadRep = normalizeRepName(targetLead.assignedEmployeeName || "");
       const userMobile = normalizePhone(req.user.repMobile || req.user.phone || "");
       const leadMobile = normalizePhone(targetLead.assignedEmployeeId || targetLead.repPhone || "");
 
+      const isUserEcommerce =
+        (req.user as any).department === "ECOMMERCE" ||
+        /kanika|tammana|tamanna|e-commerce|ecommerce/i.test(userRep);
+      const isTargetEcommerce = isEcommerceLeadDoc(targetLead);
+
       const isOwner =
+        (isUserEcommerce && isTargetEcommerce) ||
         (userRep && leadRep && (
           userRep.toLowerCase() === leadRep.toLowerCase() ||
           leadRep.toLowerCase().includes(userRep.toLowerCase()) ||
@@ -983,6 +1303,12 @@ export async function updateLeadFollowup(req: Request, res: Response): Promise<v
           error: "Forbidden: You are not authorized to update another sales executive's lead.",
         });
         return;
+      }
+
+      // If E-Commerce colleague handles the lead, tag them as active handler
+      if (isUserEcommerce && isTargetEcommerce && userRep) {
+        targetLead.assignedEmployeeName = userRep;
+        if (userMobile) targetLead.repPhone = `+91 ${userMobile.slice(0, 5)} ${userMobile.slice(5)}`;
       }
     }
 
@@ -1037,13 +1363,14 @@ export async function repLogin(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    await seedSalesExecutivesIfEmpty();
     const SalesExecutive = getSalesExecutiveModel();
     let executives: any[] = [];
     try {
       executives = await SalesExecutive.find({ isActive: true }).lean();
     } catch {}
     if (!executives || executives.length === 0) {
-      executives = INITIAL_SALES_EXECUTIVES;
+      executives = [...INITIAL_SALES_EXECUTIVES, ...ECOMMERCE_EXECUTIVES];
     }
 
     let matchedExec: any = null;
@@ -1081,6 +1408,7 @@ export async function repLogin(req: Request, res: Response): Promise<void> {
     }
 
     // Generate authenticated rep token
+    const isEcomm = isEcommerceExecDoc(matchedExec);
     const repPayload = {
       id: String(matchedExec._id || matchedExec.name),
       name: matchedExec.name,
@@ -1088,7 +1416,7 @@ export async function repLogin(req: Request, res: Response): Promise<void> {
       repMobile: matchedExec.mobile,
       phone: matchedExec.mobile,
       role: "SALES" as const,
-      department: "Sales",
+      department: isEcomm ? "ECOMMERCE" : "Sales",
       state: matchedExec.state,
     };
 
@@ -1120,6 +1448,7 @@ export async function repLogin(req: Request, res: Response): Promise<void> {
         mobile: matchedExec.mobile,
         area: matchedExec.area,
         state: matchedExec.state,
+        department: isEcomm ? "ECOMMERCE" : "B2B_SALES",
       },
     });
   } catch (err: any) {
@@ -1158,26 +1487,64 @@ export async function getMyLeads(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    await syncHistoricalEcommerceLeadsOnce();
+
     const canonicalName = normalizeRepName(repName || "");
     const cleanPhone = normalizePhone(repMobile || "");
+    const isEcommRep =
+      (currentUser as any).department === "ECOMMERCE" ||
+      /kanika|tammana|tamanna|e-commerce|ecommerce/i.test(canonicalName) ||
+      cleanPhone === "9315603920" ||
+      cleanPhone === "9625314298";
+
+    const scopeParam = String(req.query.scope || "team").toLowerCase();
 
     const Lead = getLeadModel();
+    const queryFilter = isEcommRep
+      ? scopeParam === "mine"
+        ? {
+            $and: [
+              {
+                $or: [
+                  { department: "ECOMMERCE" },
+                  { businessType: { $in: ["Personal Use", "Website Order"] } },
+                  { leadSource: "WhatsApp_Ecommerce" },
+                ],
+              },
+              {
+                $or: [
+                  { assignedEmployeeName: new RegExp(canonicalName, "i") },
+                  ...(cleanPhone ? [{ repPhone: new RegExp(cleanPhone) }] : []),
+                ],
+              },
+            ],
+          }
+        : {
+            $or: [
+              { department: "ECOMMERCE" },
+              { businessType: { $in: ["Personal Use", "Website Order"] } },
+              { leadSource: "WhatsApp_Ecommerce" },
+              { assignedEmployeeName: /kanika|tammana|tamanna|e-commerce/i },
+            ],
+          }
+      : {
+          $or: [
+            { assignedEmployeeName: new RegExp(canonicalName, "i") },
+            ...(cleanPhone ? [{ repPhone: new RegExp(cleanPhone) }] : []),
+          ],
+        };
+
     const leads = (
-      await Lead.find({
-        $or: [
-          { assignedEmployeeName: new RegExp(canonicalName, "i") },
-          ...(cleanPhone ? [{ repPhone: new RegExp(cleanPhone) }] : []),
-        ],
-      })
-        .sort({ updatedAt: -1 })
-        .lean()
+      await Lead.find(queryFilter).sort({ updatedAt: -1 }).lean()
     ).filter((l) => !isCorporateBotNumber(l.phone));
 
     // Calculate metrics
     const totalLeads = leads.length;
     const wonLeads = leads.filter((l) => l.status === "CONVERTED");
     const pendingLeads = leads.filter((l) => l.status === "NEW" || l.status === "CONTACTED");
-    const inProgressLeads = leads.filter((l) => ["QUOTATION_SENT", "NEGOTIATION"].includes(l.status));
+    const inProgressLeads = leads.filter((l) =>
+      ["INTERESTED", "QUOTATION_SENT", "NEGOTIATION"].includes(l.status)
+    );
     const lostLeads = leads.filter((l) => l.status === "LOST");
     const totalValue = leads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
 
@@ -1199,6 +1566,7 @@ export async function getMyLeads(req: Request, res: Response): Promise<void> {
       rep: {
         name: canonicalName,
         mobile: repMobile,
+        department: isEcommRep ? "ECOMMERCE" : "B2B_SALES",
       },
       summary: {
         totalLeads,
@@ -1218,6 +1586,9 @@ export async function getMyLeads(req: Request, res: Response): Promise<void> {
         city: l.city,
         state: l.state,
         businessName: l.businessName,
+        businessType: l.businessType || (isEcommRep ? "Personal Use" : "Dealer"),
+        department: isEcommerceLeadDoc(l) ? "ECOMMERCE" : "B2B_SALES",
+        requirementDescription: l.requirementDescription || "",
         status: l.status,
         priority: l.priority,
         estimatedValue: l.estimatedValue || 0,

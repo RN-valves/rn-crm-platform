@@ -212,11 +212,16 @@ export const crmApi = {
   getDistributionCounts: () => apiRequest("/distribution/analytics?countsOnly=1"),
   repLogin: (data) =>
     apiRequest("/distribution/rep-login", { method: "POST", body: JSON.stringify(data) }),
-  getMyLeads: (token, forceRefresh = false) =>
-    apiRequest(
-      "/distribution/my-leads",
+  getMyLeads: (token, forceRefresh = false, scope = "team", repNameOverride = "") => {
+    const qs = new URLSearchParams();
+    if (scope) qs.set("scope", scope);
+    if (repNameOverride) qs.set("repName", repNameOverride);
+    const queryStr = qs.toString() ? `?${qs.toString()}` : "";
+    return apiRequest(
+      `/distribution/my-leads${queryStr}`,
       token ? { headers: { Authorization: `Bearer ${token}` }, forceRefresh } : { forceRefresh }
-    ),
+    );
+  },
   assignLeadToExecutive: (data) =>
     apiRequest("/distribution/assign-lead", { method: "POST", body: JSON.stringify(data) }),
   resendRepAlert: (data) =>

@@ -105,13 +105,16 @@ export async function login(req: Request, res: Response): Promise<void> {
           }
 
           if (pinMatch) {
+            const isEcomm =
+              exec.department === "ECOMMERCE" ||
+              /kanika|tammana|e-commerce|ecommerce/i.test(exec.name || "");
             payload = {
               id: String(exec._id),
               name: exec.name,
               email: (exec as any).email || "",
               phone: exec.mobile,
               role: "SALES" as const,
-              department: "Sales",
+              department: isEcomm ? "ECOMMERCE" : "Sales",
               repId: String(exec._id),
               repName: exec.name,
               repMobile: exec.mobile,

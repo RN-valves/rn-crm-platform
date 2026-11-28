@@ -80,56 +80,113 @@ export default function LeadFollowupModal({ isOpen, onClose, lead, onSuccess }) 
     }
   };
 
-  const statusOptions = [
-    {
-      value: "CONVERTED",
-      label: "Converted (Deal Won)",
-      desc: "Order confirmed / Deal closed successfully",
-      badge: "success",
-      icon: "🎉",
-      color: "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200",
-    },
-    {
-      value: "QUOTATION_SENT",
-      label: "Quotation / Price List Sent",
-      desc: "Wholesale prices, catalogue & margins delivered",
-      badge: "purple",
-      icon: "📄",
-      color: "border-purple-500 bg-purple-50/50 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200",
-    },
-    {
-      value: "NEGOTIATION",
-      label: "In Negotiation / Price Discussion",
-      desc: "Discussing margins, discount, and batch sizes",
-      badge: "blue",
-      icon: "💬",
-      color: "border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200",
-    },
-    {
-      value: "INTERESTED",
-      label: "Interested (Product Qualified)",
-      desc: "Dealer confirmed interest in specific product line",
-      badge: "indigo",
-      icon: "✨",
-      color: "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200",
-    },
-    {
-      value: "CONTACTED",
-      label: "Contacted (Follow-up In Progress)",
-      desc: "Spoke on call / WhatsApp, awaiting response",
-      badge: "warning",
-      icon: "📞",
-      color: "border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200",
-    },
-    {
-      value: "LOST",
-      label: "Deal Lost / Closed",
-      desc: "Customer not interested / Price barrier / Competitor",
-      badge: "danger",
-      icon: "❌",
-      color: "border-rose-500 bg-rose-50/50 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200",
-    },
-  ];
+  const isEcommerceLead =
+    lead?.department === "ECOMMERCE" ||
+    lead?.businessType === "Personal Use" ||
+    lead?.businessType === "Website Order" ||
+    /kanika|tammana|tamanna|e-commerce/i.test(lead?.assignedEmployeeName || "");
+
+  const statusOptions = isEcommerceLead
+    ? [
+        {
+          value: "CONVERTED",
+          label: "Order Placed / Won (rnvalves.com)",
+          desc: "Customer placed online order or completed retail purchase",
+          badge: "success",
+          icon: "🛍️",
+          color: "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200",
+        },
+        {
+          value: "QUOTATION_SENT",
+          label: "Product Link / Catalogue Shared",
+          desc: "Shared rnvalves.com product links, MRP, or order tracking update",
+          badge: "purple",
+          icon: "🔗",
+          color: "border-purple-500 bg-purple-50/50 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200",
+        },
+        {
+          value: "NEGOTIATION",
+          label: "Assisting Customer / Order Support",
+          desc: "Helping with checkout, payment, delivery, or item selection",
+          badge: "blue",
+          icon: "💬",
+          color: "border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200",
+        },
+        {
+          value: "INTERESTED",
+          label: "Interested in Online Purchase",
+          desc: "Customer confirmed interest in buying specific items for home/personal use",
+          badge: "indigo",
+          icon: "✨",
+          color: "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200",
+        },
+        {
+          value: "CONTACTED",
+          label: "Contacted / Spoke on Call or WhatsApp",
+          desc: "Connected with customer, awaiting online order confirmation",
+          badge: "warning",
+          icon: "📞",
+          color: "border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200",
+        },
+        {
+          value: "LOST",
+          label: "Not Interested / Closed",
+          desc: "Customer did not purchase / Wrong inquiry / Unreachable",
+          badge: "danger",
+          icon: "❌",
+          color: "border-rose-500 bg-rose-50/50 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200",
+        },
+      ]
+    : [
+        {
+          value: "CONVERTED",
+          label: "Converted (Deal Won)",
+          desc: "Order confirmed / Deal closed successfully",
+          badge: "success",
+          icon: "🎉",
+          color: "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200",
+        },
+        {
+          value: "QUOTATION_SENT",
+          label: "Quotation / Price List Sent",
+          desc: "Wholesale prices, catalogue & margins delivered",
+          badge: "purple",
+          icon: "📄",
+          color: "border-purple-500 bg-purple-50/50 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200",
+        },
+        {
+          value: "NEGOTIATION",
+          label: "In Negotiation / Price Discussion",
+          desc: "Discussing margins, discount, and batch sizes",
+          badge: "blue",
+          icon: "💬",
+          color: "border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200",
+        },
+        {
+          value: "INTERESTED",
+          label: "Interested (Product Qualified)",
+          desc: "Dealer confirmed interest in specific product line",
+          badge: "indigo",
+          icon: "✨",
+          color: "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200",
+        },
+        {
+          value: "CONTACTED",
+          label: "Contacted (Follow-up In Progress)",
+          desc: "Spoke on call / WhatsApp, awaiting response",
+          badge: "warning",
+          icon: "📞",
+          color: "border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200",
+        },
+        {
+          value: "LOST",
+          label: "Deal Lost / Closed",
+          desc: "Customer not interested / Price barrier / Competitor",
+          badge: "danger",
+          icon: "❌",
+          color: "border-rose-500 bg-rose-50/50 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200",
+        },
+      ];
 
   return (
     <Modal

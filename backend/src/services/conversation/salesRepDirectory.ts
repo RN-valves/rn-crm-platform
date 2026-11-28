@@ -26,7 +26,7 @@ export class SalesRepDirectory {
   static async refreshCache(): Promise<SalesRep[]> {
     try {
       const Model = getSalesExecutiveModel();
-      const docs = await Model.find({ isActive: true }).sort({ orderIndex: 1 }).lean();
+      const docs = await Model.find({ isActive: true, department: { $ne: "ECOMMERCE" } }).sort({ orderIndex: 1 }).lean();
       if (docs && docs.length > 0) {
         this.cachedExecutives = docs.map((d: any) => ({
           _id: String(d._id),

@@ -25,13 +25,14 @@ export interface ILead extends Document {
   customerName: string;
   phone: string; // Normalized E.164
   businessName?: string;
-  businessType: "Dealer" | "Distributor" | "Retailer" | "OEM" | "Plumber" | "End User" | "Other";
+  businessType: "Dealer" | "Distributor" | "Retailer" | "OEM" | "Plumber" | "End User" | "Personal Use" | "Website Order" | "Other";
+  department?: "B2B_SALES" | "ECOMMERCE";
   city?: string;
   state?: string;
   productCategory?: string;
   productInterest: string[]; // Codes or names of products
   requirementDescription?: string;
-  leadSource: "WhatsApp_Inbound" | "Website_Form" | "Direct_Call" | "Referral" | "Exhibition";
+  leadSource: "WhatsApp_Inbound" | "WhatsApp_Ecommerce" | "Website_Form" | "Direct_Call" | "Referral" | "Exhibition";
   assignedEmployeeId?: string;
   assignedEmployeeName?: string;
   status: LeadStatus;
@@ -64,8 +65,14 @@ const LeadSchema = new Schema<ILead>(
     businessName: { type: String, default: "", trim: true },
     businessType: {
       type: String,
-      enum: ["Dealer", "Distributor", "Retailer", "OEM", "Plumber", "End User", "Other"],
+      enum: ["Dealer", "Distributor", "Retailer", "OEM", "Plumber", "End User", "Personal Use", "Website Order", "Other"],
       default: "Other",
+    },
+    department: {
+      type: String,
+      enum: ["B2B_SALES", "ECOMMERCE"],
+      default: "B2B_SALES",
+      index: true,
     },
     city: { type: String, default: "", trim: true, index: true },
     state: { type: String, default: "", trim: true },
@@ -74,7 +81,7 @@ const LeadSchema = new Schema<ILead>(
     requirementDescription: { type: String, default: "" },
     leadSource: {
       type: String,
-      enum: ["WhatsApp_Inbound", "Website_Form", "Direct_Call", "Referral", "Exhibition"],
+      enum: ["WhatsApp_Inbound", "WhatsApp_Ecommerce", "Website_Form", "Direct_Call", "Referral", "Exhibition"],
       default: "WhatsApp_Inbound",
     },
     assignedEmployeeId: { type: String, default: "", index: true },

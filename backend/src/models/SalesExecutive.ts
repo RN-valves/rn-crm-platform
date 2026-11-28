@@ -11,6 +11,7 @@ export interface ISalesExecutive extends Document {
   pin?: string; // 4-digit security PIN for rep portal access
   pinHash?: string; // Bcrypt hashed PIN
   role: "ADMIN" | "SALES";
+  department?: "B2B_SALES" | "ECOMMERCE";
   isActive: boolean;
   isDefaultFallback: boolean;
   orderIndex: number;
@@ -28,6 +29,7 @@ const SalesExecutiveSchema = new Schema<ISalesExecutive>(
     pin: { type: String, default: "1234", trim: true },
     pinHash: { type: String, default: "" },
     role: { type: String, enum: ["ADMIN", "SALES"], default: "SALES" },
+    department: { type: String, enum: ["B2B_SALES", "ECOMMERCE"], default: "B2B_SALES" },
     isActive: { type: Boolean, default: true },
     isDefaultFallback: { type: Boolean, default: false },
     orderIndex: { type: Number, default: 0 },
@@ -119,9 +121,37 @@ export const INITIAL_SALES_EXECUTIVES = [
     state: "Andhra Pradesh / Telangana",
     pinPrefixes: ["50", "51", "52", "53"],
     pin: "1234",
+    department: "B2B_SALES" as const,
     isActive: true,
     isDefaultFallback: false,
     orderIndex: 7,
+  },
+];
+
+export const ECOMMERCE_EXECUTIVES = [
+  {
+    name: "Kanika E-commerce",
+    mobile: "+91 93156 03920",
+    area: "Online Shopping & Website Orders (rnvalves.com)",
+    state: "Pan-India E-Commerce",
+    pinPrefixes: [] as string[],
+    pin: "1234",
+    department: "ECOMMERCE" as const,
+    isActive: true,
+    isDefaultFallback: false,
+    orderIndex: 101,
+  },
+  {
+    name: "Tammana E-commerce",
+    mobile: "+91 96253 14298",
+    area: "Online Shopping & Website Orders (rnvalves.com)",
+    state: "Pan-India E-Commerce",
+    pinPrefixes: [] as string[],
+    pin: "1234",
+    department: "ECOMMERCE" as const,
+    isActive: true,
+    isDefaultFallback: false,
+    orderIndex: 102,
   },
 ];
 
@@ -132,17 +162,43 @@ export async function seedSalesExecutivesIfEmpty(): Promise<void> {
     const defaultPinHash = await bcrypt.hash("1234", 10);
 
     if (count === 0) {
-      console.log("🌱 [Seed] Seeding 7 RN Valves Sales Executives into database...");
-      const initialWithHash = INITIAL_SALES_EXECUTIVES.map((exec) => ({
+      console.log("🌱 [Seed] Seeding RN Valves Sales & E-Commerce Executives into database...");
+      const initialWithHash = [...INITIAL_SALES_EXECUTIVES, ...ECOMMERCE_EXECUTIVES].map((exec: any) => ({
         ...exec,
+        department: exec.department || "B2B_SALES",
         role: "SALES",
         pin: "1234",
         pinHash: defaultPinHash,
         isActive: true,
       }));
       await Model.insertMany(initialWithHash);
-      console.log("✅ [Seed] Successfully seeded Sales Executives.");
+      console.log("✅ [Seed] Successfully seeded Sales & E-Commerce Executives.");
     } else {
+      // Ensure E-Commerce Executives (Kanika & Tammana) exist in DB
+      for (const ecommExec of ECOMMERCE_EXECUTIVES) {
+        const clean10 = ecommExec.mobile.replace(/\D/g, "").slice(-10);
+        const existing = await Model.findOne({
+          $or: [
+            { name: new RegExp(`^${ecommExec.name}$`, "i") },
+            { mobile: new RegExp(`${clean10}$`) },
+          ],
+        });
+        if (!existing) {
+          await Model.create({
+            ...ecommExec,
+            role: "SALES",
+            pinHash: defaultPinHash,
+          });
+          console.log(`✅ [Seed] Added E-Commerce Executive: ${ecommExec.name} (${ecommExec.mobile})`);
+        } else if (existing.department !== "ECOMMERCE") {
+          existing.department = "ECOMMERCE";
+          if (!existing.pinHash) {
+            existing.pinHash = await bcrypt.hash(existing.pin || "1234", 10);
+          }
+          await existing.save();
+        }
+      }
+
       // Migrate existing records: ensure role is SALES and pinHash exists
       const unhashed = await Model.find({
         $or: [
@@ -160,6 +216,7 @@ export async function seedSalesExecutivesIfEmpty(): Promise<void> {
         exec.role = "SALES";
         exec.pin = pinToHash;
         exec.pinHash = hash;
+        if (!exec.department) exec.department = "B2B_SALES";
         if (exec.isActive === undefined) exec.isActive = true;
         await exec.save();
       }

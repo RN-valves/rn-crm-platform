@@ -63,6 +63,7 @@ function RepPortalContent() {
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [ecommScope, setEcommScope] = useState("team"); // "team" or "mine" for E-Commerce dept
   const [selectedLeadForFollowup, setSelectedLeadForFollowup] = useState(null);
   const [resendingLeadId, setResendingLeadId] = useState(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState("");
@@ -85,7 +86,7 @@ function RepPortalContent() {
   };
 
   // Fetch My Leads using secure Rep Token (with first-party cookie fallback)
-  const fetchMyLeads = async (tokenOverride = null) => {
+  const fetchMyLeads = async (tokenOverride = null, scopeOverride = null) => {
     try {
       setLoading(true);
       let token =
@@ -114,7 +115,12 @@ function RepPortalContent() {
         return;
       }
 
-      const res = await crmApi.getMyLeads(token);
+      const res = await crmApi.getMyLeads(
+        token,
+        true,
+        scopeOverride || ecommScope,
+        role === "ADMIN" && queryRep ? queryRep : ""
+      );
       if (res && res.success) {
         setRepProfile(res.rep);
         setRepSummary(res.summary);
@@ -225,7 +231,7 @@ function RepPortalContent() {
     return rawLeads.filter((l) => {
       // Status Filter
       if (statusFilter === "NEW" && l.status !== "NEW") return false;
-      if (statusFilter === "IN_PROGRESS" && !["CONTACTED", "QUOTATION_SENT", "NEGOTIATION"].includes(l.status)) return false;
+      if (statusFilter === "IN_PROGRESS" && !["CONTACTED", "INTERESTED", "QUOTATION_SENT", "NEGOTIATION"].includes(l.status)) return false;
       if (statusFilter === "WON" && l.status !== "CONVERTED") return false;
       if (statusFilter === "LOST" && l.status !== "LOST") return false;
       if (statusFilter === "DUE_TODAY") {
@@ -534,12 +540,46 @@ function RepPortalContent() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <h1 className="text-xl font-black tracking-tight">{repProfile.name}</h1>
                     <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold rounded-md border border-emerald-500/30">
-                      AUTHENTICATED EXECUTIVE
+                      {repProfile.department === "ECOMMERCE" || /kanika|tammana|e-commerce/i.test(repProfile.name || "")
+                        ? "🛍️ E-COMMERCE DEPARTMENT PANEL"
+                        : "AUTHENTICATED EXECUTIVE"}
                     </span>
                   </div>
                   <p className="text-xs text-rn-200 font-mono mt-1">
-                    📞 {repProfile.mobile}
+                    📞 {repProfile.mobile || "+91 93156 03920 / +91 96253 14298"}
                   </p>
+                  {(repProfile.department === "ECOMMERCE" || /kanika|tammana|e-commerce/i.test(repProfile.name || "")) && (
+                    <div className="flex items-center gap-1.5 mt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEcommScope("team");
+                          fetchMyLeads(null, "team");
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          ecommScope === "team"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "bg-white/10 text-slate-200 hover:bg-white/20"
+                        }`}
+                      >
+                        All E-Commerce Dept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEcommScope("mine");
+                          fetchMyLeads(null, "mine");
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          ecommScope === "mine"
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "bg-white/10 text-slate-200 hover:bg-white/20"
+                        }`}
+                      >
+                        Assigned to Me
+                      </button>
+                    </div>
+                  )}
                   {repProfile.area && (
                     <p className="text-xs text-slate-300 mt-1 flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-rn-400 shrink-0" />

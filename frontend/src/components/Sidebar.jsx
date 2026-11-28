@@ -19,6 +19,7 @@ import {
   LogOut,
   ChevronDown,
   ChevronUp,
+  ShoppingBag,
 } from "lucide-react";
 import { useNav } from "../context/NavContext";
 import { useTheme } from "../context/ThemeContext";
@@ -43,6 +44,7 @@ function SidebarInner() {
   const [distCounts, setDistCounts] = useState({
     executives: null,
     leads: null,
+    ecommerce: null,
     dropped: null,
     human: null,
   });
@@ -90,7 +92,21 @@ function SidebarInner() {
   }
 
   const isSales = role === "SALES";
+  const isEcommerceUser =
+    user?.department === "ECOMMERCE" ||
+    /kanika|tammana|tamanna|e-commerce|ecommerce/i.test(user?.name || "");
   const homeHref = isSales ? "/rep-portal" : "/dashboard";
+
+  const activeSalesNavItems = isEcommerceUser
+    ? [
+        {
+          name: "E-Commerce Panel",
+          href: "/rep-portal",
+          icon: ShoppingBag,
+          badge: "Online Store",
+        },
+      ]
+    : salesNavigationItems;
 
   const distributionSubItems = [
     {
@@ -104,6 +120,12 @@ function SidebarInner() {
       name: "All Pipeline Leads",
       href: "/distribution?tab=leads",
       count: distCounts.leads,
+    },
+    {
+      id: "ecommerce",
+      name: "E-Commerce Panel",
+      href: "/distribution?tab=ecommerce",
+      count: distCounts.ecommerce,
     },
     {
       id: "dropped",
@@ -218,7 +240,7 @@ function SidebarInner() {
       {/* Scrollable Navigation Menu */}
       <nav className="flex-1 min-h-0 px-3 py-3 space-y-1 overflow-y-auto overscroll-contain">
         {isSales ? (
-          salesNavigationItems.map((item) => renderNavLink(item))
+          activeSalesNavItems.map((item) => renderNavLink(item))
         ) : (
           <>
             {topAdminItemsBeforeDist.map((item) => renderNavLink(item))}

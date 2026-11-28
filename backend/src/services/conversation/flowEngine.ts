@@ -214,6 +214,7 @@ export class FlowEngine {
       stateDoc.customerType = "Website Order";
       stateDoc.state = "WEBSITE_ORDER_ENQUIRY";
       await stateDoc.save();
+      await this.upsertEcommerceLead(phone, customerName, "Website Order", `Initial query: ${cleanText}`);
       return this.renderWebsiteOrderSupport(stateDoc.language);
     }
 
@@ -534,6 +535,7 @@ export class FlowEngine {
         ) {
           session.customerType = "Website Order";
           session.state = "WEBSITE_ORDER_ENQUIRY";
+          await this.upsertEcommerceLead(session.phone, customerName, "Website Order");
           return this.renderWebsiteOrderSupport(session.language);
         }
 
@@ -547,6 +549,7 @@ export class FlowEngine {
         ) {
           session.customerType = "Personal Use";
           session.state = "PERSONAL_USE_END";
+          await this.upsertEcommerceLead(session.phone, customerName, "Personal Use", undefined, true);
           const lang = session.language;
           let pMsg = "";
           if (lang === "pa") {
@@ -667,6 +670,12 @@ export class FlowEngine {
         }
 
         const cleanCustPhone = (session.formData.mobile || session.phone).replace(/\D/g, "");
+        await this.upsertEcommerceLead(
+          session.phone,
+          customerName,
+          "Website Order",
+          `Customer Order ID / Message: ${text.trim()}`
+        );
 
         // Dispatch instant alert to both E-Commerce Department executives (Kanika & Tammana)
         try {
@@ -2259,5 +2268,141 @@ export class FlowEngine {
     }
 
     return name;
+  }
+
+  /**
+   * Create or update an E-Commerce Department Lead (Personal Use / Website Order)
+   * Assigned round-robin between Kanika E-commerce & Tammana E-commerce so E-Commerce team
+   * can track follow-up status in their panel and these contacts never pollute Dropped at "Hi".
+   */
+  private static async upsertEcommerceLead(
+    rawPhone: string,
+    customerName: string | undefined,
+    inquiryType: "Personal Use" | "Website Order",
+    extraNote?: string,
+    notifyStaff: boolean = false
+  ): Promise<void> {
+    try {
+      const cleanDigits = (rawPhone || "").replace(/\D/g, "");
+      const p10 = cleanDigits.slice(-10);
+      if (p10.length !== 10) return;
+
+      const internalStaff = [
+        "9315160881",
+        "9315596055",
+        "9315593842",
+        "9643308980",
+        "9315600189",
+        "9870288812",
+        "8076555914",
+        "9315603920",
+        "9625314298",
+        "8882710190",
+        "9891201208",
+        "9811103377",
+      ];
+      if (internalStaff.includes(p10)) return;
+
+      const formattedPhone = `+91${p10}`;
+      const Lead = getLeadModel();
+      const Contact = getContactModel();
+
+      const contactDoc = await Contact.findOne({
+        phone: { $in: [rawPhone, formattedPhone, p10, `91${p10}`] },
+      }).lean().catch(() => null);
+
+      const resolvedName =
+        (customerName && customerName !== "WhatsApp User" && customerName !== "Customer"
+          ? customerName
+          : contactDoc?.name && contactDoc.name !== "WhatsApp User"
+          ? contactDoc.name
+          : "") || `Online Shopper (${p10.slice(-4)})`;
+
+      const existingEcomm = await Lead.findOne({
+        phone: { $in: [rawPhone, formattedPhone, p10, `91${p10}`] },
+        $or: [
+          { department: "ECOMMERCE" },
+          { businessType: { $in: ["Personal Use", "Website Order"] } },
+        ],
+      }).sort({ updatedAt: -1 });
+
+      if (existingEcomm) {
+        existingEcomm.department = "ECOMMERCE";
+        if (inquiryType === "Website Order") {
+          existingEcomm.businessType = "Website Order";
+          existingEcomm.intentTag = "Website Order Enquiry";
+          existingEcomm.priority = "HIGH";
+        }
+        existingEcomm.lastReplyAt = new Date();
+        if (extraNote) {
+          existingEcomm.requirementDescription = `${existingEcomm.requirementDescription || ""}\n${extraNote}`.trim();
+          existingEcomm.internalNotes.push(`[${new Date().toLocaleDateString("en-IN")}] ${extraNote}`);
+        }
+        await existingEcomm.save();
+        return;
+      }
+
+      const ecommReps = [
+        { name: "Kanika E-commerce", mobile: "+91 93156 03920", alertNum: "919315603920" },
+        { name: "Tammana E-commerce", mobile: "+91 96253 14298", alertNum: "919625314298" },
+      ];
+      const ecommCount = await Lead.countDocuments({
+        $or: [
+          { department: "ECOMMERCE" },
+          { businessType: { $in: ["Personal Use", "Website Order"] } },
+        ],
+      }).catch(() => 0);
+      const assignedRep = ecommReps[ecommCount % ecommReps.length];
+      const leadNumber = `RNE-${Math.floor(10000 + Math.random() * 90000)}`;
+
+      const desc = extraNote
+        ? `${inquiryType} Enquiry — Shared Kanika & Tammana E-Commerce contacts (+91 93156 03920 / +91 96253 14298). ${extraNote}`
+        : `${inquiryType} Enquiry — Shared Kanika & Tammana E-Commerce contacts (+91 93156 03920 / +91 96253 14298) & https://rnvalves.com`;
+
+      await Lead.create({
+        leadNumber,
+        customerName: resolvedName,
+        phone: formattedPhone,
+        businessType: inquiryType,
+        department: "ECOMMERCE",
+        city: contactDoc?.city || "Online Store",
+        state: contactDoc?.state || "Pan-India E-Commerce",
+        productCategory: inquiryType === "Website Order" ? "Website Order Support" : "Online Shopping (Personal Use)",
+        productInterest: [inquiryType],
+        requirementDescription: desc,
+        leadSource: "WhatsApp_Ecommerce",
+        assignedEmployeeName: assignedRep.name,
+        repPhone: assignedRep.mobile,
+        repNotificationStatus: "DELIVERED",
+        repNotifiedAt: new Date(),
+        customerReplyStatus: "REPLIED",
+        lastReplyAt: new Date(),
+        intentTag: inquiryType === "Website Order" ? "Website Order Enquiry" : "Personal Use (Shared E-Comm Numbers)",
+        routingReason: `WhatsApp ${inquiryType} → Shared E-Commerce Dept Contacts (${assignedRep.name})`,
+        status: "NEW",
+        priority: inquiryType === "Website Order" ? "HIGH" : "MEDIUM",
+        internalNotes: [
+          `Shared E-Commerce Department numbers (Kanika: +91 93156 03920, Tammana: +91 96253 14298) via WhatsApp Bot. Assigned for follow-up to ${assignedRep.name}.`,
+          ...(extraNote ? [extraNote] : []),
+        ],
+      });
+
+      if (notifyStaff) {
+        const alertMsg =
+          `🛍️ *नया ई-कॉमर्स / Personal Use ग्राहक अलर्ट!*\n\n` +
+          `नमस्ते *${assignedRep.name}*,\n` +
+          `एक ग्राहक ने WhatsApp पर *Personal Use / Online Shopping* विकल्प चुना है और उन्हें आपका नंबर शेयर किया गया है:\n\n` +
+          `👤 *ग्राहक:* ${resolvedName}\n` +
+          `📞 *मोबाइल:* ${formattedPhone}\n` +
+          `🆔 *लीड आईडी:* ${leadNumber}\n\n` +
+          `कृपया ग्राहक से संपर्क कर ऑनलाइन शॉपिंग में सहायता करें और अपने E-Commerce Panel में स्टेटस अपडेट करें।`;
+
+        evolutionClient
+          .sendTextMessage({ number: assignedRep.alertNum, text: alertMsg })
+          .catch((e: any) => console.warn(`[FlowEngine] Ecomm rep alert notice: ${e.message}`));
+      }
+    } catch (err: any) {
+      console.warn(`[FlowEngine] upsertEcommerceLead warning: ${err.message}`);
+    }
   }
 }
