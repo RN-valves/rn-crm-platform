@@ -27,7 +27,9 @@ export default function ManageAssignmentModal({
   executives = [],
   onSuccess,
 }) {
-  const [tab, setTab] = useState("assign"); // "assign" | "unassign"
+  const [tab, setTab] = useState("assign"); // "assign" | "resolve" | "unassign"
+  const [queryType, setQueryType] = useState("QUERY_RESOLVED");
+  const [resolveNote, setResolveNote] = useState("");
   const [search, setSearch] = useState("");
   const [selectedExecName, setSelectedExecName] = useState("");
   const [notifyAgent, setNotifyAgent] = useState(true);
@@ -43,6 +45,8 @@ export default function ManageAssignmentModal({
       setSuccessInfo(null);
       setSearch("");
       setAdminNote("");
+      setResolveNote("");
+      setQueryType("QUERY_RESOLVED");
       setNotifyAgent(true);
       setNotifyCustomer(true);
       // If current agent matches one of the executives, pre-select or keep empty
@@ -138,6 +142,33 @@ export default function ManageAssignmentModal({
     }
   };
 
+  const handleConfirmResolveQuery = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await crmApi.resolveCustomerQuery({
+        phone: target?.phone,
+        name: target?.customerName,
+        action: "resolve",
+        queryType,
+        note: resolveNote.trim(),
+      });
+      setSuccessInfo(
+        queryType === "NORMAL_QUERY"
+          ? "Moved to Normal Query Chats!"
+          : "Marked as Customer Query Resolved!"
+      );
+      if (onSuccess) onSuccess();
+      setTimeout(() => {
+        onClose();
+      }, 1100);
+    } catch (err) {
+      setError(err.message || "Failed to update query status");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const isCurrentAssigned =
     target?.currentAgentName &&
     target.currentAgentName !== "Unassigned Agent" &&
@@ -186,8 +217,8 @@ export default function ManageAssignmentModal({
           </div>
         </div>
 
-        {/* Tab Selector: Assign vs Unassign */}
-        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold">
+        {/* Tab Selector: Assign vs Query Resolved / Normal vs Unassign */}
+        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold gap-1">
           <button
             onClick={() => setTab("assign")}
             className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
@@ -197,7 +228,18 @@ export default function ManageAssignmentModal({
             }`}
           >
             <UserCheck className="w-4 h-4" />
-            <span>Assign / Change Agent</span>
+            <span>Assign Agent</span>
+          </button>
+          <button
+            onClick={() => setTab("resolve")}
+            className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+              tab === "resolve"
+                ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Resolved / Normal Query</span>
           </button>
           <button
             onClick={() => setTab("unassign")}
@@ -208,7 +250,7 @@ export default function ManageAssignmentModal({
             }`}
           >
             <UserX className="w-4 h-4" />
-            <span>Unassign Agent</span>
+            <span>Unassign</span>
           </button>
         </div>
 
@@ -422,6 +464,75 @@ export default function ManageAssignmentModal({
                 icon={UserX}
               >
                 {loading ? "Unassigning..." : "Confirm Unassign Agent"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {tab === "resolve" && (
+          <div className="space-y-4 py-1 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setQueryType("QUERY_RESOLVED")}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  queryType === "QUERY_RESOLVED"
+                    ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 ring-2 ring-emerald-500/20"
+                    : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                }`}
+              >
+                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Customer Query Resolved</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Customer's question or support request is resolved (remove from Dropped at Hi).
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setQueryType("NORMAL_QUERY")}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  queryType === "NORMAL_QUERY"
+                    ? "border-[#1091d0] bg-[#DCEBFF]/60 dark:bg-rn-950/40 ring-2 ring-[#1091d0]/20"
+                    : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+                }`}
+              >
+                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <MessageSquare className="w-4 h-4 text-[#1091d0]" />
+                  <span>Normal Query Chat</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  General WhatsApp conversation / casual inquiry (not a B2B dealer lead).
+                </p>
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                Resolution / Chat Note (Optional)
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. Shared warranty details / General product inquiry resolved"
+                value={resolveNote}
+                onChange={(e) => setResolveNote(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmResolveQuery}
+                disabled={loading}
+                icon={CheckCircle2}
+              >
+                {loading ? "Saving..." : "Save to Resolved / Normal Queries"}
               </Button>
             </div>
           </div>

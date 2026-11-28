@@ -8,6 +8,7 @@ import {
   updateLeadFollowup,
   repLogin,
   getMyLeads,
+  resolveCustomerQuery,
 } from "../controllers/distributionController.js";
 import { requireAuth, requireRole } from "../middlewares/authMiddleware.js";
 
@@ -27,5 +28,6 @@ router.post("/assign-lead", requireAuth, requireRole(["ADMIN"]), assignLead);
 router.post("/resend-rep-alert", requireAuth, requireRole(["ADMIN"]), resendRepAlert);
 router.post("/reengage", requireAuth, requireRole(["ADMIN"]), reengageCustomer);
 router.post("/reengage-bulk", requireAuth, requireRole(["ADMIN"]), reengageBulkCustomers);
+router.post("/resolve-query", requireAuth, requireRole(["ADMIN"]), resolveCustomerQuery);
 
 export default router;

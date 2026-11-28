@@ -230,6 +230,8 @@ export const crmApi = {
     apiRequest("/distribution/reengage", { method: "POST", body: JSON.stringify(data) }),
   reengageBulkCustomers: (data) =>
     apiRequest("/distribution/reengage-bulk", { method: "POST", body: JSON.stringify(data) }),
+  resolveCustomerQuery: (data) =>
+    apiRequest("/distribution/resolve-query", { method: "POST", body: JSON.stringify(data) }),
   updateLeadFollowup: (data) =>
     apiRequest("/distribution/update-followup", { method: "POST", body: JSON.stringify(data) }),
 

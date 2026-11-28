@@ -235,6 +235,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
             executives: cached.executives.length,
             leads: cached.summary.totalLeads,
             ecommerce: cached.summary.totalEcommerceLeads || 0,
+            queries: cached.summary.totalResolvedQueries || 0,
             dropped: cached.summary.totalDroppedAtHi,
             human: cached.summary.totalHumanTakeovers,
           },
@@ -259,14 +260,25 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
     const ConversationControl = getConversationControlModel();
     const ConversationState = getConversationStateModel();
     const SalesExecutive = getSalesExecutiveModel();
+    const Message = getMessageModel();
 
-    // Run all 5 collection fetches concurrently (~70ms instead of ~450ms sequential)
-    const [execRaw, leadsRaw, contactsRaw, humanRaw, sessionsRaw] = await Promise.all([
+    // Run all 6 collection fetches concurrently (~75ms)
+    const [execRaw, leadsRaw, contactsRaw, humanRaw, sessionsRaw, autoQueryMsgsRaw] = await Promise.all([
       SalesExecutive.find({ isActive: true }).sort({ orderIndex: 1 }).lean().catch(() => []),
       Lead.find({}).sort({ createdAt: -1 }).lean().catch(() => []),
       Contact.find({}).sort({ lastContactedAt: -1 }).lean().catch(() => []),
       ConversationControl.find({ mode: "human" }).sort({ updatedAt: -1 }).lean().catch(() => []),
       ConversationState.find({}).lean().catch(() => []),
+      Message.find({
+        content: {
+          $regex:
+            /Official Customer Care|आधिकारिक कस्टमर केयर|Here are the verified details|verified details|Catalogue PDF|कैटलॉग पीडीएफ/i,
+        },
+      })
+        .select("phone content createdAt")
+        .sort({ createdAt: -1 })
+        .lean()
+        .catch(() => []),
     ]);
 
     const allActiveExecs: any[] =
@@ -413,6 +425,15 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         const p10 = normalizePhone(hc.phone);
         // If already assigned to an executive as a lead, remove from human takeover queue!
         if (p10 && assignedPhoneSet.has(p10)) return false;
+        // If manually marked as Query Resolved / Normal Query Chat, exclude from active takeover queue
+        const cDoc = p10 ? contactMap.get(p10) : null;
+        if (
+          cDoc &&
+          Array.isArray(cDoc.tags) &&
+          (cDoc.tags.includes("QUERY_RESOLVED") || cDoc.tags.includes("NORMAL_QUERY"))
+        ) {
+          return false;
+        }
         // If assignedAgentName is already an executive, remove from pending takeover queue!
         if (
           hc.assignedAgentName &&
@@ -446,8 +467,25 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       humanPhoneSet.add(normalizePhone(ht.phone));
     }
 
-    // 8. Abandoned / Dropped Off Inquiries at "Hi"
+    // Map auto-answered normal queries (Customer Care / HR / Catalogue / SKU details)
+    const autoQueryMap = new Map<string, { category: string; summary: string; at: Date }>();
+    for (const m of autoQueryMsgsRaw) {
+      const p10 = normalizePhone(m.phone);
+      if (!p10 || autoQueryMap.has(p10)) continue;
+      const isSupport = /Official Customer Care|आधिकारिक कस्टमर केयर/i.test(m.content || "");
+      autoQueryMap.set(p10, {
+        category: isSupport ? "CUSTOMER_CARE" : "CATALOGUE_PRICE",
+        summary: isSupport
+          ? "Shared Customer Care / Service / HR Helpline Card"
+          : "Viewed Product Catalogue PDF / Verified Item Price",
+        at: m.createdAt ? new Date(m.createdAt) : new Date(),
+      });
+    }
+
+    // 8. Abandoned / Dropped Off Inquiries at "Hi" vs Customer Queries Resolved / Normal Chats
     const droppedAtHi: any[] = [];
+    const resolvedQueries: any[] = [];
+
     for (const c of contacts) {
       const p10 = normalizePhone(c.phone);
       if (!p10) continue;
@@ -469,6 +507,66 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
           activeSession.customerType === "Personal Use" ||
           activeSession.customerType === "Website Order")
       ) {
+        continue;
+      }
+
+      const tags: string[] = Array.isArray(c.tags) ? c.tags : [];
+      const isManuallyReopened = tags.includes("REOPENED_DROPPED");
+      const isManuallyResolved = tags.includes("QUERY_RESOLVED");
+      const isManuallyNormal = tags.includes("NORMAL_QUERY");
+      const autoQuery = autoQueryMap.get(p10);
+      const isSelfServedFlow =
+        activeSession &&
+        (activeSession.state === "SALES_REP_SHOWN" || activeSession.state === "POST_CATALOGUE");
+
+      if (
+        isManuallyResolved ||
+        isManuallyNormal ||
+        (!isManuallyReopened && (autoQuery || isSelfServedFlow))
+      ) {
+        let queryCategory = "NORMAL_QUERY";
+        let queryLabel = "Normal Query Chat";
+        let resolutionNote = c.notes || "General inquiry / normal WhatsApp chat";
+
+        if (isManuallyResolved) {
+          queryCategory = "QUERY_RESOLVED";
+          queryLabel = "Customer Query Resolved";
+          resolutionNote = c.notes || "Marked as resolved by CRM team";
+        } else if (isManuallyNormal) {
+          queryCategory = "NORMAL_QUERY";
+          queryLabel = "Normal Query Chat";
+          resolutionNote = c.notes || "Marked as normal query chat";
+        } else if (autoQuery) {
+          queryCategory = autoQuery.category;
+          queryLabel =
+            autoQuery.category === "CUSTOMER_CARE"
+              ? "Support / HR Info Shared"
+              : "Catalogue / Price Checked";
+          resolutionNote = c.notes || autoQuery.summary;
+        } else if (activeSession?.state === "SALES_REP_SHOWN") {
+          queryCategory = "REP_INFO_VIEWED";
+          queryLabel = "Regional Rep Number Shared";
+          resolutionNote = c.notes || "Checked Regional Sales Manager contact via PIN code";
+        } else if (activeSession?.state === "POST_CATALOGUE") {
+          queryCategory = "CATALOGUE_PRICE";
+          queryLabel = "Catalogue / Price Checked";
+          resolutionNote = c.notes || "Downloaded Product Catalogue PDF via WhatsApp Bot";
+        }
+
+        resolvedQueries.push({
+          _id: c._id,
+          phone: c.phone,
+          name: c.name && c.name !== "WhatsApp User" ? c.name : "WhatsApp Visitor",
+          businessName: c.businessName || "",
+          city: c.city || "",
+          queryCategory,
+          queryLabel,
+          resolutionNote,
+          isManual: isManuallyResolved || isManuallyNormal,
+          totalEnquiriesCount: c.totalEnquiriesCount || 1,
+          lastContactedAt: c.lastContactedAt || c.updatedAt || c.createdAt,
+          preferredLanguage: activeSession?.language || "hi",
+        });
         continue;
       }
 
@@ -506,8 +604,11 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       });
     }
 
-    // Sort dropped by latest
+    // Sort dropped & resolved queries by latest
     droppedAtHi.sort(
+      (a, b) => new Date(b.lastContactedAt).getTime() - new Date(a.lastContactedAt).getTime()
+    );
+    resolvedQueries.sort(
       (a, b) => new Date(b.lastContactedAt).getTime() - new Date(a.lastContactedAt).getTime()
     );
 
@@ -658,6 +759,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
         totalPipelineValue,
         totalHumanTakeovers: humanTakeovers.length,
         totalDroppedAtHi: droppedAtHi.length,
+        totalResolvedQueries: resolvedQueries.length,
         totalRepDelivered,
         totalCustomerReplied: totalLeadsCount,
         leadCompletionRate:
@@ -693,6 +795,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
       })),
       humanTakeovers,
       droppedAtHi,
+      resolvedQueries,
     };
 
     distributionCache = { expiresAt: Date.now() + 5000, payload };
@@ -704,6 +807,7 @@ export async function getDistributionAnalytics(req: Request, res: Response): Pro
           executives: repDistribution.length,
           leads: totalLeadsCount,
           ecommerce: ecommerceLeads.length,
+          queries: resolvedQueries.length,
           dropped: droppedAtHi.length,
           human: humanTakeovers.length,
         },
@@ -1610,5 +1714,89 @@ export async function getMyLeads(req: Request, res: Response): Promise<void> {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to fetch sales rep leads" });
+  }
+}
+
+/**
+ * Mark an inquiry / visitor chat as "Customer Query Resolved" or "Normal Query Chat" (or reopen)
+ * POST /api/distribution/resolve-query
+ */
+export async function resolveCustomerQuery(req: Request, res: Response): Promise<void> {
+  try {
+    invalidateDistributionCache();
+    const { phone, name, action = "resolve", queryType = "QUERY_RESOLVED", note = "" } = req.body;
+    if (!phone) {
+      res.status(400).json({ error: "Customer phone number is required" });
+      return;
+    }
+
+    const p10 = normalizePhone(phone);
+    if (!p10 || p10.length !== 10) {
+      res.status(400).json({ error: "Valid 10-digit phone number is required" });
+      return;
+    }
+
+    const formattedPhone = `+91${p10}`;
+    const Contact = getContactModel();
+    const ConversationControl = getConversationControlModel();
+
+    if (action === "reopen") {
+      await Contact.updateMany(
+        { phone: { $in: [phone, formattedPhone, p10, `91${p10}`] } },
+        {
+          $pull: { tags: { $in: ["QUERY_RESOLVED", "NORMAL_QUERY"] } },
+          $addToSet: { tags: "REOPENED_DROPPED" },
+        }
+      );
+      res.status(200).json({
+        success: true,
+        message: `Moved ${formattedPhone} back to Dropped at "Hi" queue.`,
+      });
+      return;
+    }
+
+    const tagToAdd = queryType === "NORMAL_QUERY" ? "NORMAL_QUERY" : "QUERY_RESOLVED";
+    const defaultNote =
+      tagToAdd === "NORMAL_QUERY"
+        ? "Normal Query Chat — General customer chat (not a B2B dealer drop-off)"
+        : "Customer Query Resolved — Assisted & closed cleanly";
+
+    let contactDoc = await Contact.findOne({
+      phone: { $in: [phone, formattedPhone, p10, `91${p10}`] },
+    });
+
+    if (!contactDoc) {
+      contactDoc = await Contact.create({
+        phone: formattedPhone,
+        name: name || `WhatsApp Visitor (${p10.slice(-4)})`,
+        tags: [tagToAdd],
+        notes: note.trim() || defaultNote,
+        lastContactedAt: new Date(),
+      });
+    } else {
+      const nextTags = (contactDoc.tags || []).filter(
+        (t) => t !== "QUERY_RESOLVED" && t !== "NORMAL_QUERY" && t !== "REOPENED_DROPPED"
+      );
+      nextTags.push(tagToAdd);
+      contactDoc.tags = nextTags;
+      contactDoc.notes = note.trim() || defaultNote;
+      await contactDoc.save();
+    }
+
+    // Also release from pending Human Takeover queue if it was paused there
+    await ConversationControl.updateMany(
+      { phone: { $in: [phone, formattedPhone, p10, `91${p10}`] } },
+      { $set: { mode: "ai", pauseReason: "" } }
+    ).catch(() => {});
+
+    res.status(200).json({
+      success: true,
+      message:
+        tagToAdd === "NORMAL_QUERY"
+          ? `Moved ${formattedPhone} to Normal Query Chats.`
+          : `Marked ${formattedPhone} as Customer Query Resolved.`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to update query resolution status" });
   }
 }

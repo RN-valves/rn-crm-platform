@@ -45,6 +45,7 @@ function SidebarInner() {
     executives: null,
     leads: null,
     ecommerce: null,
+    queries: null,
     dropped: null,
     human: null,
   });
@@ -138,6 +139,12 @@ function SidebarInner() {
       name: "Human Takeovers",
       href: "/distribution?tab=human",
       count: distCounts.human,
+    },
+    {
+      id: "queries",
+      name: "Resolved / Normal Queries",
+      href: "/distribution?tab=queries",
+      count: distCounts.queries,
     },
     {
       id: "reports",

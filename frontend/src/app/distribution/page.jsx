@@ -47,7 +47,7 @@ import ManageAssignmentModal from "../../components/ManageAssignmentModal";
 import ReengageModal from "../../components/ReengageModal";
 import LeadFollowupModal from "../../components/LeadFollowupModal";
 
-const VALID_DIST_TABS = ["executives", "leads", "ecommerce", "dropped", "human", "reports", "rep_portal"];
+const VALID_DIST_TABS = ["executives", "leads", "ecommerce", "dropped", "human", "queries", "reports", "rep_portal"];
 
 function LeadDistributionInner() {
   const router = useRouter();
@@ -124,6 +124,12 @@ function LeadDistributionInner() {
   const [ecommPage, setEcommPage] = useState(1);
   const [ecommPageSize, setEcommPageSize] = useState(25);
 
+  // Resolved / Normal Queries Filters & Pagination
+  const [queryCatFilter, setQueryCatFilter] = useState("ALL");
+  const [queriesPage, setQueriesPage] = useState(1);
+  const [queriesPageSize, setQueriesPageSize] = useState(25);
+  const [resolvingPhone, setResolvingPhone] = useState(null);
+
   // Auto-reset page 1 when search or filters change
   useEffect(() => {
     setLeadsPage(1);
@@ -132,7 +138,8 @@ function LeadDistributionInner() {
     setReportsPage(1);
     setPortalPage(1);
     setEcommPage(1);
-  }, [searchQuery, selectedRepFilter, reportRepFilter, reportStatusFilter, reportDateRange, portalRepName, ecommRepFilter, ecommStatusFilter, ecommTypeFilter]);
+    setQueriesPage(1);
+  }, [searchQuery, selectedRepFilter, reportRepFilter, reportStatusFilter, reportDateRange, portalRepName, ecommRepFilter, ecommStatusFilter, ecommTypeFilter, queryCatFilter]);
 
   const openFollowupModal = (lead) => {
     setFollowupModalLead(lead);
@@ -180,6 +187,7 @@ function LeadDistributionInner() {
               executives: execList.length,
               leads: totalLeadsCount || res.summary?.totalLeads || 0,
               ecommerce: (res.ecommerceLeads || []).length,
+              queries: (res.resolvedQueries || []).length,
               dropped: (res.droppedAtHi || []).length,
               human: (res.humanTakeovers || []).length,
             },
@@ -243,6 +251,26 @@ function LeadDistributionInner() {
   const unassignedLeads = data?.unassignedLeads || [];
   const humanTakeovers = data?.humanTakeovers || [];
   const droppedAtHi = data?.droppedAtHi || [];
+  const resolvedQueries = data?.resolvedQueries || [];
+
+  const handleQuickResolveQuery = async (
+    phone,
+    name = "",
+    queryType = "QUERY_RESOLVED",
+    action = "resolve"
+  ) => {
+    setResolvingPhone(phone);
+    try {
+      const res = await crmApi.resolveCustomerQuery({ phone, name, queryType, action });
+      setReassignMsg(res?.message || "Query status updated!");
+      await fetchData(true);
+      setTimeout(() => setReassignMsg(""), 3500);
+    } catch (err) {
+      alert(err.message || "Failed to update query status");
+    } finally {
+      setResolvingPhone(null);
+    }
+  };
 
   // Flatten all leads for the Leads tab
   const allLeads = [
@@ -492,6 +520,11 @@ function LeadDistributionInner() {
       title: "Human Takeovers — Live Handover Queue",
       subtitle: "Conversations paused from AI mode awaiting sales executive assignment or reply",
     },
+    queries: {
+      title: "Customer Queries Resolved & Normal Query Chats",
+      subtitle:
+        "General inquiries, support/HR/catalogue queries, and resolved chats separated from Dropped at Hi",
+    },
     reports: {
       title: "Reports & Excel Analytics Center",
       subtitle: "Filter leads by executive, stage, and date range to generate Excel & PDF reports",
@@ -586,6 +619,42 @@ function LeadDistributionInner() {
       l.createdAt ? new Date(l.createdAt).toLocaleString("en-IN") : "",
     ]);
     downloadCsv(`RN_Valves_Ecommerce_Leads_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  const filteredResolvedQueries = resolvedQueries.filter((qItem) => {
+    if (queryCatFilter !== "ALL" && qItem.queryCategory !== queryCatFilter) return false;
+    if (!searchQuery.trim()) return true;
+    const s = searchQuery.toLowerCase();
+    return (
+      qItem.phone?.toLowerCase().includes(s) ||
+      qItem.name?.toLowerCase().includes(s) ||
+      qItem.queryLabel?.toLowerCase().includes(s) ||
+      qItem.resolutionNote?.toLowerCase().includes(s)
+    );
+  });
+
+  const exportQueriesExcel = () => {
+    if (!filteredResolvedQueries.length) {
+      alert("No resolved / normal queries to export.");
+      return;
+    }
+    const headers = [
+      "Customer Name",
+      "Phone",
+      "Query Type",
+      "Resolution / Chat Summary",
+      "Interactions",
+      "Last Active",
+    ];
+    const rows = filteredResolvedQueries.map((q) => [
+      q.name || "",
+      q.phone || "",
+      q.queryLabel || "",
+      q.resolutionNote || "",
+      q.totalEnquiriesCount || 1,
+      q.lastContactedAt ? new Date(q.lastContactedAt).toLocaleString("en-IN") : "",
+    ]);
+    downloadCsv(`RN_Valves_Resolved_Normal_Queries_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
   return (
@@ -771,6 +840,7 @@ function LeadDistributionInner() {
               { id: "ecommerce", label: "E-Commerce Panel", count: ecommerceLeads.length, icon: ShoppingBag },
               { id: "dropped", label: 'Dropped at "Hi"', count: droppedAtHi.length, icon: PhoneMissed },
               { id: "human", label: "Human Takeovers", count: humanTakeovers.length, icon: Bot },
+              { id: "queries", label: "Resolved / Normal Queries", count: resolvedQueries.length, icon: CheckCircle2 },
               { id: "reports", label: "Reports & Excel", count: allLeads.length, icon: FileSpreadsheet },
               { id: "rep_portal", label: "Sales Rep Portal", count: null, icon: UserCheck },
             ].map((tabItem) => {
@@ -1488,6 +1558,18 @@ function LeadDistributionInner() {
                                 <Send className="w-3.5 h-3.5" />
                                 <span>Greet & Ask PIN</span>
                               </button>
+                              <button
+                                type="button"
+                                disabled={resolvingPhone === d.phone}
+                                onClick={() =>
+                                  handleQuickResolveQuery(d.phone, d.name, "QUERY_RESOLVED", "resolve")
+                                }
+                                className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-slate-700 dark:text-slate-300 hover:text-emerald-700 border border-slate-200 dark:border-slate-700 font-semibold rounded-xl text-xs inline-flex items-center gap-1 transition-colors"
+                                title="Move to Resolved / Normal Queries"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Resolved</span>
+                              </button>
                               <Link
                                 href={`/inbox?phone=${encodeURIComponent(d.phone || "")}`}
                                 className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition-colors"
@@ -1633,6 +1715,23 @@ function LeadDistributionInner() {
                                 <UserCog className="w-3.5 h-3.5" />
                                 <span>Manage</span>
                               </button>
+                              <button
+                                type="button"
+                                disabled={resolvingPhone === h.phone}
+                                onClick={() =>
+                                  handleQuickResolveQuery(
+                                    h.phone,
+                                    h.customerName,
+                                    "QUERY_RESOLVED",
+                                    "resolve"
+                                  )
+                                }
+                                className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold rounded-xl text-xs inline-flex items-center gap-1 transition-colors"
+                                title="Mark Customer Query Resolved"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Resolved</span>
+                              </button>
                               <Link
                                 href={`/inbox?phone=${encodeURIComponent(h.phone || "")}`}
                                 className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-purple-50 dark:hover:bg-purple-950 text-slate-700 dark:text-slate-200 hover:text-purple-600 font-bold rounded-xl text-xs inline-flex items-center gap-1 transition-colors"
@@ -1659,6 +1758,235 @@ function LeadDistributionInner() {
                 onPageSizeChange={(sz) => {
                   setHumanPageSize(sz);
                   setHumanPage(1);
+                }}
+              />
+            </Card>
+          </div>
+        )}
+
+        {/* TAB 4b: CUSTOMER QUERIES RESOLVED & NORMAL QUERY CHATS */}
+        {activeTab === "queries" && (
+          <div className="space-y-4">
+            {/* Summary Strip */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+              <Card hover className="cursor-pointer" onClick={() => setQueryCatFilter("ALL")}>
+                <CardContent className="p-4">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                    Total Resolved / Normal
+                  </span>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-1.5">
+                    {resolvedQueries.length}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Excluded from Dropped at "Hi"
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card hover className="cursor-pointer" onClick={() => setQueryCatFilter("QUERY_RESOLVED")}>
+                <CardContent className="p-4">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">
+                    Queries Resolved
+                  </span>
+                  <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1.5">
+                    {resolvedQueries.filter((q) => q.queryCategory === "QUERY_RESOLVED").length}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Closed by CRM team</p>
+                </CardContent>
+              </Card>
+
+              <Card hover className="cursor-pointer" onClick={() => setQueryCatFilter("CUSTOMER_CARE")}>
+                <CardContent className="p-4">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#1091d0] block">
+                    Support / HR Queries
+                  </span>
+                  <p className="text-2xl font-black text-[#1091d0] dark:text-rn-400 mt-1.5">
+                    {resolvedQueries.filter((q) => q.queryCategory === "CUSTOMER_CARE").length}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Care / Service / HR shared</p>
+                </CardContent>
+              </Card>
+
+              <Card hover className="cursor-pointer" onClick={() => setQueryCatFilter("CATALOGUE_PRICE")}>
+                <CardContent className="p-4">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 block">
+                    Catalogue / Price Chat
+                  </span>
+                  <p className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1.5">
+                    {
+                      resolvedQueries.filter(
+                        (q) =>
+                          q.queryCategory === "CATALOGUE_PRICE" ||
+                          q.queryCategory === "REP_INFO_VIEWED" ||
+                          q.queryCategory === "NORMAL_QUERY"
+                      ).length
+                    }
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Normal product / info chats</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="overflow-hidden">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { id: "ALL", label: `All (${resolvedQueries.length})` },
+                    { id: "QUERY_RESOLVED", label: "Customer Query Resolved" },
+                    { id: "NORMAL_QUERY", label: "Normal Query Chat" },
+                    { id: "CUSTOMER_CARE", label: "Support / HR Shared" },
+                    { id: "CATALOGUE_PRICE", label: "Catalogue / Price Checked" },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setQueryCatFilter(f.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs transition-all ${
+                        queryCatFilter === f.id
+                          ? "bg-[#DCEBFF] dark:bg-rn-900/60 text-slate-900 dark:text-white font-semibold"
+                          : "bg-slate-100/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  icon={FileSpreadsheet}
+                  onClick={exportQueriesExcel}
+                >
+                  Export Excel ({filteredResolvedQueries.length})
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/90 dark:bg-slate-800/60 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
+                      <th className="py-3 px-4">Phone Number</th>
+                      <th className="py-3 px-4">Customer Name</th>
+                      <th className="py-3 px-4">Query Category</th>
+                      <th className="py-3 px-4">Resolution / Chat Summary</th>
+                      <th className="py-3 px-4">Interactions</th>
+                      <th className="py-3 px-4">Last Active</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                    {filteredResolvedQueries.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          No resolved or normal query chats match your filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredResolvedQueries
+                        .slice((queriesPage - 1) * queriesPageSize, queriesPage * queriesPageSize)
+                        .map((q) => {
+                          const catBadge =
+                            q.queryCategory === "QUERY_RESOLVED"
+                              ? "success"
+                              : q.queryCategory === "CUSTOMER_CARE"
+                              ? "info"
+                              : q.queryCategory === "CATALOGUE_PRICE"
+                              ? "purple"
+                              : "neutral";
+
+                          return (
+                            <tr
+                              key={q._id || q.phone}
+                              className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                            >
+                              <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                                {q.phone}
+                              </td>
+                              <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-200">
+                                {q.name}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <Badge variant={catBadge} size="sm">
+                                  {q.queryLabel}
+                                </Badge>
+                              </td>
+                              <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400 max-w-xs">
+                                <p className="line-clamp-2 text-[11px]">{q.resolutionNote}</p>
+                              </td>
+                              <td className="py-3.5 px-4 font-semibold text-slate-700 dark:text-slate-300">
+                                {q.totalEnquiriesCount || 1} msgs
+                              </td>
+                              <td className="py-3.5 px-4 text-slate-500">
+                                {q.lastContactedAt
+                                  ? new Date(q.lastContactedAt).toLocaleString("en-IN", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : ""}
+                              </td>
+                              <td className="py-3.5 px-4 text-right">
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openManageModal({
+                                        phone: q.phone,
+                                        customerName: q.name,
+                                        currentAgentName: "Unassigned Agent",
+                                        city: q.city || "",
+                                        businessName: q.businessName || "",
+                                        reason: q.queryLabel,
+                                      })
+                                    }
+                                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-[#DCEBFF] text-slate-700 dark:text-slate-200 font-semibold text-[11px] transition-colors"
+                                  >
+                                    Manage
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={resolvingPhone === q.phone}
+                                    onClick={() =>
+                                      handleQuickResolveQuery(
+                                        q.phone,
+                                        q.name,
+                                        "QUERY_RESOLVED",
+                                        "reopen"
+                                      )
+                                    }
+                                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-amber-600 text-[11px] font-medium transition-colors"
+                                    title="Move back to Dropped at Hi"
+                                  >
+                                    Reopen
+                                  </button>
+                                  <Link
+                                    href={`/inbox?phone=${encodeURIComponent(q.phone || "")}`}
+                                    className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                    title="View WhatsApp Chat"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                  </Link>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <Pagination
+                totalItems={filteredResolvedQueries.length}
+                currentPage={queriesPage}
+                pageSize={queriesPageSize}
+                pageSizeOptions={[10, 25, 50, 100]}
+                onPageChange={(p) => setQueriesPage(p)}
+                onPageSizeChange={(sz) => {
+                  setQueriesPageSize(sz);
+                  setQueriesPage(1);
                 }}
               />
             </Card>
