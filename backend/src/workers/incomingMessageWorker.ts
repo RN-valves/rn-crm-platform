@@ -181,9 +181,13 @@ export function setupIncomingMessageWorker(): Worker {
       // Check on-the-fly Mute & Resume Commands
       const cleanLower = textContent.trim().toLowerCase();
       const isMuteCommand = ["#mute", "#stop", "#aioff", "#ai off", "#staff"].includes(cleanLower);
-      const isUnmuteCommand =
-        ["#unmute", "#aion", "#ai on", "menu", "start", "#bot", "restart", "hi", "hello", "heloo", "hii", "namaste", "reset", "#reset"].includes(cleanLower) &&
-        !isInternalStaff;
+      const isGreetingOrMenu =
+        /^(hi+|hello+|helo+|hlo+|hey+|namaste|namaskar|pranam|good\s*(morning|afternoon|evening)|menu|main\s*menu|start|restart|reset)(?:\s+(?:sir|ji|mam|ma'am|team|bhai))?[\s!.,?]*$/i.test(
+          textContent.trim()
+        ) ||
+        /\b(visitor from your website|from your website|chat with you|website visitor)\b/i.test(textContent);
+      const isExplicitBotResume = /^#(unmute|aion|ai\s*on|bot|reset|restart)$/i.test(textContent.trim());
+      const isUnmuteCommand = isExplicitBotResume || (isGreetingOrMenu && !isInternalStaff);
 
       let mode: "ai" | "human" = isInternalStaff ? "human" : "ai";
       try {

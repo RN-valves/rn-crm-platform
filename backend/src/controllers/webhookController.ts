@@ -96,7 +96,8 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
   }
 
   if (!textContent.trim()) {
-    textContent = "👋 [Incoming WhatsApp Message]";
+    // Ignore protocol / receipt / reaction / empty non-message events
+    return;
   }
 
   console.log(`📨 [Direct Pipeline] Received from ${normalizedPhone} (${pushName}): "${textContent}"`);
@@ -166,31 +167,26 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
   const isWebsiteGreeting =
     /\b(visitor from your website|from your website|chat with you|website visitor)\b/i.test(textContent);
   const isMuteCommand = ["#mute", "#stop", "#aioff", "#ai off", "#staff"].includes(cleanLower);
+  const isGreetingOrMenu =
+    /^(hi+|hello+|helo+|hlo+|hey+|namaste|namaskar|pranam|good\s*(morning|afternoon|evening)|menu|main\s*menu|start|restart|reset)(?:\s+(?:sir|ji|mam|ma'am|team|bhai))?[\s!.,?]*$/i.test(
+      textContent.trim()
+    );
+  const isExplicitBotResume = /^#(unmute|aion|ai\s*on|bot|reset|restart)$/i.test(textContent.trim());
   const isUnmuteCommand =
-    (
-      [
-        "#unmute",
-        "#aion",
-        "#ai on",
-        "menu",
-        "start",
-        "#bot",
-        "restart",
-        "hi",
-        "hello",
-        "heloo",
-        "hii",
-        "namaste",
-        "reset",
-        "#reset",
-      ].includes(cleanLower) ||
-      isWebsiteGreeting
-    ) && !isInternalStaff;
+    isExplicitBotResume || ((isGreetingOrMenu || isWebsiteGreeting) && !isInternalStaff);
 
   let isHumanMode = false;
   try {
     const ConversationControl = getConversationControlModel();
     let control = await ConversationControl.findOne({ phone: normalizedPhone });
+    const prevMsgAt = control?.lastCustomerMessageAt ? new Date(control.lastCustomerMessageAt).getTime() : 0;
+    const isReturningAfter12h =
+      !isInternalStaff &&
+      control?.mode === "human" &&
+      control?.pauseReason !== "Manually muted via #mute command" &&
+      prevMsgAt > 0 &&
+      Date.now() - prevMsgAt > 12 * 60 * 60 * 1000;
+
     if (!control) {
       control = await ConversationControl.create({
         phone: normalizedPhone,
@@ -203,7 +199,7 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
       if (isMuteCommand) {
         control.mode = "human";
         control.pauseReason = "Manually muted via #mute command";
-      } else if (isUnmuteCommand) {
+      } else if (isUnmuteCommand || isReturningAfter12h) {
         control.mode = "ai";
         control.pauseReason = "";
       } else if (isInternalStaff) {
@@ -211,12 +207,12 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
       }
       await control.save();
     }
-    isHumanMode = control.mode === "human" && !isUnmuteCommand;
+    isHumanMode = control.mode === "human" && !isUnmuteCommand && !isReturningAfter12h;
   } catch (ctrlErr: any) {
     console.warn(`[Direct Pipeline] Control DB notice: ${ctrlErr.message}`);
   }
 
-  if (isHumanMode || isInternalStaff) {
+  if (isHumanMode || (isInternalStaff && !isExplicitBotResume)) {
     console.log(`🛑 [Direct Pipeline] Conversation for ${normalizedPhone} is in HUMAN MODE or STAFF. Bot will NOT reply.`);
     return;
   }
@@ -289,7 +285,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response): Promi
   try {
     const payload = req.body;
     const rawEvent = String(payload.event || "").toLowerCase().replace(/_/g, ".");
-    const isUpsert = rawEvent === "messages.upsert" || rawEvent === "messages.update";
+    const isUpsert = rawEvent === "messages.upsert";
 
     if (!isUpsert || !payload.data) {
       return;
@@ -297,7 +293,7 @@ export async function handleEvolutionWebhook(req: Request, res: Response): Promi
 
     const messageData = Array.isArray(payload.data) ? payload.data[0] : payload.data;
     const key = messageData?.key;
-    if (!key) return;
+    if (!key || !messageData?.message) return;
 
     const messageId = key.id;
     const rawJid = key.remoteJid || "";

@@ -151,23 +151,28 @@ export class FlowEngine {
     // 2. Fetch or initialize conversation state
     const ConversationState = getConversationStateModel();
     let stateDoc = await ConversationState.findOne({ phone });
-
-    if (!stateDoc) {
-      stateDoc = new ConversationState({
-        phone,
-        state: "LANGUAGE_SELECTION",
-        language: "en",
-        formData: {},
-        lastMessageTimestamp: Date.now(),
-      });
-    }
-
-    // 3. Inactivity Auto-Reset (if user returns after 2+ hours, start fresh)
     const now = Date.now();
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-    if (stateDoc.lastMessageTimestamp && (now - stateDoc.lastMessageTimestamp > TWO_HOURS_MS) && stateDoc.state !== "LANGUAGE_SELECTION") {
-      console.log(`⏱️ [FlowEngine] Session for ${phone} expired after 2h idle. Resetting to LANGUAGE_SELECTION.`);
-      stateDoc.state = "LANGUAGE_SELECTION";
+
+    let isFreshOrExpiredSession = false;
+
+    if (!stateDoc) {
+      isFreshOrExpiredSession = true;
+      stateDoc = new ConversationState({
+        phone,
+        state: "START",
+        language: "en",
+        formData: {},
+        lastMessageTimestamp: now,
+      });
+    } else if (
+      stateDoc.lastMessageTimestamp &&
+      now - stateDoc.lastMessageTimestamp > TWO_HOURS_MS &&
+      stateDoc.state !== "RE_ENGAGE_AWAITING_PIN_NAME"
+    ) {
+      console.log(`⏱️ [FlowEngine] Session for ${phone} expired after 2h idle. Resetting to START.`);
+      isFreshOrExpiredSession = true;
+      stateDoc.state = "START";
       stateDoc.formData = {};
     }
 
@@ -185,6 +190,21 @@ export class FlowEngine {
     }
 
     stateDoc.lastMessageTimestamp = now;
+
+    // 3c. First-Time or Expired Session Entry: ALWAYS greet & ask to Choose Language first
+    // (whether the user texts "Hi", "1", a question, or anything else!)
+    const isExplicitResetCmd = /^#(reset|restart|clear|fresh|clean)$/i.test(cleanText);
+    const isWebsiteGreeting = /\b(visitor from your website|from your website|chat with you|website visitor)\b/i.test(cleanText);
+
+    if ((isFreshOrExpiredSession || stateDoc.state === "START") && !isExplicitResetCmd) {
+      stateDoc.state = "LANGUAGE_SELECTION";
+      stateDoc.language = "en";
+      stateDoc.formData = {};
+      await stateDoc.save();
+
+      const welcomeNote = isWebsiteGreeting ? "Thank you for visiting our website (rnvalves.com)." : "";
+      return this.renderLanguageSelection("", welcomeNote);
+    }
 
     // 4. Voice Note & Image Handlers (Never leave multimedia unhandled)
     if (cleanText === "[Voice Note]") {
@@ -224,20 +244,19 @@ export class FlowEngine {
       return this.renderCustomerCareCard(stateDoc.language);
     }
 
-    // 4c. Global Shortcuts (Hi / Reset, Main Menu, Change Language, Back)
+    // 4d. Global Shortcuts (Hi / Reset, Main Menu, Change Language, Back)
     const has6DigitPin = /\b([1-9][0-9]{5})\b/.test(cleanText);
     const isExplicitReset = /^#(reset|restart|clear|fresh|clean)$/i.test(cleanText);
-    const isWebsiteGreeting = /\b(visitor from your website|from your website|chat with you|website visitor)\b/i.test(cleanText);
+    const isStandaloneGreeting =
+      /^(hi+|hello+|helo+|hlo+|hey+|namaste|namaskar|pranam|salam|sat\s*sri\s*akal|good\s*(morning|afternoon|evening)|start|restart|reset)(?:\s+(?:sir|ji|mam|ma'am|team|bhai))?[\s!.,?]*$/i.test(
+        cleanText
+      );
     const isGreetingReset =
       !has6DigitPin &&
       stateDoc.state !== "RE_ENGAGE_AWAITING_PIN_NAME" &&
-      (
-        isWebsiteGreeting ||
-        (/\b(hi|hello|hey|namaste|namaskar|pranam|start|restart|reset|hlo|hii|helo)\b/i.test(cleanText) &&
-         (cleanText.split(/\s+/).length <= 10 || isWebsiteGreeting))
-      );
+      (isWebsiteGreeting || isStandaloneGreeting);
 
-    if (isExplicitReset || (isGreetingReset && stateDoc.state !== "LANGUAGE_SELECTION") || (isWebsiteGreeting && stateDoc.state === "LANGUAGE_SELECTION")) {
+    if (isExplicitReset || isGreetingReset) {
       stateDoc.state = "LANGUAGE_SELECTION";
       stateDoc.formData = {};
       stateDoc.language = "en";
@@ -253,12 +272,9 @@ export class FlowEngine {
         );
       } catch {}
 
-      const welcomePrefix = isWebsiteGreeting
-        ? "Namaste! 🙏✨ Welcome to *RN Valves & Faucets*.\nThank you for visiting our website (rnvalves.com)."
-        : isExplicitReset
-        ? "🔄 *Testing Session Reset Successful!*"
-        : "";
-      return this.renderLanguageSelection(welcomePrefix);
+      const prefix = isExplicitReset ? "🔄 *Session Reset Successful!*" : "";
+      const welcomeNote = isWebsiteGreeting ? "Thank you for visiting our website (rnvalves.com)." : "";
+      return this.renderLanguageSelection(prefix, welcomeNote);
     }
 
     if (lower === "main menu" || lower === "menu" || (lower === "home" && stateDoc.state !== "REQUIREMENT_TYPE")) {
@@ -472,13 +488,12 @@ export class FlowEngine {
       // ----------------------------------------------------
       // STATE 1: LANGUAGE SELECTION
       // ----------------------------------------------------
-      case "START":
+      case "START": {
+        session.state = "LANGUAGE_SELECTION";
+        session.language = "en";
+        return this.renderLanguageSelection();
+      }
       case "LANGUAGE_SELECTION": {
-        // If customer directly provided a 6-digit PIN code in initial greeting
-        if (/\b([1-9][0-9]{5})\b/.test(text)) {
-          return await this.handleReEngageReply(session, text, customerName);
-        }
-
         const langMap: Record<string, "en" | "hi" | "te" | "ta" | "pa" | "ur"> = {
           "1": "en",
           english: "en",
@@ -487,27 +502,41 @@ export class FlowEngine {
           "हिंदी": "hi",
           "3": "te",
           telugu: "te",
+          "తెలుగు": "te",
           "4": "ta",
           tamil: "ta",
+          "தமிழ்": "ta",
           "5": "pa",
           punjabi: "pa",
+          "ਪੰਜਾਬੀ": "pa",
           "6": "ur",
           urdu: "ur",
+          "اردو": "ur",
         };
 
-        const chosenLang = langMap[cleanChoice] || langMap[leadingDigit || ""] || (/2|hindi/i.test(norm) ? "hi" : /1|english/i.test(norm) ? "en" : null);
+        const chosenLang =
+          langMap[cleanChoice] ||
+          langMap[leadingDigit || ""] ||
+          (/2|hindi|हिंदी/i.test(norm)
+            ? "hi"
+            : /1|english/i.test(norm)
+            ? "en"
+            : /3|telugu|తెలుగు/i.test(norm)
+            ? "te"
+            : /4|tamil|தமிழ்/i.test(norm)
+            ? "ta"
+            : /5|punjabi|ਪੰਜਾਬੀ/i.test(norm)
+            ? "pa"
+            : /6|urdu|اردو/i.test(norm)
+            ? "ur"
+            : null);
 
         if (!chosenLang) {
-          // If customer explicitly asks for human agent or complaint, offer care/takeover
-          if (/\b(agent|human|talk|call|insaan|help)\b/i.test(norm)) {
-            session.state = "HUMAN_TAKEOVER_PROMPT";
-            return this.renderHumanTakeoverPrompt(session.language);
-          }
           const isWebsite = /\b(visitor from your website|from your website|chat with you|website visitor)\b/i.test(text);
-          const promptPrefix = isWebsite
-            ? "Namaste! 🙏✨ Welcome to *RN Valves & Faucets*.\nThank you for visiting our website.\n\nPlease select your preferred language:"
-            : "Please select a valid language option (1-6):";
-          return this.renderLanguageSelection(promptPrefix);
+          if (isWebsite) {
+            return this.renderLanguageSelection("", "Thank you for visiting our website (rnvalves.com).");
+          }
+          return this.renderLanguageSelection("⚠️ Please reply with *1* to *6* to select your preferred language:");
         }
 
         session.language = chosenLang;
@@ -1672,19 +1701,19 @@ export class FlowEngine {
     return { replyText: msg };
   }
 
-  private static renderLanguageSelection(prefixMsg: string = ""): FlowResponse {
+  private static renderLanguageSelection(prefixMsg: string = "", subHeaderNote: string = ""): FlowResponse {
     let msg = "";
     if (prefixMsg) msg += `${prefixMsg}\n\n`;
-    msg += `Welcome to *RN Valves & Faucets*! 🙏✨\n`;
-    msg += `Please select your preferred language:\n\n`;
-    msg += `--- Languages ---\n`;
+    msg += `Namaste! 🙏✨ Welcome to *RN Valves & Faucets*.\n`;
+    if (subHeaderNote) msg += `${subHeaderNote}\n`;
+    msg += `Please select your preferred language / अपनी भाषा चुनें:\n\n`;
     msg += `1. English\n`;
     msg += `2. Hindi / हिंदी\n`;
     msg += `3. Telugu / తెలుగు\n`;
     msg += `4. Tamil / தமிழ்\n`;
     msg += `5. Punjabi / ਪੰਜਾਬੀ\n`;
     msg += `6. Urdu / اردو\n\n`;
-    msg += `(Reply with *1*, *2*, or your language name)`;
+    msg += `(Reply with *1* to *6* or your language name)`;
 
     return { replyText: msg };
   }

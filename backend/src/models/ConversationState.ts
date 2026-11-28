@@ -48,7 +48,7 @@ export interface IConversationState extends Document {
 const ConversationStateSchema = new Schema<IConversationState>(
   {
     phone: { type: String, required: true, unique: true, index: true },
-    state: { type: String, required: true, default: "LANGUAGE_SELECTION" },
+    state: { type: String, required: true, default: "START" },
     language: { type: String, default: "en" },
     customerType: { type: String },
     formData: {
