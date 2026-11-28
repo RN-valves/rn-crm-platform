@@ -133,8 +133,13 @@ export class FlowEngine {
   /**
    * Main entry point for customer WhatsApp messages
    */
-  static async processMessage(phone: string, text: string, customerName?: string): Promise<FlowResponse> {
-    const cleanText = text.trim();
+  static async processMessage(
+    phone: string,
+    text: string,
+    customerName?: string,
+    options?: { hasPreviousChatRecord?: boolean }
+  ): Promise<FlowResponse> {
+    const cleanText = (text || "").trim();
     const lower = cleanText.toLowerCase();
 
     // 0. Corporate & Enterprise Bot Filter (Jio, SBI, Banks, RBI, OTPs)
@@ -148,9 +153,31 @@ export class FlowEngine {
       return { replyText: "", ignoreMessage: true };
     }
 
-    // 2. Fetch or initialize conversation state
+    // 2. Normalize phone variants & check previous chat record in Message DB
+    const cleanDigits = (phone || "").replace(/\D/g, "");
+    const p10 = cleanDigits.slice(-10);
+    const formattedPhone = p10.length === 10 ? `+91${p10}` : phone;
+    const phoneVariants = Array.from(
+      new Set([phone, formattedPhone, cleanDigits, p10, p10 ? `91${p10}` : ""].filter(Boolean))
+    );
+
+    let hasPreviousChatRecord = options?.hasPreviousChatRecord;
+    if (hasPreviousChatRecord === undefined) {
+      try {
+        const Message = getMessageModel();
+        const priorBotOrAgentMsg = await Message.exists({
+          phone: { $in: phoneVariants },
+          sender: { $in: ["bot", "agent"] },
+        });
+        hasPreviousChatRecord = Boolean(priorBotOrAgentMsg);
+      } catch {
+        hasPreviousChatRecord = false;
+      }
+    }
+
+    // 2b. Fetch or initialize conversation state across all phone variants
     const ConversationState = getConversationStateModel();
-    let stateDoc = await ConversationState.findOne({ phone });
+    let stateDoc = await ConversationState.findOne({ phone: { $in: phoneVariants } });
     const now = Date.now();
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
@@ -159,7 +186,7 @@ export class FlowEngine {
     if (!stateDoc) {
       isFreshOrExpiredSession = true;
       stateDoc = new ConversationState({
-        phone,
+        phone: formattedPhone,
         state: "START",
         language: "en",
         formData: {},
@@ -191,12 +218,16 @@ export class FlowEngine {
 
     stateDoc.lastMessageTimestamp = now;
 
-    // 3c. First-Time or Expired Session Entry: ALWAYS greet & ask to Choose Language first
-    // (whether the user texts "Hi", "1", a question, or anything else!)
+    // 3c. No Previous Chat Record OR Fresh/Expired Session:
+    // ALWAYS send proper Welcome Greeting + Choose Language (1–6), even if user typed "..", ",", or anything!
     const isExplicitResetCmd = /^#(reset|restart|clear|fresh|clean)$/i.test(cleanText);
     const isWebsiteGreeting = /\b(visitor from your website|from your website|chat with you|website visitor)\b/i.test(cleanText);
 
-    if ((isFreshOrExpiredSession || stateDoc.state === "START") && !isExplicitResetCmd) {
+    if (
+      (!hasPreviousChatRecord || isFreshOrExpiredSession || stateDoc.state === "START") &&
+      !isExplicitResetCmd &&
+      stateDoc.state !== "RE_ENGAGE_AWAITING_PIN_NAME"
+    ) {
       stateDoc.state = "LANGUAGE_SELECTION";
       stateDoc.language = "en";
       stateDoc.formData = {};

@@ -126,9 +126,19 @@ export function setupIncomingMessageWorker(): Worker {
         console.warn(`[Incoming Worker] CRM Contact DB sync skipped: ${err.message}`);
       }
 
-      // 1b. Save Incoming Message into MongoDB
+      // 1b. Check previous chat record BEFORE saving incoming message, then save incoming message
+      const p10 = normalizedPhone.replace(/\D/g, "").slice(-10);
+      const phoneVariants = Array.from(
+        new Set([normalizedPhone, p10, `+91${p10}`, `91${p10}`].filter(Boolean))
+      );
+      let hasPreviousChatRecord = false;
       try {
         const Message = getMessageModel();
+        const priorReply = await Message.exists({
+          phone: { $in: phoneVariants },
+          sender: { $in: ["bot", "agent"] },
+        });
+        hasPreviousChatRecord = Boolean(priorReply);
         await Message.create({
           phone: normalizedPhone,
           sender: "customer",
@@ -210,6 +220,9 @@ export function setupIncomingMessageWorker(): Worker {
           if (isMuteCommand) {
             control.mode = "human";
             control.pauseReason = "Manually muted via #mute command";
+          } else if (!hasPreviousChatRecord && !isInternalStaff) {
+            control.mode = "ai";
+            control.pauseReason = "";
           } else if (isUnmuteCommand) {
             control.mode = "ai";
             control.pauseReason = "";

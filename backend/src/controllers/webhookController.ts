@@ -95,9 +95,19 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
     textContent = "[Sticker]";
   }
 
-  if (!textContent.trim()) {
-    // Ignore protocol / receipt / reaction / empty non-message events
+  const isSystemNonChatEvent = Boolean(
+    innerMsg?.protocolMessage ||
+      innerMsg?.reactionMessage ||
+      innerMsg?.senderKeyDistributionMessage ||
+      innerMsg?.keepInChatMessage ||
+      innerMsg?.pollUpdateMessage
+  );
+  if (isSystemNonChatEvent) {
     return;
+  }
+
+  if (!textContent.trim()) {
+    textContent = "[Message]";
   }
 
   console.log(`📨 [Direct Pipeline] Received from ${normalizedPhone} (${pushName}): "${textContent}"`);
@@ -106,6 +116,23 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
   if (isCorporateBot(normalizedPhone, textContent)) {
     console.log(`🤖 [Bot Filter] Blocked corporate bot / service message from ${normalizedPhone}. No auto-reply sent.`);
     return;
+  }
+
+  // 2c. Check previous chat record with this phone number BEFORE saving incoming message
+  const p10 = rawNumber.slice(-10);
+  const phoneVariants = Array.from(
+    new Set([normalizedPhone, rawNumber, p10, `+91${p10}`, `91${p10}`].filter(Boolean))
+  );
+  let hasPreviousChatRecord = false;
+  try {
+    const Message = getMessageModel();
+    const priorBotOrAgentMsg = await Message.exists({
+      phone: { $in: phoneVariants },
+      sender: { $in: ["bot", "agent"] },
+    });
+    hasPreviousChatRecord = Boolean(priorBotOrAgentMsg);
+  } catch (histErr: any) {
+    console.warn(`[Direct Pipeline] Prior chat check notice: ${histErr.message}`);
   }
 
   // 3. Save incoming customer message to CRM DB
@@ -199,6 +226,9 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
       if (isMuteCommand) {
         control.mode = "human";
         control.pauseReason = "Manually muted via #mute command";
+      } else if (!hasPreviousChatRecord && !isInternalStaff) {
+        control.mode = "ai";
+        control.pauseReason = "";
       } else if (isUnmuteCommand || isReturningAfter12h) {
         control.mode = "ai";
         control.pauseReason = "";
@@ -207,7 +237,11 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
       }
       await control.save();
     }
-    isHumanMode = control.mode === "human" && !isUnmuteCommand && !isReturningAfter12h;
+    isHumanMode =
+      control.mode === "human" &&
+      !isUnmuteCommand &&
+      !isReturningAfter12h &&
+      (hasPreviousChatRecord || isInternalStaff);
   } catch (ctrlErr: any) {
     console.warn(`[Direct Pipeline] Control DB notice: ${ctrlErr.message}`);
   }
@@ -217,9 +251,13 @@ async function processMessageDirectly(messageData: any, remoteJid: string, pushN
     return;
   }
 
-  // 6. Execute Flow Engine to determine intelligent reply
-  console.log(`🤖 [Direct Pipeline] Generating FlowEngine response for ${normalizedPhone}...`);
-  const flowResponse = await FlowEngine.processMessage(normalizedPhone, textContent, pushName);
+  // 6. Execute Flow Engine to determine intelligent reply (pass prior chat record status)
+  console.log(
+    `🤖 [Direct Pipeline] Generating FlowEngine response for ${normalizedPhone} (hasPreviousChatRecord=${hasPreviousChatRecord})...`
+  );
+  const flowResponse = await FlowEngine.processMessage(normalizedPhone, textContent, pushName, {
+    hasPreviousChatRecord,
+  });
 
   if (flowResponse.ignoreMessage || (!flowResponse.replyText && !flowResponse.mediaUrl)) {
     console.log(`🔇 [Direct Pipeline] FlowEngine opted to ignore message for ${normalizedPhone}.`);
